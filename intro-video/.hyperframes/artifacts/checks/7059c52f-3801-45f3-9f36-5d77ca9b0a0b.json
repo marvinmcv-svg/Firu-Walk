@@ -1,0 +1,367 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 2,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "gsap_repeated_fromto_without_baseline",
+        "severity": "warning",
+        "message": "3 tl.fromTo() calls target \"#fw-sheen\" with no stable baseline. The last-authored fromTo \"from\" values become the element's resting state for any seek before the first tween actually runs, because GSAP applies fromTo from-values at authoring time (immediateRender), not at tween position.",
+        "selector": "#fw-sheen",
+        "dataAttributes": {},
+        "sourceFile": "/home/z/my-project/intro-video/compositions/intro.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add `immediateRender: false` to every fromTo except the earliest-positioned one (at 0.92s), so pre-first-tween seeks keep its \"from\" values. A hiding `tl.set(..., 0)` baseline trips gsap_timeline_set_initial_hide, and a `gsap.set` authored before the fromTo calls is overwritten by them."
+      },
+      {
+        "code": "timeline_track_too_dense",
+        "severity": "warning",
+        "message": "Track 2 has 4 timed elements in this HTML file. Smaller sub-compositions keep timelines easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "/home/z/my-project/intro-video/compositions/intro.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move coherent scene groups into smaller .html files and mount them from the parent with data-composition-src so the timeline stays easier to inspect, revise, and validate."
+      }
+    ],
+    "filesScanned": 2
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 4,
+    "findings": [
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 0.933,
+        "selector": "#fw-sheen",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 456.12,
+          "top": 177.44,
+          "right": 818.9,
+          "bottom": 615.65,
+          "width": 362.78,
+          "height": 438.21
+        },
+        "containerSelector": "#fw-card",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 803.5,
+          "top": 240.04,
+          "right": 1116.5,
+          "bottom": 553.05,
+          "width": 313,
+          "height": 313.01
+        },
+        "overflow": {
+          "left": 347.38,
+          "top": 62.6,
+          "bottom": 62.6
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/intro.html",
+        "bbox": {
+          "x": 456.12,
+          "y": 177.44,
+          "width": 362.78,
+          "height": 438.21
+        },
+        "firstSeen": 0.933,
+        "lastSeen": 1.2,
+        "occurrences": 2,
+        "heldMs": 266.9999999999999,
+        "times": [
+          0.933,
+          1.2
+        ]
+      },
+      {
+        "code": "escaped_container",
+        "severity": "info",
+        "time": 0.933,
+        "selector": "#fw-sheen",
+        "message": "Positioned element renders far outside its offset parent — its coordinates were likely computed in a different frame (canvas/viewport pixels).",
+        "rect": {
+          "left": 456.12,
+          "top": 177.44,
+          "right": 818.9,
+          "bottom": 615.65,
+          "width": 362.78,
+          "height": 438.21
+        },
+        "containerSelector": "#fw-card",
+        "text": "",
+        "fixHint": "Compute left/top in the offset parent's frame (subtract its rect), or mark intentional placement with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 803.5,
+          "top": 240.04,
+          "right": 1116.5,
+          "bottom": 553.05,
+          "width": 313,
+          "height": 313.01
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/intro.html",
+        "bbox": {
+          "x": 456.12,
+          "y": 177.44,
+          "width": 362.78,
+          "height": 438.21
+        },
+        "firstSeen": 0.933,
+        "lastSeen": 0.933,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          0.933
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 2,
+        "selector": "#fw-progress-spark",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 710,
+          "top": 956,
+          "right": 800,
+          "bottom": 961,
+          "width": 90,
+          "height": 5
+        },
+        "containerSelector": "#fw-progress-track",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 800,
+          "top": 956,
+          "right": 1120,
+          "bottom": 961,
+          "width": 320,
+          "height": 5
+        },
+        "overflow": {
+          "left": 90
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/intro.html",
+        "bbox": {
+          "x": 710,
+          "y": 956,
+          "width": 90,
+          "height": 5
+        },
+        "firstSeen": 2,
+        "lastSeen": 2.267,
+        "occurrences": 2,
+        "heldMs": 266.9999999999999,
+        "times": [
+          2,
+          2.267
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 2.267,
+        "selector": "#fw-stage",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -12.38,
+          "top": -6.41,
+          "right": 1932.38,
+          "bottom": 1087.52,
+          "width": 1944.77,
+          "height": 1093.93
+        },
+        "containerSelector": "#intro > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "left": 12.38,
+          "right": 12.38,
+          "top": 6.41,
+          "bottom": 7.52
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/intro.html",
+        "bbox": {
+          "x": -12.38,
+          "y": -6.41,
+          "width": 1944.77,
+          "height": 1093.93
+        },
+        "firstSeen": 2.267,
+        "lastSeen": 2.267,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          2.267
+        ]
+      }
+    ],
+    "duration": 2.4,
+    "samples": [
+      0.133,
+      0.4,
+      0.667,
+      0.933,
+      1.2,
+      1.467,
+      1.733,
+      2,
+      2.267
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 4,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      0.133,
+      0.667,
+      1.2,
+      1.733,
+      2.267
+    ],
+    "checked": 2,
+    "passed": 2
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 3,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "first_frame_empty",
+        "severity": "warning",
+        "message": "Frame 0 shows only the background, and the first frame is the thumbnail on social players: have the title or key image already on screen at 0 s instead of entering from nothing; see references/review.md.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"Santa Cruz · Bolivia\" (3 words) is on screen 0.80 s (±0.01 s), under the 2.00 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "Santa Cruz · Bolivia",
+        "selector": "#fw-tagline-inner > span:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/intro.html",
+        "bbox": {
+          "x": 768.41,
+          "y": 774.38,
+          "width": 383.16999999999996,
+          "height": 32
+        },
+        "time": 1.605,
+        "words": 3,
+        "seconds": 0.799,
+        "floorSeconds": 2
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and \"Santa Cruz · Bolivia\" renders at 25 px for 0.72 s: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "Santa Cruz · Bolivia",
+        "selector": "#fw-tagline-inner > span:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "compositions/intro.html",
+        "bbox": {
+          "x": 768.41,
+          "y": 774.38,
+          "width": 383.17,
+          "height": 32
+        },
+        "time": 1.68,
+        "times": [
+          1.68
+        ],
+        "fontPx": 25,
+        "floorPx": 28,
+        "seconds": 0.72,
+        "elements": [
+          {
+            "selector": "#fw-tagline-inner > span:nth-of-type(1)",
+            "text": "Santa Cruz · Bolivia",
+            "fontPx": 25,
+            "time": 1.68,
+            "seconds": 0.72
+          }
+        ]
+      }
+    ],
+    "enabled": true,
+    "step": 0.12,
+    "samples": 20
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

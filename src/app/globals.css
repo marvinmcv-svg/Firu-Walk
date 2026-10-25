@@ -1,0 +1,349 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ------------------------------------------------------------------ */
+/*  Design tokens that emit Tailwind utilities                         */
+/*  (easings → ease-*, shadows → shadow-*, radii → rounded-*)          */
+/* ------------------------------------------------------------------ */
+@theme {
+  /* Emil Kowalski / Apple motion curves — never the weak built-ins */
+  --ease-out-expo: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out for entering UI */
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1); /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* iOS sheet curve */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1); /* playful overshoot, brand moments only */
+
+  /* Layered, diffuse, premium shadows (Apple-style soft separation) */
+  --shadow-card:
+    0 1px 2px rgb(24 30 26 / 0.05),
+    0 4px 16px rgb(24 30 26 / 0.06);
+  --shadow-raise:
+    0 2px 4px rgb(24 30 26 / 0.05),
+    0 8px 28px rgb(24 30 26 / 0.10);
+  --shadow-float:
+    0 4px 8px rgb(24 30 26 / 0.06),
+    0 16px 48px rgb(24 30 26 / 0.14);
+  --shadow-pop:
+    0 0 0 1px rgb(24 30 26 / 0.04),
+    0 4px 12px rgb(24 30 26 / 0.08),
+    0 16px 40px rgb(24 30 26 / 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-app-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-sun: var(--sun);
+  --color-sun-soft: var(--sun-soft);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 1rem;
+  /* FiruWalk light — warm paper + park green + amber sun */
+  --background: oklch(0.994 0.004 95);
+  --foreground: oklch(0.235 0.02 150);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.235 0.02 150);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.235 0.02 150);
+  --primary: oklch(0.58 0.15 152);
+  --primary-foreground: oklch(0.99 0.01 95);
+  --secondary: oklch(0.955 0.025 95);
+  --secondary-foreground: oklch(0.32 0.03 150);
+  --muted: oklch(0.955 0.01 95);
+  --muted-foreground: oklch(0.5 0.02 150);
+  --accent: oklch(0.94 0.05 150);
+  --accent-foreground: oklch(0.3 0.05 152);
+  --destructive: oklch(0.577 0.215 25);
+  --border: oklch(0.905 0.015 95);
+  --input: oklch(0.905 0.015 95);
+  --ring: oklch(0.58 0.15 152);
+  --chart-1: oklch(0.58 0.15 152);
+  --chart-2: oklch(0.74 0.16 70);
+  --chart-3: oklch(0.63 0.12 40);
+  --chart-4: oklch(0.7 0.1 185);
+  --chart-5: oklch(0.82 0.12 95);
+  --sidebar: oklch(0.985 0.008 95);
+  --sidebar-foreground: oklch(0.235 0.02 150);
+  --sidebar-primary: oklch(0.58 0.15 152);
+  --sidebar-primary-foreground: oklch(0.99 0.01 95);
+  --sidebar-accent: oklch(0.94 0.05 150);
+  --sidebar-accent-foreground: oklch(0.3 0.05 152);
+  --sidebar-border: oklch(0.905 0.015 95);
+  --sidebar-ring: oklch(0.58 0.15 152);
+  --brand: oklch(0.58 0.15 152);
+  --brand-soft: oklch(0.94 0.05 150);
+  --sun: oklch(0.74 0.16 70);
+  --sun-soft: oklch(0.955 0.06 90);
+}
+
+.dark {
+  --background: oklch(0.185 0.015 155);
+  --foreground: oklch(0.96 0.01 95);
+  --card: oklch(0.225 0.018 155);
+  --card-foreground: oklch(0.96 0.01 95);
+  --popover: oklch(0.225 0.018 155);
+  --popover-foreground: oklch(0.96 0.01 95);
+  --primary: oklch(0.75 0.16 152);
+  --primary-foreground: oklch(0.2 0.04 152);
+  --secondary: oklch(0.27 0.02 155);
+  --secondary-foreground: oklch(0.96 0.01 95);
+  --muted: oklch(0.27 0.02 155);
+  --muted-foreground: oklch(0.72 0.02 150);
+  --accent: oklch(0.3 0.04 152);
+  --accent-foreground: oklch(0.93 0.04 152);
+  --destructive: oklch(0.66 0.19 25);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.75 0.16 152);
+  --chart-1: oklch(0.75 0.16 152);
+  --chart-2: oklch(0.8 0.15 75);
+  --chart-3: oklch(0.7 0.13 45);
+  --chart-4: oklch(0.72 0.1 185);
+  --chart-5: oklch(0.85 0.1 95);
+  --sidebar: oklch(0.21 0.018 155);
+  --sidebar-foreground: oklch(0.96 0.01 95);
+  --sidebar-primary: oklch(0.75 0.16 152);
+  --sidebar-primary-foreground: oklch(0.2 0.04 152);
+  --sidebar-accent: oklch(0.3 0.04 152);
+  --sidebar-accent-foreground: oklch(0.93 0.04 152);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.75 0.16 152);
+  --brand: oklch(0.75 0.16 152);
+  --brand-soft: oklch(0.3 0.04 152);
+  --sun: oklch(0.8 0.15 75);
+  --sun-soft: oklch(0.32 0.05 75);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent; /* no gray flash on tap */
+  }
+  html,
+  body {
+    overscroll-behavior-y: none; /* app feel: no pull-to-refresh hijack */
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01" on;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+  }
+  /* Kill the 300ms double-tap zoom on every pressable */
+  button,
+  [role="button"],
+  a,
+  select,
+  summary {
+    touch-action: manipulation;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 24%, transparent);
+  }
+  /* iOS Safari zooms into inputs < 16px and never zooms back out */
+  @media (pointer: coarse) {
+    input,
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Apple materials & finishes                                         */
+/* ------------------------------------------------------------------ */
+@layer components {
+  /* Translucent chrome material (top bar / bottom nav / floating pills).
+     Blur + saturate + a light-catching top edge = a real material, not a bar. */
+  .firu-glass {
+    background: color-mix(in oklab, var(--background) 68%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 45%), inset 0 -1px 0 oklch(24 30 26 / 3%);
+  }
+  .dark .firu-glass {
+    background: color-mix(in oklab, var(--background) 62%, transparent);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 7%), inset 0 -1px 0 oklch(0 0 0 / 20%);
+  }
+
+  /* Frosted translucent card material (lighter weight than .firu-glass) */
+  .firu-frost {
+    background: color-mix(in oklab, var(--card) 72%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    backdrop-filter: blur(14px) saturate(160%);
+  }
+  .dark .firu-frost {
+    background: color-mix(in oklab, var(--card) 66%, transparent);
+  }
+
+  /* Gloss sheen for colored surfaces (primary buttons, CTA tiles).
+     Light sits INSIDE the material, under the content — z-index -1. */
+  .firu-gloss {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .firu-gloss::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 22%) 0%,
+      oklch(1 0 0 / 5%) 30%,
+      transparent 55%
+    );
+  }
+  .dark .firu-gloss::before {
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 12%) 0%,
+      oklch(1 0 0 / 3%) 30%,
+      transparent 55%
+    );
+  }
+
+  /* Premium inset highlight for primary actions (macOS-style bevel) */
+  .firu-btn-gloss {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 28%),
+      inset 0 -1px 0 oklch(0 0 0 / 12%),
+      0 1px 2px rgb(24 30 26 / 0.18),
+      0 4px 14px color-mix(in oklab, var(--primary) 38%, transparent);
+  }
+  .dark .firu-btn-gloss {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 18%),
+      inset 0 -1px 0 oklch(0 0 0 / 30%),
+      0 1px 2px rgb(0 0 0 / 0.4),
+      0 4px 16px color-mix(in oklab, var(--primary) 24%, transparent);
+  }
+}
+
+/* FiruWalk custom scrollbar (per design standards) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.78 0.03 150 / 60%) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.78 0.03 150 / 45%);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.68 0.1 150 / 60%);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Leaflet fixes: keep map controls on-brand */
+.leaflet-container {
+  background: oklch(0.93 0.02 150);
+  font-family: var(--font-app-sans), sans-serif;
+}
+.dark .leaflet-container {
+  background: oklch(0.25 0.02 155);
+}
+.leaflet-bar a {
+  color: oklch(0.3 0.05 152) !important;
+}
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+}
+.dark .leaflet-control-attribution,
+.dark .leaflet-control-attribution a {
+  background: rgba(20, 24, 22, 0.6) !important;
+  color: #ddd !important;
+}
+
+/* Paw-dot pattern for hero / empty states */
+.firu-paw-pattern {
+  background-image: radial-gradient(circle, oklch(0.58 0.15 152 / 8%) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+
+/* Safe-area helper for bottom nav */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Accessibility — gentler, not zero (Emil / Apple reduced-motion)    */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .firu-glass,
+  .firu-frost {
+    background: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

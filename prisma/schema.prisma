@@ -1,0 +1,390 @@
+// FiruWalk — Dog-walking marketplace MVP (Santa Cruz de la Sierra, Bolivia)
+// SQLite: no native enums/lists → status fields are documented Strings,
+// repeated structures stored as JSON strings (*Json suffix).
+// Money: ALWAYS integer centavos (Bs 1 = 100). Never floating point.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------
+// Geography / supply curation
+// ---------------------------------------------------------------
+
+model Zone {
+  id        String  @id @default(cuid())
+  key       String  @unique // slug e.g. "equipetrol"
+  name      String // "Equipetrol"
+  city      String @default("Santa Cruz de la Sierra")
+  centerLat Float
+  centerLng Float
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  users   User[]
+  walkers WalkerProfile[]
+}
+
+// ---------------------------------------------------------------
+// People
+// ---------------------------------------------------------------
+
+model User {
+  id          String   @id @default(cuid())
+  phone       String   @unique // E.164-ish "+5917xxxxxxx"
+  name        String
+  role        String // "OWNER" | "WALKER" | "ADMIN"
+  avatarUrl   String?
+  // Owner fields
+  zoneId      String?
+  addressNote String? // landmark text ("Edificio X, frente al parque")
+  addressLat  Float?
+  addressLng  Float?
+  // Walker fields
+  walker      WalkerProfile?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  zone             Zone? @relation(fields: [zoneId], references: [id])
+  dogs             Dog[] @relation("DogOwner")
+  bookingsOwned    Booking[] @relation("BookingOwner")
+  bookingsAssigned Booking[] @relation("BookingWalker")
+  walksAsWalker    Walk[] @relation("WalkWalker")
+  walksAsOwner     Walk[] @relation("WalkOwner")
+  reviewsGiven     Review[] @relation("ReviewOwner")
+  reviewsReceived  Review[] @relation("ReviewWalker")
+}
+
+model WalkerProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  status          String  @default("PENDING") // PENDING | ACTIVE | SUSPENDED | REJECTED
+  bio             String
+  experienceYears Float   @default(0)
+  // Application (vetting) data — ASSUMPTION: manual review by admin
+  idDocNumber     String? // stored encrypted in production; hook only
+  selfieUrl       String?
+  idPhotoUrl      String?
+  videoIntroUrl   String?
+  referencesText  String?
+  // Market data
+  price30Cents    Int @default(1500)
+  price45Cents    Int @default(2000)
+  price60Cents    Int @default(2500)
+  rating          Float @default(0) // avg 1..5
+  ratingCount     Int @default(0)
+  totalWalks      Int @default(0)
+  repeatOwners    Int @default(0) // owners with 2+ completed walks
+  responseMinutes Int @default(5)
+  strikes         Int @default(0)
+  trialDone       Boolean @default(false) // first N walks reviewed
+  suspendedReason String?
+  appliedAt       DateTime @default(now())
+  approvedAt      DateTime?
+  updatedAt       DateTime @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id])
+  zoneId       String
+  zone         Zone       @relation(fields: [zoneId], references: [id])
+  availabilities AvailabilitySlot[]
+}
+
+model AvailabilitySlot {
+  id          String @id @default(cuid())
+  walkerId    String
+  dayOfWeek   Int // 0=Sunday .. 6=Saturday
+  startMinute Int // minutes from 00:00
+  endMinute   Int
+  walker      WalkerProfile @relation(fields: [walkerId], references: [id], onDelete: Cascade)
+
+  @@index([walkerId, dayOfWeek])
+}
+
+// ---------------------------------------------------------------
+// Dogs (owners' pets)
+// ---------------------------------------------------------------
+
+model Dog {
+  id          String  @id @default(cuid())
+  ownerId     String
+  name        String
+  breed       String
+  size        String // "S" | "M" | "L"
+  ageYears    Float
+  temperament String // "CALM" | "ENERGETIC" | "ANXIOUS"
+  notes       String? // vet info / medical notes
+  tagsJson    String  @default("[]") // ["pulls-leash","friendly","reactive"]
+  photoUrl    String?
+  vetPhone    String?
+  createdAt   DateTime @default(now())
+
+  owner User @relation("DogOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  walks Walk[]
+  bookings Booking[]
+
+  @@index([ownerId])
+}
+
+// ---------------------------------------------------------------
+// Booking & matching (one-at-a-time, anti-shotgun)
+// ---------------------------------------------------------------
+
+model Booking {
+  id             String   @id @default(cuid())
+  ownerId        String
+  dogId          String
+  walkerId       String? // current candidate (null until matched/confirmed chain starts)
+  zoneId         String
+  type           String // "ONE_OFF" | "RECURRING"
+  status         String   @default("REQUESTED") // REQUESTED | CONFIRMED | COMPLETED | CANCELLED | DECLINED
+  // Recurring: [{"day":1,"minute":450},{"day":3,"minute":450},{"day":5,"minute":450}]
+  // One-off: [{"date":"2026-10-25","minute":1020}]
+  scheduleJson   String
+  durationMin    Int @default(30)
+  pricePerWalkCents Int // agreed price at booking time
+  candidatesJson String   @default("[]") // ranked walker ids chain for fallback
+  candidateIdx   Int      @default(0)
+  requestedAt    DateTime @default(now())
+  expiresAt      DateTime? // accept deadline for current candidate
+  acceptedAt     DateTime?
+  cancelledAt    DateTime?
+  cancelledBy    String? // "OWNER" | "WALKER" | "ADMIN"
+  cancelReason   String?
+  completedAt    DateTime?
+  notes          String? // owner instructions to walker
+
+  owner   User  @relation("BookingOwner", fields: [ownerId], references: [id])
+  walker  User? @relation("BookingWalker", fields: [walkerId], references: [id])
+  dog     Dog   @relation(fields: [dogId], references: [id])
+  walks   Walk[]
+  payments Payment[]
+  reviews Review[]
+  disputes Dispute[]
+
+  @@index([ownerId])
+  @@index([walkerId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------
+// Walk execution (GPS proof of every walk)
+// ---------------------------------------------------------------
+
+model Walk {
+  id             String   @id @default(cuid())
+  bookingId      String
+  walkerId       String
+  ownerId        String
+  dogId          String
+  zoneId         String
+  status         String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED | NO_SHOW
+  scheduledStart DateTime
+  durationMin    Int @default(30)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  startLat       Float?
+  startLng       Float?
+  endLat         Float?
+  endLng         Float?
+  distanceMeters Float   @default(0)
+  trackJson      String  @default("[]") // denormalized polyline [[lat,lng],...]
+  cancelReason   String?
+  createdAt      DateTime @default(now())
+
+  booking  Booking  @relation(fields: [bookingId], references: [id])
+  walker   User     @relation("WalkWalker", fields: [walkerId], references: [id])
+  owner    User     @relation("WalkOwner", fields: [ownerId], references: [id])
+  dog      Dog      @relation(fields: [dogId], references: [id])
+  trackPoints WalkTrackPoint[]
+  report   ReportCard?
+  incidents IncidentLog[]
+
+  @@index([walkerId, status])
+  @@index([ownerId, status])
+  @@index([bookingId])
+}
+
+model WalkTrackPoint {
+  id         String   @id @default(cuid())
+  walkId     String
+  seq        Int
+  lat        Float
+  lng        Float
+  recordedAt DateTime @default(now())
+
+  walk Walk @relation(fields: [walkId], references: [id], onDelete: Cascade)
+
+  @@index([walkId, seq])
+}
+
+model ReportCard {
+  id        String   @id @default(cuid())
+  walkId    String   @unique
+  note      String?
+  pee       Boolean @default(false)
+  poo       Boolean @default(false)
+  water     Boolean @default(false)
+  photosJson String  @default("[]") // ["/images/walks/..."]
+  createdAt DateTime @default(now())
+
+  walk Walk @relation(fields: [walkId], references: [id])
+}
+
+model IncidentLog {
+  id         String   @id @default(cuid())
+  walkId     String?
+  reportedBy String // userId
+  type       String // "SOS" | "LATE" | "INJURY" | "OTHER"
+  note       String
+  status     String   @default("OPEN") // OPEN | RESOLVED
+  createdAt  DateTime @default(now())
+
+  walk Walk? @relation(fields: [walkId], references: [id])
+}
+
+// ---------------------------------------------------------------
+// Trust: reviews
+// ---------------------------------------------------------------
+
+model Review {
+  id         String   @id @default(cuid())
+  bookingId  String
+  walkId     String? // specific walk the review is for
+  ownerId    String
+  walkerId   String
+  rating     Int // 1..5
+  comment    String?
+  tipCents   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+  owner   User    @relation("ReviewOwner", fields: [ownerId], references: [id])
+  walker  User    @relation("ReviewWalker", fields: [walkerId], references: [id])
+
+  @@index([walkerId])
+}
+
+// ---------------------------------------------------------------
+// Money (double-entry ledger, integer centavos)
+// ---------------------------------------------------------------
+
+model Payment {
+  id          String   @id @default(cuid())
+  bookingId   String
+  ownerId     String
+  walkerId    String
+  method      String // "QR" | "TRANSFER" | "CASH"
+  amountCents Int // price*walks actually paid up front (recurring = per walk at first execution for MVP demo: charge per walk)
+  status      String   @default("PENDING") // PENDING | HELD | RELEASED | REFUNDED | CASH_SETTLED
+  qrRef       String? // QR Simple reference (ASSUMPTION: simulated)
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([ownerId])
+  @@index([walkerId])
+}
+
+// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}"
+model LedgerEntry {
+  id         String   @id @default(cuid())
+  txnId      String // group id — entries of one transaction share txnId
+  account    String
+  debitCents Int @default(0) // +
+  creditCents Int @default(0) // -
+  memo       String
+  refType    String? // "payment" | "walk" | "payout" | "dispute" | "tip"
+  refId      String?
+  createdAt  DateTime @default(now())
+
+  @@index([account])
+  @@index([txnId])
+}
+
+model Payout {
+  id           String   @id @default(cuid())
+  walkerId     String
+  amountCents  Int
+  method       String @default("QR") // QR | BANK
+  status       String   @default("REQUESTED") // REQUESTED | PAID | CANCELLED
+  destRef      String? // QR/cuenta destino
+  periodStart  DateTime?
+  periodEnd    DateTime?
+  requestedAt  DateTime @default(now())
+  paidAt       DateTime?
+
+  @@index([walkerId])
+}
+
+model Dispute {
+  id           String   @id @default(cuid())
+  bookingId    String
+  walkId       String?
+  openedById   String
+  againstUserId String
+  reason       String // "LATE" | "NO_SHOW" | "QUALITY" | "SAFETY" | "BILLING" | "OTHER"
+  description  String
+  status       String   @default("OPEN") // OPEN | RESOLVED_OWNER | RESOLVED_WALKER | DISMISSED
+  resolution   String?
+  refundCents  Int      @default(0)
+  creditCents  Int      @default(0)
+  resolvedById String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------
+// Messaging / notifications / ops
+// ---------------------------------------------------------------
+
+model Message {
+  id         String   @id @default(cuid())
+  threadId   String // bookingId
+  senderId   String
+  senderName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // "BOOKING" | "WALK" | "PAYMENT" | "DISPUTE" | "APPLICATION" | "SYSTEM"
+  title     String
+  body      String
+  link      String? // internal view hint
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model Config {
+  key       String   @id // "fees" | "pricing" | "policy" | "platform" | "demo" | "payouts"
+  valueJson String
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String // "WALKER_APPROVED" | "CONFIG_UPDATED" | ...
+  entity     String
+  entityId   String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

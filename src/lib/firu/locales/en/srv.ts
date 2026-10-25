@@ -1,0 +1,52 @@
+// English translations for known server-side (API) messages.
+// Keys are the EXACT Spanish strings the API returns; a key ending in "*"
+// is matched by prefix (for messages with dynamic tails, e.g. the OTP hint).
+// Unmapped messages fall back to the original Spanish text.
+
+const srv = {
+  "Código incorrecto. En la demo el código es *": "Incorrect code. The demo code is ",
+  "Necesitas iniciar sesión para continuar.": "You need to sign in to continue.",
+  "No puedes reservar un paseo en una fecha pasada.": "You can't book a walk in the past.",
+  "No encontramos paseador 😔": "No walkers found 😔",
+  "La duración debe ser de 30, 45 o 60 minutos.": "Duration must be 30, 45 or 60 minutes.",
+  "El teléfono es inválido (usa formato +5917xxxxxxx).": "Invalid phone number (use +5917xxxxxxx format).",
+  "Ese teléfono ya está registrado. Inicia sesión con él.": "That phone is already registered. Sign in with it.",
+  "El paseador elegido no está disponible actualmente.": "The chosen walker is currently unavailable.",
+  "El paseador no existe.": "That walker doesn't exist.",
+  "Esta solicitud ya no está disponible.": "This request is no longer available.",
+  "Esta solicitud fue enviada a otro paseador.": "This request was sent to another walker.",
+  "Esta mascota no es tuya.": "This pet isn't yours.",
+  "Esta reserva no es tuya.": "This booking isn't yours.",
+  "No tienes acceso a esta reserva.": "You don't have access to this booking.",
+  "No tienes acceso a este paseo.": "You don't have access to this walk.",
+  "No tienes acceso a esta conversación.": "You don't have access to this conversation.",
+  "No tienes acceso a los pagos.": "You don't have access to payments.",
+  "El reporte del paseo es obligatorio (nota, pis/caca, fotos).": "The walk report is required (note, pee/poop, photos).",
+  "El paseo no está en estado programado.": "The walk isn't in its scheduled state.",
+  "El paseo indicado no pertenece a esta reserva.": "This walk doesn't belong to that booking.",
+  "Este pago ya fue confirmado.": "This payment was already confirmed.",
+  "Este pago ya fue procesado.": "This payment was already processed.",
+  "No hay un pago asociado a esta reserva.": "No payment is attached to this booking.",
+  "El monto a retirar es inválido.": "Invalid withdrawal amount.",
+  "La propina no puede ser mayor a Bs 200.": "The tip can't exceed Bs 200.",
+  "La reserva ya no se puede cancelar.": "This booking can no longer be cancelled.",
+  "La reserva es obligatoria.": "Booking is required.",
+  "La zona es obligatoria.": "Zone is required.",
+  "La zona seleccionada no está disponible.": "The selected zone isn't available.",
+  "La zona seleccionada no existe.": "The selected zone doesn't exist.",
+  "Horario inválido.": "Invalid schedule.",
+  "El horario no puede estar vacío.": "The schedule can't be empty.",
+  "Solo los paseadores pueden realizar esta acción.": "Only walkers can perform this action.",
+  "Esta disputa ya fue resuelta.": "This dispute is already resolved.",
+  "La mascota no existe.": "That pet doesn't exist.",
+  "Perfil de paseador no encontrado.": "Walker profile not found.",
+  "Este paseador ya está activo.": "This walker is already active.",
+  "Solo se puede suspender a un paseador activo.": "Only an active walker can be suspended.",
+  "Solo se puede reactivar una cuenta suspendida.": "Only a suspended account can be reactivated.",
+  "No hay cambios válidos que aplicar.": "There are no valid changes to apply.",
+  "Ninguna clave es editable en *": "No keys are editable in \"",
+  "Indica la reserva a reseñar.": "Tell us which booking to review.",
+  "Indica una acción: *": "Pick an action: ",
+} as const;
+
+export default srv;

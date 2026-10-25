@@ -1,0 +1,544 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      font-family: "Outfit", sans-serif;
+      overflow: hidden;
+    }
+
+    /* ---------- background: deep brand green + radial glow + vignette ---------- */
+    #fw-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background-color: #061b0c; /* darkest brand green (oklch(0.2 0.04 152)) */
+      background-image:
+        radial-gradient(
+          46% 38% at 50% 41%,
+          rgba(78, 202, 122, 0.13) 0%,
+          rgba(78, 202, 122, 0.05) 46%,
+          rgba(78, 202, 122, 0) 74%
+        ),
+        radial-gradient(
+          130% 112% at 50% 50%,
+          rgba(0, 0, 0, 0) 55%,
+          rgba(2, 8, 4, 0.55) 100%
+        );
+    }
+
+    /* ---------- faint drifting paw pattern (seeded positions, mulberry32(20241119)) ---------- */
+    #fw-bgpaws {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+    }
+    #fw-bgpaws-inner {
+      position: absolute;
+      inset: -90px;
+    }
+    .fw-bgpaw {
+      position: absolute;
+      opacity: 0.055;
+    }
+
+    /* ---------- brand stage (breathes together at the end) ---------- */
+    #fw-stage {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+    }
+
+    /* trail paws: white, soft green glow, pop in one after another */
+    .fw-trail {
+      position: absolute;
+      z-index: 4;
+    }
+    .fw-pop {
+      position: absolute;
+      inset: 0;
+      filter: drop-shadow(0 0 16px rgba(78, 202, 122, 0.45));
+    }
+    .fw-pop svg {
+      width: 100%;
+      height: 100%;
+      opacity: 0.92;
+    }
+
+    /* ---------- logo plate: soft white rounded card + glossy sheen ---------- */
+    #fw-plate {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+    }
+    #fw-halo {
+      position: absolute;
+      left: 690px;
+      top: 125px;
+      width: 540px;
+      height: 540px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(94, 214, 140, 0.75) 0%,
+        rgba(94, 214, 140, 0.28) 38%,
+        rgba(94, 214, 140, 0) 68%
+      );
+      filter: blur(46px);
+    }
+    #fw-card {
+      position: absolute;
+      left: 795px;
+      top: 230px;
+      width: 330px;
+      height: 330px;
+      border-radius: 56px;
+      background: linear-gradient(160deg, #ffffff 0%, #f1f9f4 100%);
+      box-shadow:
+        0 34px 90px rgba(0, 0, 0, 0.5),
+        0 6px 18px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      overflow: hidden;
+    }
+    #fw-dog {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      margin: auto;
+      width: 74%;
+      height: 74%;
+      object-fit: contain;
+    }
+    #fw-sheen {
+      position: absolute;
+      left: 0;
+      top: -20%;
+      width: 250px;
+      height: 140%;
+      opacity: 0;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.95) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+    }
+
+    /* ---------- wordmark (rendered as TEXT — bundled Outfit 800, white) ---------- */
+    #fw-wordmark {
+      position: absolute;
+      left: 700px;
+      top: 588px;
+      width: 520px;
+      height: 143px;
+      z-index: 6;
+    }
+    #fw-wordmark-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Outfit", sans-serif;
+      font-weight: 800;
+      font-size: 104px;
+      line-height: 1;
+      letter-spacing: -0.015em;
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    /* ---------- tagline ---------- */
+    #fw-tagline {
+      position: absolute;
+      left: 660px;
+      top: 766px;
+      width: 600px;
+      height: 44px;
+      z-index: 7;
+    }
+    #fw-tagline-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.62);
+      white-space: nowrap;
+    }
+
+    /* ---------- loading shimmer bar (sun amber) ---------- */
+    #fw-progress {
+      position: absolute;
+      left: 760px;
+      top: 948px;
+      width: 400px;
+      height: 24px;
+      z-index: 8;
+    }
+    #fw-progress-inner {
+      position: absolute;
+      left: 40px;
+      top: 8px;
+      width: 320px;
+      height: 5px;
+    }
+    #fw-progress-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.13);
+      overflow: hidden;
+    }
+    #fw-progress-fill {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: linear-gradient(
+        90deg,
+        #ea9602 0%,
+        #f5ae39 45%,
+        #ffdf9e 62%,
+        #f5ae39 88%
+      );
+      box-shadow:
+        0 0 22px rgba(245, 174, 57, 0.8),
+        0 0 6px rgba(255, 223, 158, 0.9);
+    }
+    #fw-progress-spark {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 90px;
+      height: 5px;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.8) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+    }
+  </style>
+
+  <div id="root" data-composition-id="intro" data-width="1920" data-height="1080">
+    <!-- deep green canvas: center glow + edge vignette -->
+    <div id="fw-bg"></div>
+
+    <!-- faint paw texture, drifting slowly for the whole scene -->
+    <div id="fw-bgpaws">
+      <div id="fw-bgpaws-inner" data-layout-allow-overflow="true">
+        <svg class="fw-bgpaw" style="left: 240px; top: 180px; width: 120px; height: 120px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+        <svg class="fw-bgpaw" style="left: 576px; top: 665px; width: 100px; height: 100px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+        <svg class="fw-bgpaw" style="left: 1338px; top: 353px; width: 145px; height: 145px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+        <svg class="fw-bgpaw" style="left: 1389px; top: 708px; width: 137px; height: 137px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+        <svg class="fw-bgpaw" style="left: 1684px; top: 730px; width: 139px; height: 139px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+        <svg class="fw-bgpaw" style="left: 150px; top: 940px; width: 110px; height: 110px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+        <svg class="fw-bgpaw" style="left: 1533px; top: 937px; width: 155px; height: 155px" viewBox="0 0 100 100">
+          <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#4eca7a"/>
+          <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#4eca7a"/>
+          <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#4eca7a"/>
+          <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#4eca7a"/>
+          <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#4eca7a"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- brand lockup (breathes together at the end; the 1.015 scale is a full-bleed wrapper) -->
+    <div id="fw-stage" data-layout-allow-overflow="true">
+      <!-- paw trail padding in diagonally toward the plate -->
+      <div
+        id="fw-trail-1"
+        class="clip fw-trail"
+        data-start="0.06"
+        data-duration="2.34"
+        data-track-index="2"
+        style="left: 431px; top: 880px; width: 58px; height: 58px"
+      >
+        <div id="fw-trail-1-pop" class="fw-pop">
+          <svg viewBox="0 0 100 100" style="transform: rotate(50deg)">
+            <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#ffffff"/>
+            <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#ffffff"/>
+            <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#ffffff"/>
+            <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#ffffff"/>
+            <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#ffffff"/>
+          </svg>
+        </div>
+      </div>
+      <div
+        id="fw-trail-2"
+        class="clip fw-trail"
+        data-start="0.18"
+        data-duration="2.22"
+        data-track-index="3"
+        style="left: 518px; top: 739px; width: 56px; height: 56px"
+      >
+        <div id="fw-trail-2-pop" class="fw-pop">
+          <svg viewBox="0 0 100 100" style="transform: rotate(44deg)">
+            <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#ffffff"/>
+            <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#ffffff"/>
+            <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#ffffff"/>
+            <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#ffffff"/>
+            <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#ffffff"/>
+          </svg>
+        </div>
+      </div>
+      <div
+        id="fw-trail-3"
+        class="clip fw-trail"
+        data-start="0.3"
+        data-duration="2.1"
+        data-track-index="4"
+        style="left: 636px; top: 635px; width: 54px; height: 54px"
+      >
+        <div id="fw-trail-3-pop" class="fw-pop">
+          <svg viewBox="0 0 100 100" style="transform: rotate(52deg)">
+            <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#ffffff"/>
+            <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#ffffff"/>
+            <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#ffffff"/>
+            <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#ffffff"/>
+            <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#ffffff"/>
+          </svg>
+        </div>
+      </div>
+      <div
+        id="fw-trail-4"
+        class="clip fw-trail"
+        data-start="0.42"
+        data-duration="1.98"
+        data-track-index="5"
+        style="left: 717px; top: 504px; width: 52px; height: 52px"
+      >
+        <div id="fw-trail-4-pop" class="fw-pop">
+          <svg viewBox="0 0 100 100" style="transform: rotate(47deg)">
+            <ellipse cx="28" cy="34" rx="8.5" ry="12" transform="rotate(-14 28 34)" fill="#ffffff"/>
+            <ellipse cx="44.5" cy="27" rx="8" ry="11.5" transform="rotate(-5 44.5 27)" fill="#ffffff"/>
+            <ellipse cx="55.5" cy="27" rx="8" ry="11.5" transform="rotate(5 55.5 27)" fill="#ffffff"/>
+            <ellipse cx="72" cy="34" rx="8.5" ry="12" transform="rotate(14 72 34)" fill="#ffffff"/>
+            <ellipse cx="50" cy="63" rx="20.5" ry="17.5" fill="#ffffff"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- logo dog on a soft white plate, halo bloom + glossy sheen -->
+      <div
+        id="fw-plate"
+        class="clip"
+        data-start="0.7"
+        data-duration="1.7"
+        data-track-index="6"
+      >
+        <div id="fw-halo" data-layout-ignore="true"></div>
+        <div id="fw-card">
+          <img id="fw-dog" src="assets/logo-mark.png" alt="FiruWalk dog" />
+          <div id="fw-sheen" data-layout-allow-overflow="true"></div>
+        </div>
+      </div>
+
+      <!-- wordmark rises in, blur to sharp (text: bundled Outfit 800, white) -->
+      <div
+        id="fw-wordmark"
+        class="clip"
+        data-start="1.1"
+        data-duration="1.3"
+        data-track-index="7"
+      >
+        <div id="fw-wordmark-inner">
+          <span data-var-text="brand">FiruWalk</span>
+        </div>
+      </div>
+
+      <!-- tagline -->
+      <div
+        id="fw-tagline"
+        class="clip"
+        data-start="1.5"
+        data-duration="0.9"
+        data-track-index="8"
+      >
+        <div id="fw-tagline-inner">
+          <span data-var-text="tagline">Santa Cruz · Bolivia</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- loading shimmer bar -->
+    <div
+      id="fw-progress"
+      class="clip"
+      data-start="1.85"
+      data-duration="0.55"
+      data-track-index="9"
+    >
+      <div id="fw-progress-inner">
+        <div id="fw-progress-track">
+          <div id="fw-progress-fill"></div>
+          <div id="fw-progress-spark" data-layout-allow-overflow="true"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ambient drift: the paw texture slides very slowly (finite, linear) */
+      tl.fromTo(
+        "#fw-bgpaws-inner",
+        { x: 0, y: 0 },
+        { x: -14, y: -42, duration: 2.4, ease: "none" },
+        0
+      );
+
+      /* paw trail: pads in diagonally, 120ms apart, then rests dimmer */
+      ["#fw-trail-1-pop", "#fw-trail-2-pop", "#fw-trail-3-pop", "#fw-trail-4-pop"].forEach(
+        function (sel, i) {
+          var at = 0.06 + i * 0.12;
+          tl.fromTo(
+            sel,
+            { scale: 0, opacity: 0 },
+            { scale: 1, opacity: 0.95, duration: 0.26, ease: "power4.out" },
+            at
+          );
+          tl.fromTo(
+            sel,
+            { opacity: 0.95 },
+            {
+              opacity: 0.38,
+              duration: 0.4,
+              ease: "power2.inOut",
+              immediateRender: false,
+            },
+            1.5
+          );
+        }
+      );
+
+      /* plate springs in with a confident overshoot; halo blooms behind */
+      tl.fromTo(
+        "#fw-card",
+        { scale: 0, y: 30 },
+        { scale: 1, y: 0, duration: 0.55, ease: "back.out(1.4)" },
+        0.7
+      );
+      tl.fromTo(
+        "#fw-halo",
+        { opacity: 0, scale: 0.6 },
+        { opacity: 0.5, scale: 1, duration: 0.6, ease: "power2.out" },
+        0.72
+      );
+      /* glossy diagonal sheen sweeps across the plate (brightens mid-sweep) */
+      tl.fromTo(
+        "#fw-sheen",
+        { xPercent: -120, skewX: -16, opacity: 0 },
+        {
+          xPercent: 165,
+          opacity: 0.35,
+          duration: 0.38,
+          ease: "power2.inOut",
+        },
+        0.92
+      );
+      tl.fromTo(
+        "#fw-sheen",
+        { opacity: 0.35 },
+        {
+          opacity: 0,
+          duration: 0.12,
+          ease: "power1.out",
+          immediateRender: false,
+        },
+        1.3
+      );
+
+      /* wordmark: soft blur-to-sharp rise */
+      tl.fromTo(
+        "#fw-wordmark-inner",
+        { opacity: 0, y: 22, filter: "blur(8px)" },
+        { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.55, ease: "power3.out" },
+        1.1
+      );
+
+      /* tagline fades up */
+      tl.fromTo(
+        "#fw-tagline-inner",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" },
+        1.5
+      );
+
+      /* collective breathe while the loading bar completes */
+      tl.fromTo(
+        "#fw-stage",
+        { scale: 1, transformOrigin: "50% 46%" },
+        { scale: 1.015, duration: 0.5, ease: "power1.inOut" },
+        1.9
+      );
+
+      /* amber progress shimmer: 0 -> 100% */
+      tl.fromTo(
+        "#fw-progress-inner",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.25, ease: "power1.out" },
+        1.85
+      );
+      tl.fromTo(
+        "#fw-progress-fill",
+        { scaleX: 0, transformOrigin: "left center" },
+        { scaleX: 1, duration: 0.35, ease: "power1.inOut" },
+        2.0
+      );
+      tl.fromTo(
+        "#fw-progress-spark",
+        { x: -90 },
+        { x: 320, duration: 0.35, ease: "power1.inOut" },
+        2.0
+      );
+
+      window.__timelines["intro"] = tl;
+    })();
+  </script>
+</template>
