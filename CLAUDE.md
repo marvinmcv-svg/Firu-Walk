@@ -11,8 +11,11 @@ Always ship finished work to Vercel **production** without being asked:
    `firu-walk` (team `team_oJjp2m4ndYj0sRVbnyFFjypE`, project
    `prj_SsMRcIHT0ytmnG9avPrWYXl8sCS8`) with `target: "production"` and a
    GitHub `gitSource` (`marvinmcv-svg/Firu-Walk`, branch + sha).
-4. Wait for READY (read the build logs and fix on ERROR), then report
-   https://firu-walk.vercel.app to the owner.
+4. Wait for READY (read the build logs and fix on ERROR), then fetch
+   `/api/config` on the production URL (Vercel `web_fetch_vercel_url` — the
+   sandbox can't reach vercel.app) and check runtime logs: a READY build can
+   still 500 at runtime if a required env var is missing (see
+   `src/lib/server/env.ts`). Then report https://firu-walk.vercel.app.
 
 Production builds run `prisma migrate deploy` (scripts/vercel-build.sh), so
 review new migrations before deploying. Never set `SEED_ON_BUILD=true` on
