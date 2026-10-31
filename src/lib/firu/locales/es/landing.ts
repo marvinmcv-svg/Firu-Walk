@@ -218,6 +218,11 @@ const landing: Record<string, string> = {
   "land.login.descWalker": "Revisa tus solicitudes de hoy.",
   "land.login.descAdmin": "Panel de operaciones listo.",
   "land.login.errorTitle": "No pudimos entrar",
+  "land.login.teamToggle": "Acceso del equipo FiruWalk",
+  "land.login.teamTitle": "Acceso del equipo",
+  "land.login.username": "Usuario",
+  "land.login.password": "Contraseña",
+  "land.login.teamSubmit": "Entrar al panel",
   "land.phoneFormat": "+591 70000000",
   // walker application dialog
   "land.apply.title": "Aplica como paseador",

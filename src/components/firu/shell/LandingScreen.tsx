@@ -988,11 +988,24 @@ function LoginDialog({
     onError: fail,
   });
 
+  // Team (admin) access: username + password, kept behind a quiet toggle.
+  const [teamMode, setTeamMode] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const adminLoginMut = useMutation({
+    mutationFn: () => api.post<LoginResponse>("/api/auth/admin-login", { username, password }),
+    onSuccess: (res) => {
+      setPassword("");
+      welcome(res);
+    },
+    onError: fail,
+  });
+
   const owners = (accounts ?? []).filter((a) => a.role === "OWNER");
   const walkers = (accounts ?? []).filter((a) => a.role === "WALKER");
   const admins = (accounts ?? []).filter((a) => a.role === "ADMIN");
   const resendIn = Math.max(0, Math.ceil((resendAt - now) / 1000));
-  const busy = demoLoginMut.isPending || sendCodeMut.isPending || loginMut.isPending;
+  const busy = demoLoginMut.isPending || sendCodeMut.isPending || loginMut.isPending || adminLoginMut.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1134,6 +1147,55 @@ function LoginDialog({
                 </>
               )}
             </div>
+          </div>
+
+          <div className="border-t pt-3">
+            {!teamMode ? (
+              <button
+                type="button"
+                className="mx-auto block text-xs font-semibold text-muted-foreground hover:text-foreground"
+                onClick={() => setTeamMode(true)}
+              >
+                {t("land.login.teamToggle")}
+              </button>
+            ) : (
+              <form
+                className="grid gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (username && password) adminLoginMut.mutate();
+                }}
+              >
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  {t("land.login.teamTitle")}
+                </p>
+                <div>
+                  <Label htmlFor="team-user" className="text-sm">{t("land.login.username")}</Label>
+                  <Input
+                    id="team-user"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="team-pass" className="text-sm">{t("land.login.password")}</Label>
+                  <Input
+                    id="team-pass"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
+                <Button type="submit" className="rounded-full font-bold" disabled={busy || !username || !password}>
+                  {adminLoginMut.isPending && <Loader2 className="size-4 animate-spin" />}
+                  {t("land.login.teamSubmit")}
+                </Button>
+              </form>
+            )}
           </div>
         </div>
       </DialogContent>
