@@ -1,7 +1,9 @@
 // HTTP helpers for FiruWalk route handlers.
 // All errors are JSON `{ error: string }` with a Spanish, user-friendly message.
 
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
+import { log } from "./log";
 
 export class ApiError extends Error {
   status: number;
@@ -30,7 +32,8 @@ export async function run(fn: () => Promise<Response>): Promise<Response> {
     return await fn();
   } catch (err) {
     if (err instanceof ApiError) return fail(err.status, err.message);
-    console.error("[api] unhandled error:", err);
+    log.error("api.unhandled", { err });
+    Sentry.captureException(err);
     return fail(500, "Error interno del servidor. Intenta de nuevo.");
   }
 }

@@ -8,6 +8,7 @@
 import { db } from "@/lib/db";
 import { getAppConfig } from "@/lib/server/config";
 import { fail, ok } from "@/lib/server/http";
+import { log } from "@/lib/server/log";
 import ZAI from "z-ai-web-dev-sdk";
 
 type Lang = "es" | "en";
@@ -185,15 +186,15 @@ export async function POST(req: Request) {
     const reply = extractReply(completion);
     if (!reply) throw new Error("empty completion");
     // Never log user content — only sizes/timings.
-    console.log(
-      `[firulai] ok · turns=${window.length} replyChars=${reply.length} ms=${Date.now() - startedAt}`
-    );
+    log.info("firulai.ok", {
+      turns: window.length,
+      replyChars: reply.length,
+      ms: Date.now() - startedAt,
+    });
     return ok({ reply });
   } catch (err) {
     const reason = (err instanceof Error ? err.message : "unknown").slice(0, 200);
-    console.warn(
-      `[firulai] degraded (${reason}) · turns=${window.length} ms=${Date.now() - startedAt}`
-    );
+    log.warn("firulai.degraded", { reason, turns: window.length, ms: Date.now() - startedAt });
     return ok({ reply: FALLBACK[useLang], degraded: true });
   }
 }
