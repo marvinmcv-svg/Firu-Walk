@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   Sun,
   UserRound,
+  Landmark,
   Users,
   Wallet,
 } from "lucide-react";
@@ -69,6 +70,7 @@ import { AdminBookings } from "@/components/firu/admin/AdminBookings";
 import { AdminDisputes } from "@/components/firu/admin/AdminDisputes";
 import { AdminUsers } from "@/components/firu/admin/AdminUsers";
 import { AdminConfig } from "@/components/firu/admin/AdminConfig";
+import { AdminPayments } from "@/components/firu/admin/AdminPayments";
 
 const NAV = {
   OWNER: [
@@ -89,6 +91,7 @@ const NAV = {
     { view: "bookings", labelKey: "shell.nav.bookings", icon: CalendarDays },
     { view: "disputes", labelKey: "shell.nav.cases", icon: ShieldAlert },
     { view: "users", labelKey: "shell.nav.users", icon: Users },
+    { view: "payments", labelKey: "shell.nav.payments", icon: Landmark },
     { view: "config", labelKey: "shell.nav.config", icon: Settings2 },
   ],
 } as const;
@@ -153,6 +156,7 @@ export function AppShell() {
       case "bookings": return <AdminBookings />;
       case "disputes": return <AdminDisputes />;
       case "users": return <AdminUsers />;
+      case "payments": return <AdminPayments />;
       case "config": return <AdminConfig />;
       default: return <AdminDashboard />;
     }
@@ -231,11 +235,11 @@ export function AppShell() {
 
       {/* Bottom nav (mobile) — iOS tab bar: glass material + spring pill indicator */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 firu-glass border-t border-border/50 pb-safe">
-        {/* ADMIN has 6 destinations → two rows of 3 instead of a clipped 4-col grid */}
+        {/* ADMIN has 7 destinations → two rows of 4 instead of a clipped single row */}
         <div
           className={cn(
             "grid max-w-lg mx-auto",
-            role === "ADMIN" ? "grid-cols-3 h-28" : "grid-cols-4 h-16"
+            role === "ADMIN" ? "grid-cols-4 h-28" : "grid-cols-4 h-16"
           )}
         >
           {nav.map((n) => {

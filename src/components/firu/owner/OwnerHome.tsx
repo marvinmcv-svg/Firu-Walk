@@ -5,6 +5,7 @@
 // engine + primary booking CTA.
 
 import { useQuery } from "@tanstack/react-query";
+import { OwnerPlans } from "@/components/firu/owner/OwnerPlans";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -352,6 +353,11 @@ export function OwnerHome() {
           </div>
         </motion.div>
       )}
+
+      {/* Monthly plans */}
+      <motion.div variants={staggerItem}>
+        <OwnerPlans />
+      </motion.div>
 
       {/* Empty state */}
       {!isLoading && (bookings ?? []).length === 0 && (

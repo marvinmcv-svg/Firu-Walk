@@ -9,7 +9,7 @@ from conftest import BASE_URL, assert_no_errors, login, logout, switch_view
 
 OWNER_VIEWS = ["Inicio", "Explorar", "Reservas", "Perfil"]
 WALKER_VIEWS = ["Inicio", "Agenda", "Ganancias", "Perfil"]
-ADMIN_VIEWS = ["Panel", "Solicitudes", "Reservas", "Casos", "Usuarios", "Config"]
+ADMIN_VIEWS = ["Panel", "Solicitudes", "Reservas", "Casos", "Usuarios", "Pagos", "Config"]
 
 
 def _assert_within_viewport(mobile_page, label):
@@ -92,8 +92,12 @@ def test_admin_views_light(page, shot, errors):
 
     switch_view(page, "Usuarios")
     expect(page.get_by_placeholder("Buscar por nombre")).to_be_visible()
-    expect(page.get_by_text("Marcar pagado", exact=False).first).to_be_visible()
+    expect(page.get_by_text("Billetera", exact=False).first).to_be_visible()
     shot("admin-users")
+
+    switch_view(page, "Pagos")
+    expect(page.get_by_text("Marcar pagado", exact=False).first).to_be_visible()
+    shot("admin-payments")
 
     switch_view(page, "Config")
     expect(page.get_by_text("nada está hard-coded", exact=False).first).to_be_visible()
@@ -163,7 +167,7 @@ def test_mobile_views_all_roles(mobile_page, mshot, errors):
         switch_view(mobile_page, label)
         _assert_within_viewport(mobile_page, f"walker/{label}")
 
-    # --- admin: 6 items in a 2x3 grid, nothing clipped
+    # --- admin: 7 items in a 2x4 grid, nothing clipped
     logout(mobile_page)
     login(mobile_page, "Equipo FiruWalk")
     for label in ADMIN_VIEWS:
@@ -177,7 +181,7 @@ def test_mobile_views_all_roles(mobile_page, mshot, errors):
              return { label: b.textContent, bottom: r.bottom };
            })"""
     )
-    assert len(geo) == 6, f"admin nav should have 6 items, got {len(geo)}"
+    assert len(geo) == 7, f"admin nav should have 7 items, got {len(geo)}"
     for g in geo:
         assert g["bottom"] <= 845, f"admin nav item clipped: {g}"
 

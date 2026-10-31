@@ -1,7 +1,8 @@
 "use client";
 
-// Walker earnings ("Ganancias"): wallet hero with withdrawal dialog, ledger
-// movements (income / fee / payout) and payout history.
+// Walker earnings ("Ganancias"): wallet hero with withdrawal dialog, cash-debt
+// warning, payout account (where the weekly batch is sent), ledger movements
+// (income / fee / payout) and payout history with bank references.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import {
   Banknote,
   Landmark,
   Loader2,
+  OctagonAlert,
   PiggyBank,
   QrCode,
   Receipt,
@@ -22,7 +24,7 @@ import { api, qk } from "@/lib/firu/api";
 import { useT, srvErr } from "@/lib/firu/i18n";
 import { formatBOB, parseBOB } from "@/lib/firu/money";
 import { fmtDateShort, fmtRelative } from "@/lib/firu/dates";
-import type { AppConfig, LedgerEntryDTO, PayoutDTO, WalletDTO } from "@/lib/firu/types";
+import type { AppConfig, LedgerEntryDTO, PayoutDestinationDTO, PayoutDTO, WalletDTO } from "@/lib/firu/types";
 import { springSmooth } from "@/lib/firu/motion";
 import { EmptyState, SectionHeader, StatusBadge } from "@/components/firu/shared/bits";
 import { Button } from "@/components/ui/button";
@@ -81,8 +83,7 @@ export function WalkerEarnings() {
   const canWithdraw = balance >= minPayout && balance > 0;
 
   const withdrawMut = useMutation({
-    mutationFn: (p: { amountCents: number; method: string }) =>
-      api.post<PayoutDTO>("/api/payouts", p),
+    mutationFn: (p: { amountCents: number }) => api.post<PayoutDTO>("/api/payouts", p),
     onSuccess: () => {
       setWithdrawOpen(false);
       toast({
@@ -164,6 +165,19 @@ export function WalkerEarnings() {
         )}
       </motion.section>
 
+      {wallet?.blockedForDebt && (
+        <div role="alert" className="rounded-3xl border border-destructive/40 bg-red-50 dark:bg-red-950/40 p-4 flex gap-3">
+          <OctagonAlert className="size-5 text-destructive shrink-0 mt-0.5" />
+          <p className="text-sm leading-relaxed">
+            <strong>{t("wlk.pay.debtTitle")}</strong>{" "}
+            {t("wlk.pay.debtDesc", { debt: formatBOB(-balance), max: formatBOB(wallet.maxCashDebtCents) })}
+          </p>
+        </div>
+      )}
+
+      {/* Cuenta de cobro */}
+      {wallet && <DestinationCard destination={wallet.destination} />}
+
       {/* Movimientos */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
@@ -238,6 +252,9 @@ export function WalkerEarnings() {
                     {methodLabel(p.method)} · {t("wlk.pay.requestedOn", { date: fmtDateShort(p.requestedAt) })}
                     {p.paidAt ? ` · ${t("wlk.pay.paidOn", { date: fmtDateShort(p.paidAt) })}` : ""}
                   </p>
+                  {p.reference && (
+                    <p className="text-xs font-mono text-muted-foreground mt-0.5">{t("wlk.pay.reference", { ref: p.reference })}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -252,8 +269,9 @@ export function WalkerEarnings() {
         balanceCents={balance}
         minPayoutCents={minPayout}
         cycleLabel={cycleLabel}
+        destination={wallet?.destination ?? null}
         pending={withdrawMut.isPending}
-        onSubmit={(amountCents, method) => withdrawMut.mutate({ amountCents, method })}
+        onSubmit={(amountCents) => withdrawMut.mutate({ amountCents })}
       />
     </div>
   );
@@ -314,6 +332,7 @@ function WithdrawDialog({
   balanceCents,
   minPayoutCents,
   cycleLabel,
+  destination,
   pending,
   onSubmit,
 }: {
@@ -322,12 +341,13 @@ function WithdrawDialog({
   balanceCents: number;
   minPayoutCents: number;
   cycleLabel: string;
+  destination: PayoutDestinationDTO | null;
   pending: boolean;
-  onSubmit: (amountCents: number, method: string) => void;
+  onSubmit: (amountCents: number) => void;
 }) {
   const [amountText, setAmountText] = useState("");
-  const [method, setMethod] = useState("QR");
   const { t } = useT();
+  const hasAccount = !!destination?.payoutAccount;
 
   // Default to the full balance each time the dialog opens.
   const effectiveText = amountText || formatBOB(balanceCents).replace("Bs ", "");
@@ -381,40 +401,22 @@ function WithdrawDialog({
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label>{t("wlk.pay.method")}</Label>
-            <RadioGroup value={method} onValueChange={setMethod} className="gap-2">
-              {(
-                [
-                  ["QR", t("wlk.pay.methodQR"), t("wlk.pay.qrHint"), QrCode],
-                  ["BANK", t("wlk.pay.methodBank"), t("wlk.pay.bankHint"), Landmark],
-                ] as const
-              ).map(([value, label, hint, Icon]) => (
-                <Label
-                  key={value}
-                  htmlFor={`wd-${value}`}
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl border p-3 cursor-pointer transition-colors",
-                    method === value
-                      ? "border-primary bg-brand-soft/60"
-                      : "hover:bg-secondary/60"
-                  )}
-                >
-                  <RadioGroupItem id={`wd-${value}`} value={value} />
-                  <Icon className="size-5 text-primary shrink-0" />
-                  <div>
-                    <p className="font-bold text-sm">{label}</p>
-                    <p className="text-xs text-muted-foreground">{hint}</p>
-                  </div>
-                </Label>
-              ))}
-            </RadioGroup>
+          <div className="rounded-2xl border p-3 text-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t("wlk.pay.sendTo")}</p>
+            {hasAccount ? (
+              <p className="font-bold mt-0.5 flex items-center gap-2">
+                {destination?.payoutMethod === "QR" ? <QrCode className="size-4 text-primary" /> : <Landmark className="size-4 text-primary" />}
+                {[destination?.payoutMethod === "QR" ? t("wlk.pay.methodQR") : destination?.payoutBank, destination?.payoutAccount].filter(Boolean).join(" · ")}
+              </p>
+            ) : (
+              <p className="text-red-600 dark:text-red-400 font-semibold mt-0.5">{t("wlk.pay.noAccount")}</p>
+            )}
           </div>
 
           <Button
             className="w-full rounded-full font-extrabold h-11"
-            disabled={pending || tooLow || tooHigh || amountCents <= 0}
-            onClick={() => onSubmit(amountCents, method)}
+            disabled={pending || tooLow || tooHigh || amountCents <= 0 || !hasAccount}
+            onClick={() => onSubmit(amountCents)}
           >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Banknote className="size-4" />}
             {t("wlk.pay.requestBtn")}
@@ -425,5 +427,96 @@ function WithdrawDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ------------------------- Payout account ------------------------- */
+
+function DestinationCard({ destination }: { destination: PayoutDestinationDTO }) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(!destination.payoutAccount);
+  const [method, setMethod] = useState<"QR" | "BANK">(destination.payoutMethod ?? "BANK");
+  const [bank, setBank] = useState(destination.payoutBank ?? "");
+  const [account, setAccount] = useState(destination.payoutAccount ?? "");
+  const [holder, setHolder] = useState(destination.payoutHolder ?? "");
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.patch<PayoutDestinationDTO>("/api/wallet", {
+        payoutMethod: method,
+        payoutBank: method === "BANK" ? bank : undefined,
+        payoutAccount: account,
+        payoutHolder: holder,
+      }),
+    onSuccess: () => {
+      setEditing(false);
+      qc.invalidateQueries({ queryKey: qk.wallet });
+      toast({ title: t("wlk.pay.accountSaved") });
+    },
+    onError: (e: Error) =>
+      toast({ title: t("wlk.pay.accountErr"), description: srvErr(e.message), variant: "destructive" }),
+  });
+
+  return (
+    <section className="rounded-3xl border bg-card p-4 shadow-sm space-y-3">
+      <div className="flex items-center gap-2">
+        <Landmark className="size-4 text-primary" />
+        <h3 className="font-extrabold">{t("wlk.pay.accountTitle")}</h3>
+        {!editing && (
+          <Button variant="ghost" size="sm" className="ml-auto rounded-full" onClick={() => setEditing(true)}>
+            {t("wlk.pay.accountEdit")}
+          </Button>
+        )}
+      </div>
+      {!editing ? (
+        <p className="text-sm">
+          <span className="font-bold">
+            {destination.payoutMethod === "QR" ? t("wlk.pay.methodQR") : destination.payoutBank} · {destination.payoutAccount}
+          </span>
+          <span className="text-muted-foreground"> · {destination.payoutHolder}</span>
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>{t("wlk.pay.method")}</Label>
+            <RadioGroup value={method} onValueChange={(v) => setMethod(v as "QR" | "BANK")} className="flex gap-4">
+              {(["BANK", "QR"] as const).map((m) => (
+                <Label key={m} htmlFor={`dest-${m}`} className="flex items-center gap-2 cursor-pointer">
+                  <RadioGroupItem id={`dest-${m}`} value={m} />
+                  {m === "QR" ? t("wlk.pay.methodQR") : t("wlk.pay.methodBank")}
+                </Label>
+              ))}
+            </RadioGroup>
+          </div>
+          {method === "BANK" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="dest-bank">{t("wlk.pay.bank")}</Label>
+              <Input id="dest-bank" value={bank} onChange={(e) => setBank(e.target.value)} placeholder="BNB, BCP, Banco Unión…" className="rounded-xl" />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="dest-account">{method === "QR" ? t("wlk.pay.qrAlias") : t("wlk.pay.accountNumber")}</Label>
+            <Input id="dest-account" value={account} onChange={(e) => setAccount(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="dest-holder">{t("wlk.pay.holder")}</Label>
+            <Input id="dest-holder" value={holder} onChange={(e) => setHolder(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="sm:col-span-2 flex gap-2">
+            <Button className="rounded-full font-bold" disabled={save.isPending} onClick={() => save.mutate()}>
+              {save.isPending && <Loader2 className="size-4 animate-spin" />} {t("wlk.pay.accountSave")}
+            </Button>
+            {destination.payoutAccount && (
+              <Button variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
+                {t("c.cancel")}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">{t("wlk.pay.accountNote")}</p>
+    </section>
   );
 }

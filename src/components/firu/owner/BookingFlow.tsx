@@ -22,11 +22,12 @@ import {
   PartyPopper,
   QrCode,
   ShieldCheck,
+  Ticket,
 } from "lucide-react";
 import { api, qk } from "@/lib/firu/api";
 import { useFiruSession } from "@/lib/firu/session";
 import { srvErr, useT } from "@/lib/firu/i18n";
-import { formatBOB } from "@/lib/firu/money";
+import { formatBOB, priceBreakdown } from "@/lib/firu/money";
 import { daysShort, fmtSchedule, minuteOfDay } from "@/lib/firu/dates";
 import type {
   AppConfig,
@@ -34,6 +35,7 @@ import type {
   DogDTO,
   PaymentMethod,
   ScheduleItem,
+  SubscriptionDTO,
   WalkerCardDTO,
   WalkerDetailDTO,
   ZoneDTO,
@@ -46,7 +48,7 @@ import {
   RatingStars,
 } from "@/components/firu/shared/bits";
 import { ChatDialog } from "@/components/firu/shared/ChatDialog";
-import { PaymentDialog } from "@/components/firu/shared/PaymentDialog";
+import { PaymentDialog, PriceBreakdownLines } from "@/components/firu/shared/PaymentDialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -142,6 +144,16 @@ export function BookingFlow() {
     queryKey: qk.zones,
     queryFn: () => api.get<ZoneDTO[]>("/api/zones"),
   });
+  const { data: subscriptions } = useQuery({
+    queryKey: qk.subscriptions,
+    queryFn: () => api.get<SubscriptionDTO[]>("/api/subscriptions"),
+  });
+  // An active monthly plan that covers walks of this duration.
+  const usablePlan = (subscriptions ?? []).find(
+    (s) => s.status === "ACTIVE" && s.walksLeft > 0 && s.durationMin === durationMin
+  );
+  const effectiveMethod: PaymentMethod =
+    paymentMethod === "PLAN" && !usablePlan ? "QR" : paymentMethod;
 
   const seededWalkerId = seed?.walkerUserId ?? null;
   const { data: seededWalker } = useQuery({
@@ -226,7 +238,8 @@ export function BookingFlow() {
         schedule: scheduleItems,
         durationMin,
         preferredWalkerUserId: chosenUserId ?? undefined,
-        paymentMethod,
+        paymentMethod: effectiveMethod,
+        subscriptionId: effectiveMethod === "PLAN" ? usablePlan?.id : undefined,
         notes: notes.trim() || undefined,
       }),
     onSuccess: (b) => {
@@ -238,7 +251,8 @@ export function BookingFlow() {
           walker: b.walker?.name ?? t("own.walkerFallback"),
         }),
       });
-      if (b.payment?.status === "PENDING" && paymentMethod !== "CASH") {
+      qc.invalidateQueries({ queryKey: qk.subscriptions });
+      if (b.payment?.status === "PENDING" && effectiveMethod !== "CASH") {
         setPayOpen(true);
       }
     },
@@ -256,6 +270,8 @@ export function BookingFlow() {
   const bands: PriceBands | null | undefined =
     chosenWalker ?? config?.pricing ?? null;
   const priceCents = priceForDuration(durationMin, bands);
+  const price =
+    priceCents !== null ? priceBreakdown(priceCents, config?.fees.ownerFeePct ?? 0) : null;
   const zoneName = zones?.find((z) => z.id === effectiveZoneId)?.name;
 
   /* ---------------- success screen ---------------- */
@@ -334,7 +350,6 @@ export function BookingFlow() {
           onOpenChange={setPayOpen}
           bookingId={created.id}
           payment={created.payment}
-          amountCents={created.pricePerWalkCents}
           title={t("own.confirmPay")}
           description={t("own.payHeldDesc")}
         />
@@ -823,8 +838,39 @@ export function BookingFlow() {
               <div className="space-y-2">
                 <Label>{t("own.step3.payLabel")}</Label>
                 <div className="grid gap-2">
+                  {usablePlan && (
+                    <button
+                      onClick={() => setPaymentMethod("PLAN")}
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl border-2 p-3 text-left transition-[border-color,background-color,transform] duration-200 ease-out-expo active:scale-[0.98]",
+                        effectiveMethod === "PLAN"
+                          ? "border-primary bg-brand-soft/50"
+                          : "border-border bg-card hover:border-primary/40"
+                      )}
+                      aria-pressed={effectiveMethod === "PLAN"}
+                    >
+                      <Ticket
+                        className={cn(
+                          "size-5 shrink-0",
+                          effectiveMethod === "PLAN" ? "text-primary" : "text-muted-foreground"
+                        )}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-sm">{t("own.pay.plan.label")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("own.pay.plan.desc", { left: usablePlan.walksLeft, name: usablePlan.plan.name })}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "size-4 rounded-full border-2 shrink-0",
+                          effectiveMethod === "PLAN" ? "border-primary bg-primary" : "border-muted-foreground/40"
+                        )}
+                      />
+                    </button>
+                  )}
                   {PAYMENT_OPTIONS.map((opt) => {
-                    const active = paymentMethod === opt.value;
+                    const active = effectiveMethod === opt.value;
                     return (
                       <button
                         key={opt.value}
@@ -857,6 +903,20 @@ export function BookingFlow() {
                     );
                   })}
                 </div>
+                {effectiveMethod === "PLAN" ? (
+                  <p className="text-sm rounded-2xl bg-brand-soft/50 border border-primary/20 p-3">
+                    {t("own.pay.plan.covered")}
+                  </p>
+                ) : (
+                  price && (
+                    <PriceBreakdownLines
+                      className="rounded-2xl border bg-card p-3"
+                      totalCents={price.totalCents}
+                      feeCents={price.ownerFeeCents}
+                      baseLabel={t("own.pricePerWalk")}
+                    />
+                  )
+                )}
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <ShieldCheck className="size-3.5 text-primary shrink-0" />
                   {t("own.step3.payNote")}
@@ -895,7 +955,7 @@ export function BookingFlow() {
           >
             {submitMut.isPending && <Loader2 className="size-4 animate-spin" />}
             {t("own.sendRequest")}
-            {priceCents !== null && ` · ${formatBOB(priceCents)}`}
+            {effectiveMethod !== "PLAN" && price && ` · ${formatBOB(price.totalCents)}`}
           </Button>
         )}
       </div>

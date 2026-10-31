@@ -369,6 +369,7 @@ export function AdminConfig() {
           fields={[
             { key: "cycle", label: t("adm.cfg.f.cycle"), kind: "text", hint: t("adm.cfg.f.cycleHint") },
             { key: "minPayoutCents", label: t("adm.cfg.f.minPayout"), kind: "bs", unit: "Bs" },
+            { key: "maxCashDebtCents", label: t("adm.cfg.f.maxCashDebt"), kind: "bs", unit: "Bs", hint: t("adm.cfg.f.maxCashDebtHint") },
           ]}
           value={cfg.payouts}
         />
@@ -385,6 +386,28 @@ export function AdminConfig() {
             { key: "maxAccuracyMeters", label: t("adm.cfg.f.maxAccuracy"), kind: "num", unit: "m" },
           ]}
           value={cfg.tracking}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.plans)}
+          section="plans"
+          icon={Tag}
+          title={t("adm.cfg.plansTitle")}
+          description={t("adm.cfg.plansDesc")}
+          fields={[
+            { key: "unusedWalkPolicy", label: t("adm.cfg.f.unusedPolicy"), kind: "text", hint: t("adm.cfg.f.unusedPolicyHint") },
+          ]}
+          value={cfg.plans}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.payments)}
+          section="payments"
+          icon={HandCoins}
+          title={t("adm.cfg.qrTitle")}
+          description={t("adm.cfg.qrDesc")}
+          fields={[
+            { key: "qrExpiryMinutes", label: t("adm.cfg.f.qrExpiry"), kind: "num", unit: "min" },
+          ]}
+          value={cfg.payments}
         />
         <DemoCard demo={cfg.demo} />
       </div>

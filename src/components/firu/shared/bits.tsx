@@ -30,6 +30,11 @@ const STATUS_STYLES: Record<string, { labelKey: string; cls: string }> = {
   CASH_SETTLED: { labelKey: "sh.status.cashSettled", cls: "bg-muted text-muted-foreground border-border" },
   // payouts
   REQUESTED_PAYOUT: { labelKey: "sh.status.requestedPayout", cls: "bg-sun-soft text-amber-700 border-amber-300" },
+  APPROVED: { labelKey: "sh.status.approved", cls: "bg-brand-soft text-primary border-primary/30" },
+  DRAFT: { labelKey: "sh.status.draft", cls: "bg-muted text-muted-foreground border-border" },
+  PENDING_PAYMENT: { labelKey: "sh.status.pending", cls: "bg-sun-soft text-amber-700 border-amber-300" },
+  EXPIRED: { labelKey: "sh.status.expired", cls: "bg-muted text-muted-foreground border-border" },
+  RESOLVED: { labelKey: "sh.status.resolved", cls: "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" },
   PAID: { labelKey: "sh.status.paid", cls: "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" },
   // disputes
   OPEN: { labelKey: "sh.status.open", cls: "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800" },

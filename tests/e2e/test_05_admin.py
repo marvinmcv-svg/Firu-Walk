@@ -1,5 +1,5 @@
 """T8-f · 05 — Admin operations: dashboard, applications, bookings, disputes,
-users/payouts, config (with a verified save + revert), CSV exports.
+users, payments (reconciliation/payouts/plans), config (with a verified save + revert), CSV exports.
 """
 from playwright.sync_api import expect
 
@@ -75,9 +75,17 @@ def test_admin_operations(page, shot, errors):
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
 
-    # ---------- users + payouts queue ----------
-    switch_view(page, "Usuarios")
+    # ---------- payments: reconciliation, payout queue, plans ----------
+    switch_view(page, "Pagos")
+    expect(page.get_by_text("Conciliación", exact=False).first).to_be_visible()
+    expect(page.get_by_text("Libro balanceado", exact=False).first).to_be_visible()
     expect(page.get_by_text("Marcar pagado", exact=False).first).to_be_visible()
+    expect(page.get_by_text("Plan Mensual 20 paseos", exact=False).first).to_be_visible()
+    shot("09-payments")
+
+    # ---------- users ----------
+    switch_view(page, "Usuarios")
+    expect(page.get_by_text("Billetera", exact=False).first).to_be_visible()
     shot("09-users")
     usearch = page.get_by_placeholder("Buscar por nombre")
     usearch.fill("Luis")

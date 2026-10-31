@@ -680,17 +680,21 @@ function BookingCard({
             >
               <CreditCard className="size-3.5" />
               {payment?.status === "PENDING"
-                ? t("own.booking.pay", { amount: formatBOB(booking.pricePerWalkCents) })
+                ? t("own.booking.pay", { amount: formatBOB(payment.amountCents) })
                 : payment
                   ? t("own.booking.payLabel", {
                       status:
-                        payment.status === "HELD"
+                        payment.method === "PLAN" && payment.status === "HELD"
+                          ? t("own.payStatus.plan")
+                          : payment.status === "HELD"
                           ? t("own.payStatus.held")
                           : payment.status === "RELEASED"
                             ? t("own.payStatus.released")
                             : payment.status === "CASH_SETTLED"
                               ? t("own.payStatus.cash")
-                              : payment.status,
+                              : payment.status === "REFUNDED"
+                                ? t("own.payStatus.refunded")
+                                : payment.status,
                     })
                   : t("own.booking.paying")}
             </Button>
@@ -804,7 +808,6 @@ function BookingCard({
         onOpenChange={setPayOpen}
         bookingId={booking.id}
         payment={payment}
-        amountCents={booking.pricePerWalkCents}
         title={t("own.booking.payTitle", { dog: booking.dog.name })}
         description={t("own.payHeldDesc")}
       />

@@ -70,7 +70,7 @@ const landing: Record<string, string> = {
   "land.footer.about": "A family-run dog walking business in {city}, Bolivia. 🇧🇴 We treat every pup like part of the family.",
   "land.footer.support": "Support",
   "land.footer.whatsapp": "WhatsApp {phone}",
-  "land.footer.demoNote": "Demo MVP — QR payments and notifications are simulated. Business settings (commissions, prices, areas) are managed from the admin panel.",
+  "land.footer.demoNote": "Pilot — QR payments are confirmed by the bank; in test environments they run against a simulated bank. Business settings (commissions, prices, areas) are managed from the admin panel.",
   "land.footer.company": "Company",
   "land.footer.legal": "Terms and privacy policy: pending legal review (Bolivia). Walker status: independent contractors — legal definition in progress.",
   "land.footer.copyright": "© {year} FiruWalk · Made with 🐾 in Santa Cruz",

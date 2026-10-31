@@ -1,8 +1,9 @@
 "use client";
 
 // T4-d — Admin users view ("Usuarios").
-// Payout queue (mark paid / cancel) at the top, CSV export row,
-// and the full user directory with role/status filters.
+// CSV export row and the full user directory with role/status filters and
+// walker wallet balances (cash debt → record a deposit). Payouts moved to
+// Admin → Pagos.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -13,14 +14,12 @@ import {
   Search,
   ShieldCheck,
   Users as UsersIcon,
-  Wallet,
-  XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api, qk } from "@/lib/firu/api";
-import type { PayoutDTO, SessionUserDTO } from "@/lib/firu/types";
-import { formatBOB } from "@/lib/firu/money";
-import { fmtDateShort, fmtRelative } from "@/lib/firu/dates";
+import type { SessionUserDTO } from "@/lib/firu/types";
+import { formatBOB, parseBOB } from "@/lib/firu/money";
+import { fmtDateShort } from "@/lib/firu/dates";
 import { useT, srvErr } from "@/lib/firu/i18n";
 import {
   Avatar,
@@ -39,7 +38,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -59,11 +57,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-/** Payouts carry additive walkerId/walkerName in the admin list payload. */
-type AdminPayoutDTO = PayoutDTO & { walkerId?: string; walkerName?: string | null };
-
 /** SessionUserDTO now ships createdAt (additive); keep the superset defensive. */
-type AdminUserDTO = SessionUserDTO & { createdAt?: string };
+type AdminUserDTO = SessionUserDTO & { createdAt?: string; walletCents?: number | null };
 
 const ROLE_OPTIONS = [
   { value: "ALL", key: "adm.usr.roleAll" },
@@ -85,65 +80,6 @@ const ROLE_CHIP: Record<string, { key: string; cls: string }> = {
   ADMIN: { key: "adm.usr.roleAdmin", cls: "bg-secondary text-secondary-foreground border-border" },
 };
 
-const METHOD_LABEL: Record<string, string> = {
-  QR: "adm.pay.qr",
-  BANK: "adm.pay.bank",
-};
-
-/* ------------------------------ payout card ----------------------------- */
-
-function PayoutCard({
-  p,
-  busy,
-  onPaid,
-  onCancel,
-}: {
-  p: AdminPayoutDTO;
-  busy: boolean;
-  onPaid: (p: AdminPayoutDTO) => void;
-  onCancel: (p: AdminPayoutDTO) => void;
-}) {
-  const { t } = useT();
-  const methodKey = METHOD_LABEL[p.method];
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springSmooth}
-      layout
-      className="rounded-2xl border border-primary/30 bg-brand-soft overflow-hidden"
-    >
-      <CardContent className="flex flex-wrap items-center gap-3">
-        <span className="grid place-items-center size-11 rounded-2xl bg-primary text-primary-foreground shrink-0">
-          <Wallet className="size-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="font-extrabold leading-tight">{p.walkerName ?? t("adm.usr.walkerFallback")}</p>
-          <p className="text-xs text-muted-foreground font-semibold">
-            {methodKey ? t(methodKey) : p.method}
-            {t("adm.usr.payoutMeta", { ago: fmtRelative(p.requestedAt) })}
-          </p>
-        </div>
-        <p className="text-2xl font-black tabular-nums ml-auto">{formatBOB(p.amountCents)}</p>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button size="sm" className="rounded-full flex-1 sm:flex-none" disabled={busy} onClick={() => onPaid(p)}>
-            <Banknote className="size-4" /> {t("adm.usr.markPaid")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full text-destructive border-destructive/40 hover:bg-destructive/10 flex-1 sm:flex-none"
-            disabled={busy}
-            onClick={() => onCancel(p)}
-          >
-            <XCircle className="size-4" /> {t("c.cancel")}
-          </Button>
-        </div>
-      </CardContent>
-    </motion.div>
-  );
-}
-
 /* ================================= view ================================= */
 
 export function AdminUsers() {
@@ -152,41 +88,29 @@ export function AdminUsers() {
   const qc = useQueryClient();
   const [role, setRole] = useState<string>("ALL");
   const [search, setSearch] = useState("");
-  const [cancelTarget, setCancelTarget] = useState<AdminPayoutDTO | null>(null);
-  const [pendingPayoutId, setPendingPayoutId] = useState<string | null>(null);
+  const [depositTarget, setDepositTarget] = useState<AdminUserDTO | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositRef, setDepositRef] = useState("");
 
-  const { data: payouts, isLoading: payoutsLoading } = useQuery({
-    queryKey: qk.payouts,
-    queryFn: () => api.get<AdminPayoutDTO[]>("/api/payouts"),
-  });
   const { data: users, isLoading } = useQuery({
     queryKey: qk.adminUsers,
     queryFn: () => api.get<AdminUserDTO[]>("/api/admin/users"),
   });
 
-  const payoutAct = useMutation({
-    mutationFn: (v: { id: string; action: "paid" | "cancel" }) =>
-      api.patch(`/api/payouts/${v.id}`, { action: v.action }),
-    onMutate: (v) => setPendingPayoutId(v.id),
-    onSuccess: (_d, v) => {
-      setPendingPayoutId(null);
-      toast({
-        title: v.action === "paid" ? t("adm.usr.paidToast") : t("adm.usr.cancelToast"),
-        description:
-          v.action === "paid" ? t("adm.usr.paidToastDesc") : t("adm.usr.cancelToastDesc"),
-      });
-      qc.invalidateQueries({ queryKey: qk.payouts });
-      qc.invalidateQueries({ queryKey: qk.adminMetrics });
-      qc.invalidateQueries({ queryKey: ["wallet"] });
-      qc.invalidateQueries({ queryKey: qk.payments });
+  const deposit = useMutation({
+    mutationFn: (v: { profileId: string; amountCents: number; reference: string }) =>
+      api.post(`/api/admin/walkers/${v.profileId}/deposit`, { amountCents: v.amountCents, reference: v.reference }),
+    onSuccess: () => {
+      setDepositTarget(null);
+      setDepositAmount("");
+      setDepositRef("");
+      toast({ title: t("adm.usr.depositToast") });
+      qc.invalidateQueries({ queryKey: qk.adminUsers });
+      qc.invalidateQueries({ queryKey: qk.adminRecon });
     },
-    onError: (err: Error) => {
-      setPendingPayoutId(null);
-      toast({ title: t("adm.usr.errPayout"), description: srvErr(err.message), variant: "destructive" });
-    },
+    onError: (err: Error) =>
+      toast({ title: t("adm.usr.depositErr"), description: srvErr(err.message), variant: "destructive" }),
   });
-
-  const requestedPayouts = (payouts ?? []).filter((p) => p.status === "REQUESTED");
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -205,38 +129,8 @@ export function AdminUsers() {
     <div className="space-y-6">
       <SectionHeader
         title={t("adm.usr.title")}
-        subtitle={
-          requestedPayouts.length === 1
-            ? t("adm.usr.subtitle.one", { accounts: users?.length ?? 0, count: requestedPayouts.length })
-            : t("adm.usr.subtitle.many", { accounts: users?.length ?? 0, count: requestedPayouts.length })
-        }
+        subtitle={t("adm.usr.subtitle", { accounts: users?.length ?? 0 })}
       />
-
-      {/* Pending payouts */}
-      <section className="space-y-3">
-        <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-muted-foreground">
-          <Wallet className="size-4" /> {t("adm.usr.pendingPayouts")}
-        </h3>
-        {payoutsLoading ? (
-          <Skeleton className="h-20 rounded-2xl" />
-        ) : requestedPayouts.length === 0 ? (
-          <div className="rounded-2xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
-            {t("adm.usr.noPayouts")}
-          </div>
-        ) : (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {requestedPayouts.map((p) => (
-              <PayoutCard
-                key={p.id}
-                p={p}
-                busy={pendingPayoutId === p.id || payoutAct.isPending}
-                onPaid={(pp) => payoutAct.mutate({ id: pp.id, action: "paid" })}
-                onCancel={setCancelTarget}
-              />
-            ))}
-          </div>
-        )}
-      </section>
 
       {/* Exports */}
       <section className="flex flex-wrap items-center gap-2">
@@ -305,7 +199,8 @@ export function AdminUsers() {
                   <TableHead>{t("adm.usr.th.phone")}</TableHead>
                   <TableHead>{t("adm.zone")}</TableHead>
                   <TableHead>{t("adm.usr.th.created")}</TableHead>
-                  <TableHead className="pr-4">{t("adm.usr.th.walkerStatus")}</TableHead>
+                  <TableHead>{t("adm.usr.th.walkerStatus")}</TableHead>
+                  <TableHead className="pr-4 text-right">{t("adm.usr.th.wallet")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -333,9 +228,25 @@ export function AdminUsers() {
                     <TableCell className="text-muted-foreground">
                       {fmtDateShort(u.createdAt ?? u.walker?.appliedAt ?? null)}
                     </TableCell>
-                    <TableCell className="pr-4">
+                    <TableCell>
                       {u.walker ? (
                         <StatusBadge status={u.walker.status} kind="walker" />
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="pr-4 text-right">
+                      {typeof u.walletCents === "number" ? (
+                        <span className="inline-flex items-center gap-2 justify-end">
+                          <span className={cn("font-bold tabular-nums", u.walletCents < 0 && "text-red-600 dark:text-red-400")}>
+                            {formatBOB(u.walletCents)}
+                          </span>
+                          {u.walletCents < 0 && u.walker && (
+                            <Button size="sm" variant="outline" className="rounded-full h-7" onClick={() => setDepositTarget(u)}>
+                              <Banknote className="size-3.5" /> {t("adm.usr.deposit")}
+                            </Button>
+                          )}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
@@ -348,32 +259,46 @@ export function AdminUsers() {
         )}
       </section>
 
-      {/* Cancel payout confirmation */}
-      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+      {/* Walker cash-debt deposit */}
+      <AlertDialog open={!!depositTarget} onOpenChange={(open) => !open && setDepositTarget(null)}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("adm.usr.cancelTitle", {
-                name: cancelTarget?.walkerName ?? t("adm.usr.thisWalker"),
-              })}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("adm.usr.depositTitle", { name: depositTarget?.name ?? "" })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("adm.usr.cancelDesc", { amount: formatBOB(cancelTarget?.amountCents ?? 0) })}
+              {t("adm.usr.depositDesc", { debt: formatBOB(-(depositTarget?.walletCents ?? 0)) })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="grid gap-2">
+            <Input
+              inputMode="decimal"
+              placeholder={t("adm.usr.depositAmountPh")}
+              aria-label={t("adm.usr.depositAmountPh")}
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+            />
+            <Input
+              placeholder={t("adm.usr.depositRefPh")}
+              aria-label={t("adm.usr.depositRefPh")}
+              value={depositRef}
+              onChange={(e) => setDepositRef(e.target.value)}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">{t("adm.back")}</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-full bg-destructive text-white hover:bg-destructive/90"
-              disabled={payoutAct.isPending}
+              className="rounded-full"
+              disabled={deposit.isPending || parseBOB(depositAmount) <= 0 || depositRef.trim().length < 3}
               onClick={(e) => {
                 e.preventDefault();
-                if (!cancelTarget) return;
-                payoutAct.mutate({ id: cancelTarget.id, action: "cancel" });
-                setCancelTarget(null);
+                if (!depositTarget?.walker) return;
+                deposit.mutate({
+                  profileId: depositTarget.walker.id,
+                  amountCents: parseBOB(depositAmount),
+                  reference: depositRef.trim(),
+                });
               }}
             >
-              <XCircle className="size-4" /> {t("adm.usr.cancelPayout")}
+              <Banknote className="size-4" /> {t("adm.usr.depositSave")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

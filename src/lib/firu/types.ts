@@ -35,6 +35,8 @@ export interface AppConfig {
   };
   /** True when the server runs with DEMO_MODE (one-click demo accounts). */
   demoMode?: boolean;
+  /** True when payments run on the mock provider (dev): UI may simulate paying. */
+  paymentsMock?: boolean;
   demo: {
     otpCode: string; // demo login code — empty unless demo mode is on
     acceptTimeoutSeconds: number; // demo-fast fallback window

@@ -30,6 +30,7 @@ export type AdminView =
   | "bookings"
   | "disputes"
   | "users"
+  | "payments"
   | "config";
 
 interface FiruState {
