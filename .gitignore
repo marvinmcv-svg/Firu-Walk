@@ -70,4 +70,5 @@ playwright-report/
 worklog.md
 Caddyfile
 # platform demo unrelated to the product
-/examples/__pycache__/
+/examples/
+__pycache__/
