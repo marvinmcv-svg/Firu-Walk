@@ -51,6 +51,14 @@ def test_owner_golden_path(page, shot, errors):
     page.wait_for_timeout(900)
     expect(dlg).to_contain_text("¡Hola! ¿van bien?")
     shot("05-chat-sent")
+    # Anti-disintermediation: no phone / WhatsApp button for the other party;
+    # typing a number shows the gentle "keep it in FiruWalk" reminder.
+    expect(dlg.locator("a[href*='wa.me']")).to_have_count(0)
+    inp.fill("mi número es 7712 3456")
+    expect(dlg.get_by_test_id("chat-contact-warning")).to_be_visible()
+    inp.fill("nos vemos a las 10:00")
+    expect(dlg.get_by_test_id("chat-contact-warning")).to_have_count(0)
+    inp.fill("")
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
 
@@ -114,6 +122,14 @@ def test_owner_golden_path(page, shot, errors):
     page.wait_for_timeout(800)
     expect(page.get_by_text("Notificaciones", exact=False).first).to_be_visible()
     shot("14-notifications")
+    # Channel preferences dialog (in-app always on, WhatsApp, push, language)
+    page.locator("[aria-label='Ajustes de notificaciones']").click()
+    prefs = page.get_by_role("dialog")
+    expect(prefs.get_by_test_id("notif-whatsapp")).to_be_visible()
+    expect(prefs.get_by_test_id("notif-whatsapp")).to_have_attribute("aria-checked", "true")
+    shot("14b-notification-settings")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
     page.keyboard.press("Escape")
 
     # ---------- THE BOOKING WIZARD (kept last: 90s accept window) ----------
