@@ -1,0 +1,58 @@
+# Local production-like stack:
+#   docker compose up -d db redis        # just the databases (for `bun run dev`)
+#   docker compose up --build            # full stack: db, redis, migrate, app, live
+#   SEED=true docker compose up migrate  # (re)load demo data — WIPES the DB
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: firu
+      POSTGRES_PASSWORD: firu
+      POSTGRES_DB: firuwalk
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firu -d firuwalk"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: apply migrations (and optionally seed demo data), then exit.
+  migrate:
+    build: { context: ., target: builder }
+    environment:
+      DATABASE_URL: postgresql://firu:firu@db:5432/firuwalk?schema=public
+      DIRECT_URL: postgresql://firu:firu@db:5432/firuwalk?schema=public
+      SEED: ${SEED:-false}
+    command: >
+      sh -c "bunx prisma migrate deploy &&
+             if [ \"$$SEED\" = \"true\" ]; then bun prisma/seed.ts; fi"
+    depends_on:
+      db: { condition: service_healthy }
+
+  app:
+    build: { context: ., target: runner }
+    environment:
+      DATABASE_URL: postgresql://firu:firu@db:5432/firuwalk?schema=public
+      REDIS_URL: redis://redis:6379
+      APP_URL: http://localhost:3000
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  live:
+    build: ./mini-services/live-service
+    ports: ["3003:3003"]
+
+volumes:
+  pgdata:

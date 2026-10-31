@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+*.log
+db/
+tests/e2e/screenshots
+intro-video/.hyperframes
+mini-services/*/node_modules
