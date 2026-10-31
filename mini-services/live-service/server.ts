@@ -9,19 +9,19 @@
 //     (walk owner, assigned walker, booking participant or admin).
 //   · Chat messages are NOT accepted from sockets: the API persists them
 //     (POST /api/messages) and publishes them here over the internal port.
-//   · The GPS simulator only runs when `simEnabled` (LIVE_SIM=true, dev).
+//   · GPS points come only from the API (POST /api/walks/[id]/track validates
+//     and stores them, then publishes `walk:points` here). The dev GPS
+//     simulator lives in the walker app and uses that same API.
 //
 // Event contract — must match src/lib/firu/socket.ts:
 //   Client → Server (ack: { ok: true } | { ok: false, error }):
-//     walk:join    { walkId, ticket, startLat?, startLng? }
-//     walk:stop    { walkId }                 (assigned walker / admin, sim only)
+//     walk:join    { walkId, ticket }
 //     walk:leave   { walkId }
 //     chat:join    { threadId, ticket }
 //     chat:typing  { threadId }
 //     chat:leave   { threadId }
 //   Server → Client:
-//     walk:state   { walkId, points: LivePoint[], distMeters }
-//     walk:point   { walkId, seq, lat, lng, ts, distMeters }
+//     walk:points  { walkId, points: [{ seq, lat, lng, ts }], distMeters }
 //     walk:ended   { walkId }
 //     chat:joined  { threadId, memberCount }
 //     chat:message { id, threadId, fromId, fromName, role, body, ts }
@@ -35,12 +35,10 @@ import { createServer, type IncomingMessage, type Server as HttpServer } from "h
 import { Server, type Socket } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { Redis } from "ioredis";
-import { WalkSim, type LivePoint } from "./sim";
 import { verifyToken, type Cap, type ConnClaims, type RoomClaims } from "./token";
 
 export interface LiveServerOptions {
   secret: string;
-  simEnabled: boolean;
   redisUrl?: string;
   /** Extra CORS origins; "*" when empty (auth is token-based, no cookies). */
   corsOrigins?: string[];
@@ -69,24 +67,10 @@ const ROOM_CHAT = (threadId: string) => `chat:${threadId}`;
 const ROOM_RE = /^(walk|chat):[A-Za-z0-9_-]{1,64}$/;
 
 /** Events the API may publish into a room. */
-const PUBLISHABLE = new Set(["chat:message", "walk:point", "walk:ended"]);
+const PUBLISHABLE = new Set(["chat:message", "walk:points", "walk:ended"]);
 
-/** Keep ended sims (with their point history) for late rejoiners. */
-const KEEP_ENDED_MS = 5 * 60 * 1_000;
-/** Stop running sims that have had zero connected clients this long. */
-const IDLE_STOP_MS = 10 * 60 * 1_000;
-/** Housekeeping sweep cadence. */
-const HOUSEKEEPING_MS = 30 * 1_000;
 /** Max internal publish body. */
 const PUBLISH_MAX_BYTES = 16 * 1_024;
-
-interface SimEntry {
-  sim: WalkSim;
-  /** Timestamp when the sim finished (stop or 720-point budget), else null. */
-  endedAt: number | null;
-  /** When the walk room last became empty while the sim was running. */
-  emptySince: number | null;
-}
 
 /* ------------------------------------------------------------------ utils */
 
@@ -98,9 +82,6 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
 
 const asString = (v: unknown): string | null =>
   typeof v === "string" && v.length > 0 ? v : null;
-
-const asNumber = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
 
 const reply = (ack: unknown, res: Parameters<Ack>[0]): void => {
   if (typeof ack === "function") (ack as Ack)(res);
@@ -132,7 +113,6 @@ export function createLiveServer(opts: LiveServerOptions): LiveServer {
     console.log(`[live ${new Date().toISOString().slice(11, 23)}] ${scope} ${msg}`);
   };
 
-  const sims = new Map<string, SimEntry>();
   const http = createServer();
   const io = new Server<any, any, any, SocketData>(http, {
     // DO NOT change the path — the gateway forwards "/?XTransformPort=3003" here.
@@ -152,58 +132,6 @@ export function createLiveServer(opts: LiveServerOptions): LiveServer {
   }
 
   const roomSize = (room: string): number => io.sockets.adapter.rooms.get(room)?.size ?? 0;
-
-  /* ---------------------------------------------------------- walk sim */
-
-  function emitWalkState(walkId: string, entry: SimEntry): void {
-    io.to(ROOM_WALK(walkId)).emit("walk:state", {
-      walkId,
-      points: entry.sim.points,
-      distMeters: entry.sim.distanceMeters,
-    });
-  }
-
-  function startWalkSim(walkId: string, startLat?: number, startLng?: number): SimEntry {
-    const sim = new WalkSim({
-      walkId,
-      startLat,
-      startLng,
-      onPoint: (point: LivePoint) => {
-        io.to(ROOM_WALK(walkId)).emit("walk:point", { walkId, ...point });
-      },
-      onEnd: (reason) => {
-        io.to(ROOM_WALK(walkId)).emit("walk:ended", { walkId });
-        const e = sims.get(walkId);
-        if (e) e.endedAt = Date.now();
-        log(`[walk:${short(walkId)}]`, `sim ended (${reason}) — ${sim.points.length} pts`);
-      },
-    });
-    const entry: SimEntry = { sim, endedAt: null, emptySince: null };
-    sims.set(walkId, entry);
-    emitWalkState(walkId, entry);
-    sim.start();
-    log(`[walk:${short(walkId)}]`, "sim started");
-    return entry;
-  }
-
-  const housekeeper = setInterval(() => {
-    const now = Date.now();
-    for (const [walkId, entry] of sims) {
-      if (entry.endedAt !== null) {
-        if (now - entry.endedAt >= KEEP_ENDED_MS) sims.delete(walkId);
-        continue;
-      }
-      if (roomSize(ROOM_WALK(walkId)) === 0) {
-        if (entry.emptySince === null) entry.emptySince = now;
-        if (now - entry.emptySince >= IDLE_STOP_MS) {
-          entry.sim.stop("idle");
-          sims.delete(walkId);
-        }
-      } else {
-        entry.emptySince = null;
-      }
-    }
-  }, HOUSEKEEPING_MS);
 
   /* --------------------------------------------------------- handshake */
 
@@ -240,29 +168,6 @@ export function createLiveServer(opts: LiveServerOptions): LiveServer {
       }
       socket.data.caps.set(room, ticket.cap);
       socket.join(room);
-      reply(ack, { ok: true });
-
-      const existing = sims.get(walkId);
-      if (existing) {
-        emitWalkState(walkId, existing);
-        if (existing.endedAt !== null) socket.emit("walk:ended", { walkId });
-        else existing.emptySince = null;
-        return;
-      }
-      // Status comes from the ticket (server truth), not from the client.
-      if (opts.simEnabled && ticket.st === "IN_PROGRESS") {
-        startWalkSim(walkId, asNumber(p.startLat) ?? undefined, asNumber(p.startLng) ?? undefined);
-      }
-    });
-
-    socket.on("walk:stop", (raw: unknown, ack?: unknown) => {
-      const p = asRecord(raw);
-      const walkId = p ? asString(p.walkId) : null;
-      if (!walkId) return reply(ack, { ok: false, error: "bad_request" });
-      const cap = socket.data.caps.get(ROOM_WALK(walkId));
-      if (cap !== "walker" && cap !== "admin") return reply(ack, { ok: false, error: "forbidden" });
-      const entry = sims.get(walkId);
-      if (entry && entry.endedAt === null) entry.sim.stop("stopped");
       reply(ack, { ok: true });
     });
 
@@ -322,11 +227,6 @@ export function createLiveServer(opts: LiveServerOptions): LiveServer {
   /* ------------------------------------------------------ internal API */
 
   function publish(room: string, event: string, data: Record<string, unknown>): void {
-    if (event === "walk:ended" && room.startsWith("walk:")) {
-      const entry = sims.get(room.slice(5));
-      // A running sim emits walk:ended itself when stopped.
-      if (entry && entry.endedAt === null) return entry.sim.stop("stopped");
-    }
     io.to(room).emit(event, data);
   }
 
@@ -375,9 +275,6 @@ export function createLiveServer(opts: LiveServerOptions): LiveServer {
       );
     },
     async close() {
-      clearInterval(housekeeper);
-      for (const entry of sims.values()) entry.sim.stop("shutdown");
-      sims.clear();
       await new Promise<void>((r) => io.close(() => r()));
       await new Promise<void>((r) => internal.close(() => r()));
       if (redis) redis.disconnect();

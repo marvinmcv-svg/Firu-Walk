@@ -5,7 +5,7 @@
   "type": "module",
   "description": "FiruWalk live-service — authenticated socket.io rooms for live walks and chat (port 3003, internal publish API on 3004).",
   "scripts": {
-    "dev": "LIVE_SIM=true bun --hot index.ts",
+    "dev": "bun --hot index.ts",
     "start": "bun index.ts"
   },
   "dependencies": {
