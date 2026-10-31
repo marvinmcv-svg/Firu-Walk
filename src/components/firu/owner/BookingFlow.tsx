@@ -341,7 +341,6 @@ export function BookingFlow() {
             threadId={created.id}
             otherName={created.walker.name}
             otherAvatar={created.walker.avatarUrl}
-            otherPhone={created.walker.phone}
             contextLabel={t("own.chatCtxRequest", { dog: created.dog.name })}
           />
         )}

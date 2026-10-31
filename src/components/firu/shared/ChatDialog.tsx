@@ -2,13 +2,14 @@
 
 // In-app chat for a booking thread (owner ↔ walker).
 // History and sending via REST /api/messages (the API publishes each saved
-// message to the live-service room), live delivery via the socket,
-// WhatsApp deep-link fallback always available.
+// message to the live-service room), live delivery via the socket.
+// Phone numbers are never shown: messages that share one (or a WhatsApp
+// link) get a gentle "keep it in FiruWalk" reminder — never blocked.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, MessageCircle, Send } from "lucide-react";
+import { Loader2, Send, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/firu/api";
 import { springSnappy } from "@/lib/firu/motion";
 import {
@@ -21,7 +22,8 @@ import {
 import { useFiruSession } from "@/lib/firu/session";
 import { useT } from "@/lib/firu/i18n";
 import { useToast } from "@/hooks/use-toast";
-import { Avatar, whatsappHref } from "./bits";
+import { Avatar } from "./bits";
+import { containsContactInfo } from "@/lib/firu/contactGuard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +42,7 @@ interface DbMessage {
   senderId: string;
   senderName: string;
   body: string;
+  contactFlag?: boolean;
   createdAt: string;
 }
 
@@ -49,7 +52,6 @@ export function ChatDialog({
   threadId,
   otherName,
   otherAvatar,
-  otherPhone,
   contextLabel,
 }: {
   open: boolean;
@@ -57,7 +59,6 @@ export function ChatDialog({
   threadId: string;
   otherName: string;
   otherAvatar?: string | null;
-  otherPhone?: string | null;
   contextLabel?: string;
 }) {
   const user = useFiruSession((s) => s.user);
@@ -105,12 +106,13 @@ export function ChatDialog({
   }, [open, threadId, user]);
 
   // merge db history + live messages (dedupe by id)
-  const messages: { id: string; mine: boolean; name: string; body: string; at: string }[] = [
+  const messages: { id: string; mine: boolean; name: string; body: string; flagged: boolean; at: string }[] = [
     ...(history ?? []).map((m) => ({
       id: m.id,
       mine: m.senderId === user?.id,
       name: m.senderName,
       body: m.body,
+      flagged: !!m.contactFlag,
       at: m.createdAt,
     })),
     ...live.map((m) => ({
@@ -118,6 +120,7 @@ export function ChatDialog({
       mine: m.fromId === user?.id,
       name: m.fromName,
       body: m.body,
+      flagged: !!m.contactFlag,
       at: new Date(m.ts).toISOString(),
     })),
   ]
@@ -127,6 +130,8 @@ export function ChatDialog({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, typing]);
+
+  const draftHasContact = containsContactInfo(draft);
 
   const sendMut = useMutation({
     mutationFn: async (body: string) => {
@@ -154,19 +159,6 @@ export function ChatDialog({
                 <DialogDescription className="text-xs truncate">{contextLabel}</DialogDescription>
               )}
             </div>
-            {otherPhone && (
-              <a
-                href={whatsappHref(otherPhone, t("sh.chat.waGreeting"))}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-auto"
-                title={t("sh.chat.waOpen")}
-              >
-                <Button variant="outline" size="icon" className="rounded-full size-9">
-                  <MessageCircle className="size-4 text-primary" />
-                </Button>
-              </a>
-            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -179,6 +171,10 @@ export function ChatDialog({
               {t("sh.chat.empty")}
             </p>
           )}
+          <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug">
+            <ShieldCheck className="size-3.5 shrink-0 text-primary mt-px" />
+            {t("sh.chat.privacy")}
+          </p>
           {messages.map((m) => (
             <motion.div
               key={m.id}
@@ -204,6 +200,18 @@ export function ChatDialog({
                 >
                   {fmtTime(m.at)}
                 </p>
+                {m.flagged && (
+                  <p
+                    data-testid="chat-contact-flag"
+                    className={cn(
+                      "mt-1.5 flex items-center gap-1 text-[11px] font-semibold leading-snug",
+                      m.mine ? "text-primary-foreground/90" : "text-amber-700 dark:text-amber-400"
+                    )}
+                  >
+                    <ShieldCheck className="size-3 shrink-0" />
+                    {t("sh.chat.guardFlag")}
+                  </p>
+                )}
               </div>
             </motion.div>
           ))}
@@ -211,6 +219,19 @@ export function ChatDialog({
             <p className="text-xs text-muted-foreground italic">{t("sh.chat.typing", { name: typing })}</p>
           )}
         </div>
+
+        {draftHasContact && (
+          <div
+            role="status"
+            data-testid="chat-contact-warning"
+            className="flex gap-2 border-t bg-amber-50 px-4 py-2.5 text-xs leading-snug text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <ShieldCheck className="size-4 shrink-0 mt-px" />
+            <p>
+              <span className="font-bold">{t("sh.chat.guardTitle")}</span> {t("sh.chat.guardDraft")}
+            </p>
+          </div>
+        )}
 
         <form
           className="flex items-center gap-2 p-3 border-t"

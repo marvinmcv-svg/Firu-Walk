@@ -22,6 +22,7 @@ import {
   Star,
   Timer,
   XCircle,
+  Navigation,
 } from "lucide-react";
 import { api, qk } from "@/lib/firu/api";
 import { useFiruSession } from "@/lib/firu/session";
@@ -603,7 +604,6 @@ function RequestCard({
         threadId={booking.id}
         otherName={booking.owner.name}
         otherAvatar={booking.owner.avatarUrl}
-        otherPhone={booking.owner.phone}
         contextLabel={t("wlk.req.chatContext", { dog: booking.dog.name, zone: booking.zone.name })}
       />
     </div>
@@ -628,7 +628,19 @@ function TodayWalkCard({
   const [expanded, setExpanded] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const { t } = useT();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const owner = walk.booking?.owner ?? null;
+  // "On my way": tells the owner once (WhatsApp + app), within the start window.
+  const onTheWayMut = useMutation({
+    mutationFn: () => api.patch(`/api/walks/${walk.id}`, { action: "on_the_way" }),
+    onSuccess: () => {
+      toast({ title: t("wlk.walk.onTheWayOkTitle"), description: t("wlk.walk.onTheWayOkDesc") });
+      qc.invalidateQueries({ queryKey: ["walks"] });
+    },
+    onError: (e: Error) =>
+      toast({ title: t("wlk.walk.onTheWayErr"), description: srvErr(e.message), variant: "destructive" }),
+  });
   const zoneName = walk.booking?.zone.name ?? "";
 
   // Lazy-load the full booking only when expanded and the walk context
@@ -740,13 +752,31 @@ function TodayWalkCard({
 
       </div>
 
+      {!inProgress && actionsAllowed && canStart && (
+        walk.onTheWayAt ? (
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-primary">
+            <Navigation className="size-3.5" />
+            {t("wlk.walk.onTheWaySent", { time: fmtTime(walk.onTheWayAt) })}
+          </p>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full rounded-full font-bold"
+            disabled={onTheWayMut.isPending}
+            onClick={() => onTheWayMut.mutate()}
+          >
+            <Navigation className="size-4 text-primary" /> {t("wlk.walk.onTheWay")}
+          </Button>
+        )
+      )}
+
       <ChatDialog
         open={chatOpen}
         onOpenChange={setChatOpen}
         threadId={walk.bookingId}
         otherName={owner?.name ?? t("wlk.owner.default")}
         otherAvatar={owner?.avatarUrl}
-        otherPhone={owner?.phone}
         contextLabel={t("wlk.today.chatContext", { dog: walk.dog.name, zone: zoneName })}
       />
     </div>

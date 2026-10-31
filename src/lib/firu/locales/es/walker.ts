@@ -57,6 +57,11 @@ const walker: Record<string, string> = {
   "wlk.upcoming.countMany": "{count} paseos",
 
   // walk actions + toasts (shared WalkerHome / ActiveWalkScreen)
+  "wlk.walk.onTheWay": "Voy en camino",
+  "wlk.walk.onTheWaySent": "Avisaste al dueño que vas en camino ({time})",
+  "wlk.walk.onTheWayOkTitle": "Le avisamos al dueño 🚶",
+  "wlk.walk.onTheWayOkDesc": "Recibirá un mensaje de que vas en camino.",
+  "wlk.walk.onTheWayErr": "No pudimos avisar al dueño",
   "wlk.walk.start": "Iniciar paseo",
   "wlk.walk.starting": "Iniciando…",
   "wlk.walk.startAt": "Iniciar {until}",

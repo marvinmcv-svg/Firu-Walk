@@ -240,6 +240,7 @@ const admin: Record<string, string> = {
   "adm.cfg.f.acceptWindowHint": "Tiempo real que tiene el paseador antes de pasar al siguiente candidato.",
   "adm.cfg.f.trialWalks": "Paseos de prueba",
   "adm.cfg.unit.walks": "paseos",
+  "adm.cfg.unit.days": "días",
   "adm.cfg.f.trialWalksHint": "Paseos con seguimiento reforzado para paseadores nuevos.",
   "adm.cfg.f.noShowCredit": "Crédito por no-show del paseador",
   "adm.cfg.f.noShowCreditHint": "Compensación automática al dueño.",
@@ -352,6 +353,8 @@ const admin: Record<string, string> = {
   "adm.cfg.qrDesc": "Cuánto dura un QR antes de renovarse.",
   "adm.cfg.f.unusedPolicy": "Paseos no usados",
   "adm.cfg.f.unusedPolicyHint": "forfeit = vencen · credit = crédito al dueño",
+  "adm.cfg.f.expiryReminder": "Aviso de vencimiento",
+  "adm.cfg.f.expiryReminderHint": "Días antes de que termine el plan (WhatsApp + app). 0 = apagado",
   "adm.cfg.f.qrExpiry": "Vigencia del QR",
 };
 

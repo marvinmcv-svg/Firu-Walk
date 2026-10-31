@@ -240,6 +240,7 @@ const admin: Record<string, string> = {
   "adm.cfg.f.acceptWindowHint": "Real time the walker has before moving on to the next candidate.",
   "adm.cfg.f.trialWalks": "Trial walks",
   "adm.cfg.unit.walks": "walks",
+  "adm.cfg.unit.days": "days",
   "adm.cfg.f.trialWalksHint": "Walks with closer monitoring for new walkers.",
   "adm.cfg.f.noShowCredit": "Walker no-show credit",
   "adm.cfg.f.noShowCreditHint": "Automatic compensation for the owner.",
@@ -352,6 +353,8 @@ const admin: Record<string, string> = {
   "adm.cfg.qrDesc": "How long a QR lasts before it's renewed.",
   "adm.cfg.f.unusedPolicy": "Unused walks",
   "adm.cfg.f.unusedPolicyHint": "forfeit = they expire · credit = owner credit",
+  "adm.cfg.f.expiryReminder": "Expiry reminder",
+  "adm.cfg.f.expiryReminderHint": "Days before the plan ends (WhatsApp + app). 0 = off",
   "adm.cfg.f.qrExpiry": "QR validity",
 };
 

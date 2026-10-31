@@ -796,7 +796,6 @@ function BookingCard({
           threadId={booking.id}
           otherName={booking.walker.name}
           otherAvatar={booking.walker.avatarUrl}
-          otherPhone={booking.walker.phone}
           contextLabel={t("own.chatCtxWalks", {
             dog: booking.dog.name,
             zone: booking.zone.name,

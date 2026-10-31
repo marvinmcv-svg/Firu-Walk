@@ -451,7 +451,6 @@ export function LiveWalkView() {
           threadId={walk.bookingId}
           otherName={walker.name}
           otherAvatar={walker.avatarUrl}
-          otherPhone={walker.phone}
           contextLabel={t("own.chatCtxWalk", {
             dog: dog.name,
             zone: walk.booking?.zone.name ?? "",

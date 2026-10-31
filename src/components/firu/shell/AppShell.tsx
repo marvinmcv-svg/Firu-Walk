@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MotionConfig, motion } from "framer-motion";
-import { useT } from "@/lib/firu/i18n";
+import { useLangStore, useT } from "@/lib/firu/i18n";
 import { LangToggle } from "@/components/firu/shared/LangToggle";
 import {
   BadgeCheck,
@@ -31,10 +31,11 @@ import {
   Wallet,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { api, qk } from "@/lib/firu/api";
 import { springSnappy } from "@/lib/firu/motion";
-import { useFiruSession } from "@/lib/firu/session";
+import { useFiruSession, type AdminView, type OwnerView, type WalkerView } from "@/lib/firu/session";
+import { NotificationSettings, prefsKey } from "@/components/firu/shared/NotificationSettings";
 import type { NotificationDTO, SessionUserDTO } from "@/lib/firu/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,6 +97,60 @@ const NAV = {
   ],
 } as const;
 
+/**
+ * Deep links from WhatsApp messages and web push:
+ *   /?walk=<id>  owner → that walk (live map, or the report when finished)
+ *   /?view=<v>   any nav view of the signed-in role
+ * The query string is removed once applied. Signed-out visitors keep it until
+ * they log in (the landing page renders meanwhile).
+ */
+function useDeepLink(role: SessionUserDTO["role"] | null) {
+  useEffect(() => {
+    if (!role) return;
+    const params = new URLSearchParams(window.location.search);
+    const walk = params.get("walk");
+    const view = params.get("view");
+    if (!walk && !view) return;
+    const s = useFiruSession.getState();
+    if (walk && role === "OWNER" && /^[A-Za-z0-9_-]{1,64}$/.test(walk)) {
+      s.openWalk(walk);
+    } else if (view && (NAV[role] as readonly { view: string }[]).some((n) => n.view === view)) {
+      if (role === "OWNER") s.setOwnerView(view as OwnerView);
+      else if (role === "WALKER") s.setWalkerView(view as WalkerView);
+      else s.setAdminView(view as AdminView);
+    }
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [role]);
+}
+
+/** Keep the WhatsApp / push message language in step with the UI language. */
+function useNotificationLocaleSync(userId: string | null) {
+  const lang = useLangStore((s) => s.lang);
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!userId) return;
+    const key = `firu-notif-locale:${userId}`;
+    let synced: string | null = null;
+    try {
+      synced = localStorage.getItem(key);
+    } catch {
+      /* storage blocked */
+    }
+    if ((synced ?? "es") === lang) return;
+    api
+      .patch("/api/notifications/preferences", { locale: lang })
+      .then(() => {
+        try {
+          localStorage.setItem(key, lang);
+        } catch {
+          /* storage blocked */
+        }
+        void qc.invalidateQueries({ queryKey: prefsKey });
+      })
+      .catch(() => {});
+  }, [userId, lang, qc]);
+}
+
 /** Hydration-safe "mounted" flag without setState-in-effect. */
 const emptySubscribe = () => () => {};
 const useMounted = () => useSyncExternalStore(emptySubscribe, () => true, () => false);
@@ -120,6 +175,8 @@ export function AppShell() {
     enabled: !!user,
     staleTime: 60_000,
   });
+  useDeepLink(user?.role ?? null);
+  useNotificationLocaleSync(user?.id ?? null);
 
   if (!user) return null;
   const role = user.role;
@@ -342,6 +399,7 @@ function NotificationBell({ role }: { role: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications }),
   });
   const unread = (notifications ?? []).filter((n) => !n.read).length;
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const iconFor = (t: string) =>
     t === "WALK" ? Map : t === "PAYMENT" || t === "PAYOUT" ? CreditCard :
@@ -365,9 +423,21 @@ function NotificationBell({ role }: { role: string }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 rounded-2xl p-0">
-        <p className="font-extrabold text-sm px-4 py-3 border-b">
-          {t("shell.notifications")}{role === "ADMIN" ? ` ${t("shell.notificationsOpsSuffix")}` : ""}
-        </p>
+        <div className="flex items-center gap-2 px-4 py-2 border-b">
+          <p className="font-extrabold text-sm flex-1">
+            {t("shell.notifications")}{role === "ADMIN" ? ` ${t("shell.notificationsOpsSuffix")}` : ""}
+          </p>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full size-8"
+            onClick={() => setSettingsOpen(true)}
+            aria-label={t("sh.notif.settings")}
+            title={t("sh.notif.settings")}
+          >
+            <Settings2 className="size-4" />
+          </Button>
+        </div>
         <div className="max-h-96 overflow-y-auto">
           {(notifications ?? []).length === 0 && (
             <p className="text-sm text-muted-foreground p-4 text-center">
@@ -390,6 +460,7 @@ function NotificationBell({ role }: { role: string }) {
           })}
         </div>
       </PopoverContent>
+      <NotificationSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Popover>
   );
 }

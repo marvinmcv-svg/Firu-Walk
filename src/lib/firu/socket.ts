@@ -98,6 +98,8 @@ export interface ChatMessage {
   fromName: string;
   role: "OWNER" | "WALKER" | "ADMIN";
   body: string;
+  /** Shares a phone number / WhatsApp link (the chat shows a reminder). */
+  contactFlag?: boolean;
   ts: number;
 }
 

@@ -395,6 +395,7 @@ export function AdminConfig() {
           description={t("adm.cfg.plansDesc")}
           fields={[
             { key: "unusedWalkPolicy", label: t("adm.cfg.f.unusedPolicy"), kind: "text", hint: t("adm.cfg.f.unusedPolicyHint") },
+            { key: "expiryReminderDays", label: t("adm.cfg.f.expiryReminder"), kind: "num", unit: t("adm.cfg.unit.days"), hint: t("adm.cfg.f.expiryReminderHint") },
           ]}
           value={cfg.plans}
         />

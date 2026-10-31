@@ -1,12 +1,17 @@
 // GET  /api/messages?threadId= → Message[] (booking participants only)
 //      (no threadId → latest messages across the user's threads, for the inbox)
 // POST /api/messages {threadId, body} → Message (persisted, then published to
-//      the `chat:{threadId}` room with the sender's identity from the session)
+//      the `chat:{threadId}` room with the sender's identity from the session).
+//      Messages that share a phone number or a WhatsApp link are delivered
+//      but flagged (contactFlag); the chat shows a gentle "keep it in
+//      FiruWalk" reminder. Never blocked.
 
 import { db } from "@/lib/db";
 import { ApiError, ok, optStr, readJson, reqStr, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { assertThreadParticipant as assertParticipant, publishRealtime } from "@/lib/server/realtime";
+import { containsContactInfo } from "@/lib/firu/contactGuard";
+import { log } from "@/lib/server/log";
 
 export async function GET(req: Request) {
   return run(async () => {
@@ -51,14 +56,17 @@ export async function POST(req: Request) {
     await assertParticipant(threadId, user.id, user.role);
 
     const text = reqStr(body, "body", "El mensaje", { max: 1000 });
+    const contactFlag = user.role !== "ADMIN" && containsContactInfo(text);
     const message = await db.message.create({
       data: {
         threadId,
         senderId: user.id,
         senderName: user.name,
         body: text,
+        contactFlag,
       },
     });
+    if (contactFlag) log.info("chat.contact_shared", { threadId, senderId: user.id, messageId: message.id });
     await publishRealtime(`chat:${threadId}`, "chat:message", {
       id: message.id,
       threadId,
@@ -66,6 +74,7 @@ export async function POST(req: Request) {
       fromName: user.name,
       role: user.role,
       body: message.body,
+      contactFlag,
       ts: message.createdAt.getTime(),
     });
     return ok(message, { status: 201 });

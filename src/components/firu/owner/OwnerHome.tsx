@@ -387,7 +387,6 @@ export function OwnerHome() {
           threadId={chatBooking.id}
           otherName={chatBooking.walker.name}
           otherAvatar={chatBooking.walker.avatarUrl}
-          otherPhone={chatBooking.walker.phone}
           contextLabel={t("own.chatCtxWalks", {
             dog: chatBooking.dog.name,
             zone: chatBooking.zone.name,

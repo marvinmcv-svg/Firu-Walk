@@ -24,7 +24,7 @@
 //     walk:points  { walkId, points: [{ seq, lat, lng, ts }], distMeters }
 //     walk:ended   { walkId }
 //     chat:joined  { threadId, memberCount }
-//     chat:message { id, threadId, fromId, fromName, role, body, ts }
+//     chat:message { id, threadId, fromId, fromName, role, body, contactFlag, ts }
 //     chat:typing  { threadId, userId, userName }   (everyone except sender)
 //
 // Internal HTTP (separate port, never exposed through the gateway):
