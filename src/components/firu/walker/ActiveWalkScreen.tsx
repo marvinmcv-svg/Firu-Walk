@@ -2,18 +2,23 @@
 
 // The walker's live-walk cockpit (the money screen):
 //   phase "pre"  — SCHEDULED briefing: dog/owner card, pickup notes + map, start
-//   phase "live" — IN_PROGRESS: live GPS sim via socket, elapsed/distance stats,
-//                  photo picker, editable report card, SOS, "Finalizar paseo"
+//                  (needs a GPS fix within the geofence of the owner's address)
+//   phase "live" — IN_PROGRESS: real GPS via the tracker (src/lib/firu/tracker.ts,
+//                  keeps running across screens / with the phone locked in the
+//                  app), elapsed/distance stats, sync status, photo picker,
+//                  editable report card, SOS, "Finalizar paseo"
+// Battery-light: this screen avoids decorative animation (walkers are on
+// low-end phones and prepaid data).
 //   phase "done" — celebration + earnings breakdown (price / 12% fee / net)
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
   Banknote,
   Camera,
+  CloudOff,
   Flag,
   Footprints,
   Loader2,
@@ -38,8 +43,14 @@ import type {
   WalkDTO,
   ZoneDTO,
 } from "@/lib/firu/types";
-import { springSmooth } from "@/lib/firu/motion";
-import { getSocket, joinLiveWalk, leaveLiveWalk, stopLiveWalkSim, type LivePoint } from "@/lib/firu/socket";
+import {
+  currentFix,
+  flushAll,
+  openLocationSettings,
+  startTracking,
+  stopTracking,
+  useTracker,
+} from "@/lib/firu/tracker";
 import {
   Avatar,
   EmptyState,
@@ -88,6 +99,8 @@ interface WalkWithContext extends WalkDTO {
 /** Walk detail adds start coords + parsed track (GET /api/walks/{id}). */
 type WalkDetail = WalkWithContext & {
   track: [number, number][];
+  lastSeq: number;
+  pickup: { lat: number; lng: number; note: string | null } | null;
   startLat: number | null;
   startLng: number | null;
 };
@@ -117,7 +130,6 @@ export function ActiveWalkScreen() {
   // fresh PENDING payment for the next occurrence, so the live query can no
   // longer tell us how THIS walk was settled.
   const [finishedPayment, setFinishedPayment] = useState<PaymentDTO | null>(null);
-  const [points, setPoints] = useState<LivePoint[]>([]);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [backOpen, setBackOpen] = useState(false);
   const [sosOpen, setSosOpen] = useState(false);
@@ -130,7 +142,7 @@ export function ActiveWalkScreen() {
     photos: [],
     createdAt: new Date().toISOString(),
   });
-  const joinedRef = useRef<string | null>(null);
+  const tracker = useTracker();
 
   // ---------------- data ----------------
   const { data: activeWalks, isLoading: loadingActive } = useQuery({
@@ -207,60 +219,52 @@ export function ActiveWalkScreen() {
   const owner = contextWalk?.booking?.owner ?? null;
   const zoneId = contextWalk?.booking?.zone.id ?? null;
   const zoneCenter = zones?.find((z) => z.id === zoneId) ?? null;
-  const startLat = detail?.startLat ?? zoneCenter?.centerLat ?? -17.7833;
-  const startLng = detail?.startLng ?? zoneCenter?.centerLng ?? -63.1821;
+  const pickup = detail?.pickup ?? null;
+  const startLat = detail?.startLat ?? pickup?.lat ?? zoneCenter?.centerLat ?? -17.7833;
+  const startLng = detail?.startLng ?? pickup?.lng ?? zoneCenter?.centerLng ?? -63.1821;
   const payment = booking?.payment ?? null;
   const isCash = payment?.method === "CASH";
   const commissionPct = config?.fees.commissionPct ?? 12;
 
-  // ---------------- socket: live GPS sim ----------------
-  const detailLoaded = !!detail;
+  // ---------------- GPS tracking ----------------
+  // (Re)start the tracker for the running walk. It is NOT stopped when this
+  // screen unmounts — only when the walk is finished.
+  const liveWalkId = phase === "live" && detail && detail.status === "IN_PROGRESS" ? detail.id : null;
+  const resumeSeq = detail?.lastSeq ?? -1;
   useEffect(() => {
-    if (phase !== "live" || !walkId || !detailLoaded) return;
-    // Join once per walk; walk:state resends full history for rejoinders.
-    if (joinedRef.current === walkId) return;
-    joinedRef.current = walkId;
-    setPoints([]);
-    joinLiveWalk({ walkId, startLat, startLng });
-    return () => {
-      leaveLiveWalk(walkId);
-    };
-  }, [phase, walkId, detailLoaded]);
+    if (!liveWalkId) return;
+    startTracking({ walkId: liveWalkId, lastSeq: resumeSeq, origin: pickup });
+  }, [liveWalkId]);
 
-  useEffect(() => {
-    if (phase !== "live" || !walkId) return;
-    const socket = getSocket();
-    const onState = (p: { walkId: string; points: LivePoint[]; distMeters: number }) => {
-      if (p.walkId !== walkId) return;
-      setPoints(p.points ?? []);
-    };
-    const onPoint = (p: LivePoint & { walkId?: string }) => {
-      if (p.walkId && p.walkId !== walkId) return;
-      setPoints((prev) =>
-        prev.length > 0 && prev[prev.length - 1].seq >= p.seq
-          ? prev
-          : [...prev, p]
-      );
-    };
-    socket.on("walk:state", onState);
-    socket.on("walk:point", onPoint);
-    return () => {
-      socket.off("walk:state", onState);
-      socket.off("walk:point", onPoint);
-    };
-  }, [phase, walkId]);
+  // Server-accepted route (as of the last fetch) + newer fixes from this device.
+  const trackingThis = tracker.walkId === walkId;
+  const serverTrack = detail?.track ?? [];
+  const liveTrack: [number, number][] = trackingThis
+    ? [
+        ...serverTrack,
+        ...tracker.points.filter((p) => p.seq > resumeSeq).map((p) => [p.lat, p.lng] as [number, number]),
+      ]
+    : serverTrack;
+  const liveDistance =
+    (trackingThis ? tracker.serverDistance : null) ?? detail?.distanceMeters ?? 0;
 
   // ---------------- mutations ----------------
   const startMut = useMutation({
-    mutationFn: () =>
-      api.patch<WalkDetail>(`/api/walks/${walkId}`, {
+    mutationFn: async () => {
+      const fix = await currentFix(pickup);
+      if (!fix) throw new Error(t("wlk.gps.needLocation"));
+      return api.patch<WalkDetail>(`/api/walks/${walkId}`, {
         action: "start",
-        lat: startLat,
-        lng: startLng,
-      }),
+        lat: fix.lat,
+        lng: fix.lng,
+        acc: fix.acc ?? null,
+        mock: fix.mock === true,
+      });
+    },
     onSuccess: (res) => {
       setStartedWalkId(res.id);
       qc.setQueryData(qk.walk(res.id), res);
+      startTracking({ walkId: res.id, lastSeq: res.lastSeq, origin: res.pickup });
       qc.invalidateQueries({ queryKey: ["walks"] });
       toast({
         title: t("wlk.walk.startOkTitle"),
@@ -275,13 +279,17 @@ export function ActiveWalkScreen() {
     mutationFn: async () => {
       // Snapshot the current walk's payment before settling (see note above).
       const paymentSnapshot = payment;
-      // Stop the GPS sim BEFORE recording the final track.
-      if (walkId) stopLiveWalkSim(walkId);
-      const track = points.map((p) => [p.lat, p.lng] as [number, number]);
+      // Upload what is still buffered: the server builds the route and the
+      // distance from the uploaded fixes only.
+      await flushAll();
+      const fix = await currentFix(pickup);
+      if (!fix) throw new Error(t("wlk.gps.needLocation"));
       const res = await api.patch<WalkDetail>(`/api/walks/${walkId}`, {
         action: "finish",
-        ...(track.length > 0 ? { track } : {}),
-        distanceMeters: points.length > 0 ? points[points.length - 1].distMeters : 0,
+        lat: fix.lat,
+        lng: fix.lng,
+        acc: fix.acc ?? null,
+        mock: fix.mock === true,
         report: {
           note: report.note,
           pee: report.pee,
@@ -293,6 +301,7 @@ export function ActiveWalkScreen() {
       return { walk: res, paymentSnapshot };
     },
     onSuccess: ({ walk, paymentSnapshot }) => {
+      stopTracking({ clear: true });
       setFinishedWalk(walk);
       setFinishedPayment(paymentSnapshot);
       setFinishOpen(false);
@@ -342,7 +351,6 @@ export function ActiveWalkScreen() {
   }
 
   const loading = loadingDetail && phase !== "done";
-  const liveTrack = points.map((p) => [p.lat, p.lng] as [number, number]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -376,7 +384,7 @@ export function ActiveWalkScreen() {
         {phase === "live" && (
           <Button
             variant="destructive"
-            className="ml-auto rounded-full font-black animate-pulse shrink-0"
+            className="ml-auto rounded-full font-black shrink-0"
             onClick={() => setSosOpen(true)}
           >
             <Siren className="size-4" /> SOS
@@ -386,12 +394,7 @@ export function ActiveWalkScreen() {
 
       {/* ============ PHASE A — PRE-START ============ */}
       {phase === "pre" && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={springSmooth}
-          className="space-y-5"
-        >
+        <div className="space-y-5">
           <div className="rounded-3xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3">
               <Avatar src={dog?.photoUrl} name={dog?.name} className="size-16 rounded-2xl" />
@@ -493,35 +496,27 @@ export function ActiveWalkScreen() {
               {t("wlk.walk.start")}
             </Button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* ============ PHASE B — IN PROGRESS ============ */}
       {phase === "live" && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={springSmooth}
-          className="space-y-5"
-        >
+        <div className="space-y-5">
           {/* Live stats */}
           <LiveStats
             startedAt={detail?.startedAt ?? activeWalk?.startedAt ?? new Date().toISOString()}
             durationMin={contextWalk?.durationMin ?? 30}
-            distMeters={points.length > 0 ? points[points.length - 1].distMeters : 0}
+            distMeters={liveDistance}
           />
 
           {/* Live map */}
           <div className="rounded-3xl border bg-card p-4 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <p className="font-black flex items-center gap-2">
-                <span className="relative flex size-2.5">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
-                  <span className="relative inline-flex rounded-full size-2.5 bg-primary" />
-                </span>
+                <span className="relative inline-flex rounded-full size-2.5 bg-primary" />
                 {t("wlk.cockpit.liveTrack")}
               </p>
-              <span className="text-xs text-muted-foreground font-semibold">{t("wlk.cockpit.gpsActive")}</span>
+              <GpsStatus />
             </div>
             <WalkMap
               track={liveTrack}
@@ -531,10 +526,23 @@ export function ActiveWalkScreen() {
               center={[startLat, startLng]}
               className="h-72 w-full rounded-2xl overflow-hidden border"
             />
-            {points.length === 0 && (
+            {liveTrack.length === 0 && !tracker.error && (
               <p className="text-xs text-center text-muted-foreground">
                 {t("wlk.cockpit.gpsWaiting")}
               </p>
+            )}
+            {tracker.error && (
+              <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm flex items-start gap-2">
+                <AlertTriangle className="size-4 text-destructive shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p>{tracker.error === "permission" ? t("wlk.gps.denied") : t("wlk.gps.unavailable")}</p>
+                  {tracker.error === "permission" && tracker.source === "native" && (
+                    <Button size="sm" variant="outline" className="rounded-full" onClick={openLocationSettings}>
+                      {t("wlk.gps.openSettings")}
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
@@ -557,7 +565,7 @@ export function ActiveWalkScreen() {
               report={report}
               track={liveTrack}
               startedAt={detail?.startedAt ?? null}
-              distanceMeters={points.length > 0 ? points[points.length - 1].distMeters : 0}
+              distanceMeters={liveDistance}
               durationMin={contextWalk?.durationMin ?? 30}
               dogName={dog?.name}
               dogAvatar={dog?.photoUrl}
@@ -586,17 +594,12 @@ export function ActiveWalkScreen() {
             )}
             {t("wlk.walk.finishBtn")}
           </Button>
-        </motion.div>
+        </div>
       )}
 
       {/* ============ PHASE C — COMPLETED ============ */}
       {phase === "done" && finishedWalk && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={springSmooth}
-          className="space-y-5"
-        >
+        <div className="space-y-5">
           <div className="rounded-3xl bg-primary text-primary-foreground p-8 text-center shadow-lg relative overflow-hidden">
             <div className="absolute -left-8 -bottom-8 size-36 rounded-full bg-white/10" aria-hidden />
             <PartyPopper className="size-14 mx-auto" />
@@ -628,7 +631,7 @@ export function ActiveWalkScreen() {
           >
             <ArrowLeft className="size-4.5" /> {t("wlk.backHome")}
           </Button>
-        </motion.div>
+        </div>
       )}
 
       {/* ============ DIALOGS ============ */}
@@ -764,6 +767,26 @@ export function ActiveWalkScreen() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/* ------------------------- GPS sync status ------------------------- */
+
+function GpsStatus() {
+  const { t } = useT();
+  const { pending, offline, error } = useTracker();
+  if (error) return null;
+  if (offline) {
+    return (
+      <span className="text-xs font-semibold text-amber-600 flex items-center gap-1">
+        <CloudOff className="size-3.5" /> {t("wlk.gps.offline", { n: pending })}
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs text-muted-foreground font-semibold">
+      {pending > 0 ? t("wlk.gps.pending", { n: pending }) : t("wlk.cockpit.gpsActive")}
+    </span>
   );
 }
 

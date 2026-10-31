@@ -96,7 +96,7 @@ const walker: Record<string, string> = {
   "wlk.cockpit.pendingNotice": "The owner hasn't confirmed their payment yet. You can do the walk anyway; we'll collect as soon as they confirm.",
   "wlk.meetingPoint": "Meeting point",
   "wlk.cockpit.notesFrom": "{name}'s instructions",
-  "wlk.cockpit.geofenceHint": "You need to be near the meeting point to start (in the demo we simulate your GPS).",
+  "wlk.cockpit.geofenceHint": "To start and finish you must be within 150 m of the owner's home. We use your GPS.",
   "wlk.cockpit.liveTrack": "Live route",
   "wlk.cockpit.gpsActive": "GPS active",
   "wlk.cockpit.gpsWaiting": "Waiting for the first GPS signal…",
@@ -226,6 +226,12 @@ const walker: Record<string, string> = {
   "wlk.profile.waMsg": "Hi FiruWalk 🐾 — I'm {name} and I'd like to update my walker profile.",
   "wlk.profile.waToastTitle": "Opening WhatsApp 📲",
   "wlk.profile.waToastDesc": "We'll reply within minutes.",
+  "wlk.gps.needLocation": "We couldn't get your location. Turn on GPS and allow location access.",
+  "wlk.gps.denied": "FiruWalk has no location permission. Without GPS the owner can't follow the walk.",
+  "wlk.gps.unavailable": "No GPS signal right now. We'll keep trying.",
+  "wlk.gps.openSettings": "Open settings",
+  "wlk.gps.offline": "Offline · {n} not sent",
+  "wlk.gps.pending": "GPS active · {n} to send",
 };
 
 export default walker;

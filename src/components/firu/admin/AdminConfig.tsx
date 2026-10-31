@@ -15,6 +15,7 @@ import {
   PiggyBank,
   ScrollText,
   Settings2,
+  Navigation,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -370,6 +371,20 @@ export function AdminConfig() {
             { key: "minPayoutCents", label: t("adm.cfg.f.minPayout"), kind: "bs", unit: "Bs" },
           ]}
           value={cfg.payouts}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.tracking)}
+          section="tracking"
+          icon={Navigation}
+          title={t("adm.cfg.trackingTitle")}
+          description={t("adm.cfg.trackingDesc")}
+          fields={[
+            { key: "geofenceMeters", label: t("adm.cfg.f.geofence"), kind: "num", unit: "m", hint: t("adm.cfg.f.geofenceHint") },
+            { key: "maxSpeedKmh", label: t("adm.cfg.f.maxSpeed"), kind: "num", unit: "km/h" },
+            { key: "maxJumpMeters", label: t("adm.cfg.f.maxJump"), kind: "num", unit: "m" },
+            { key: "maxAccuracyMeters", label: t("adm.cfg.f.maxAccuracy"), kind: "num", unit: "m" },
+          ]}
+          value={cfg.tracking}
         />
         <DemoCard demo={cfg.demo} />
       </div>

@@ -4,13 +4,14 @@
 // All bookings with status/keyword filters, sticky-header scroll area,
 // per-row detail Sheet (schedule, walks, payment) and CSV export.
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { springSmooth, springSnappy } from "@/lib/firu/motion";
 import {
   CalendarDays,
   Dog,
   Download,
+  MapPinOff,
   Search,
   ShieldAlert,
 } from "lucide-react";
@@ -20,10 +21,19 @@ import { useFiruSession } from "@/lib/firu/session";
 import type { BookingDTO } from "@/lib/firu/types";
 import { formatBOB } from "@/lib/firu/money";
 import { daysShort, fmtDateShort, fmtRelative, fmtSchedule, fmtTime } from "@/lib/firu/dates";
-import { useT, getLang } from "@/lib/firu/i18n";
+import { useT, getLang, srvErr } from "@/lib/firu/i18n";
 import { EmptyState, SectionHeader, StatusBadge } from "@/components/firu/shared/bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -91,6 +101,62 @@ function TypeChip({ type }: { type: BookingDTO["type"] }) {
     >
       {type === "RECURRING" ? t("adm.bkg.recurring") : t("adm.bkg.oneOff")}
     </span>
+  );
+}
+
+/* ------------------------- geofence override ------------------------- */
+
+/**
+ * Lets the walker start (SCHEDULED) or finish (IN_PROGRESS) a walk without
+ * being near the owner's address. Reason required; audit-logged server-side.
+ */
+function GeofenceOverride({ walkId, phase }: { walkId: string; phase: "start" | "end" }) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const mut = useMutation({
+    mutationFn: () => api.post(`/api/admin/walks/${walkId}/override`, { phase, reason: reason.trim() }),
+    onSuccess: () => {
+      setOpen(false);
+      setReason("");
+      qc.invalidateQueries({ queryKey: qk.adminBookings });
+      toast({ title: t("adm.geo.okTitle"), description: t("adm.geo.okDesc") });
+    },
+    onError: (e: Error) =>
+      toast({ title: t("adm.geo.errTitle"), description: srvErr(e.message), variant: "destructive" }),
+  });
+  return (
+    <>
+      <Button size="sm" variant="outline" className="h-7 rounded-full text-xs ml-auto" onClick={() => setOpen(true)}>
+        <MapPinOff className="size-3.5" />
+        {phase === "start" ? t("adm.geo.allowStart") : t("adm.geo.allowEnd")}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>{phase === "start" ? t("adm.geo.allowStart") : t("adm.geo.allowEnd")}</DialogTitle>
+            <DialogDescription>{t("adm.geo.desc")}</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t("adm.geo.reasonPh")}
+            maxLength={300}
+          />
+          <DialogFooter>
+            <Button
+              className="rounded-full"
+              disabled={reason.trim().length < 5 || mut.isPending}
+              onClick={() => mut.mutate()}
+            >
+              {t("adm.geo.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -208,6 +274,8 @@ function BookingDetail({
                       {t("adm.bkg.traveled", { km: km(w.distanceMeters) })}
                     </span>
                   )}
+                  {w.status === "SCHEDULED" && <GeofenceOverride walkId={w.id} phase="start" />}
+                  {w.status === "IN_PROGRESS" && <GeofenceOverride walkId={w.id} phase="end" />}
                 </li>
               ))}
             </ul>

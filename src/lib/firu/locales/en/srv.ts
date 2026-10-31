@@ -47,6 +47,20 @@ const srv = {
   "Ninguna clave es editable en *": "No keys are editable in \"",
   "Indica la reserva a reseñar.": "Tell us which booking to review.",
   "Indica una acción: *": "Pick an action: ",
+  "Solo el paseador asignado puede enviar puntos GPS.": "Only the assigned walker can send GPS points.",
+  "Solo se puede rastrear un paseo en curso.": "Only a walk in progress can be tracked.",
+  "Los puntos GPS son inválidos.": "The GPS points are invalid.",
+  "La ubicación enviada es inválida.": "The location sent is invalid.",
+  "Activa la ubicación del teléfono para registrar el paseo.": "Turn on your phone's location to record the walk.",
+  "Desactiva la ubicación simulada del teléfono para continuar.": "Turn off mock location on your phone to continue.",
+  "El dueño no tiene su dirección marcada en el mapa. Pide a soporte que autorice el paseo.":
+    "The owner hasn't pinned their address on the map. Ask support to authorize the walk.",
+  "Estás demasiado lejos del domicilio del dueño para iniciar el paseo:*": "You're too far from the owner's home to start the walk:",
+  "Estás demasiado lejos del domicilio del dueño para finalizar el paseo:*": "You're too far from the owner's home to finish the walk:",
+  "Solo puedes finalizar un paseo en curso.": "You can only finish a walk in progress.",
+  "Indica la fase (start o end) y un motivo de al menos 5 caracteres.": "Give the phase (start or end) and a reason of at least 5 characters.",
+  "Solo se puede autorizar el inicio de un paseo programado.": "Only a scheduled walk's start can be authorized.",
+  "Solo se puede autorizar el fin de un paseo en curso.": "Only a running walk's end can be authorized.",
 } as const;
 
 export default srv;

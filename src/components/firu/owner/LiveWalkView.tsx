@@ -1,8 +1,9 @@
 "use client";
 
-// Owner → Live walk view (the WOW screen): big live Leaflet map fed by the
-// socket GPS simulation, pulsing LIVE badge, elapsed timer + distance,
-// graceful COMPLETED switch to the final report card, and WhatsApp support.
+// Owner → Live walk view (the WOW screen): big live Leaflet map with the
+// walker's real GPS route (stored track + `walk:points` pushed over the
+// socket), pulsing LIVE badge, elapsed timer + server-computed distance,
+// graceful COMPLETED switch to the walk summary, and WhatsApp support.
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -46,13 +47,16 @@ import {
   getSocket,
   joinLiveWalk,
   leaveLiveWalk,
-  type LivePoint,
+  type WalkPointsEvent,
 } from "@/lib/firu/socket";
 import { cn } from "@/lib/utils";
 
 /** GET /api/walks/{id} shape: WalkDTO + parsed polyline + booking context. */
 type WalkDetail = WalkDTO & {
   track: [number, number][];
+  /** Highest GPS seq already in `track` — live points above it are new. */
+  lastSeq: number;
+  pickup: { lat: number; lng: number } | null;
   startLat: number | null;
   startLng: number | null;
   booking: {
@@ -69,16 +73,15 @@ type WalkDetail = WalkDTO & {
   } | null;
 };
 
-const MAX_POINTS = 720;
-
 export function LiveWalkView() {
   const { t } = useT();
   const activeWalkId = useFiruSession((s) => s.activeWalkId);
   const setOwnerView = useFiruSession((s) => s.setOwnerView);
   const openBooking = useFiruSession((s) => s.openBooking);
 
-  const [track, setTrack] = useState<[number, number][]>([]);
-  const [liveDist, setLiveDist] = useState<number | null>(null);
+  // Points pushed live since the last fetch of the walk detail.
+  const [livePoints, setLivePoints] = useState<WalkPointsEvent["points"]>([]);
+  const [liveDist, setLiveDist] = useState<{ seq: number; meters: number } | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const qc = useQueryClient();
@@ -100,36 +103,20 @@ export function LiveWalkView() {
   const status = walk?.status;
   const inProgress = status === "IN_PROGRESS";
 
-  // ----- live GPS sim wiring -----
+  // ----- live GPS: points the server accepted, pushed over the socket -----
   useEffect(() => {
     if (!walk || walk.status !== "IN_PROGRESS") return;
     const socket = getSocket();
-    joinLiveWalk({
-      walkId: walk.id,
-      startLat: walk.startLat ?? undefined,
-      startLng: walk.startLng ?? undefined,
-    });
+    joinLiveWalk(walk.id);
 
-    const onState = (p: {
-      walkId: string;
-      points: LivePoint[];
-      distMeters?: number;
-    }) => {
-      if (p.walkId !== walk.id) return;
-      setTrack(
-        p.points
-          .slice(0, MAX_POINTS)
-          .map((pt) => [pt.lat, pt.lng] as [number, number])
-      );
-      if (typeof p.distMeters === "number") setLiveDist(p.distMeters);
-    };
-    const onPoint = (pt: LivePoint & { walkId?: string }) => {
-      if (pt.walkId && pt.walkId !== walk.id) return;
-      setTrack((prev) => {
-        const next: [number, number][] = [...prev, [pt.lat, pt.lng]];
-        return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
+    const onPoints = (e: WalkPointsEvent) => {
+      if (e.walkId !== walk.id || e.points.length === 0) return;
+      setLivePoints((prev) => {
+        const seen = new Set(prev.map((p) => p.seq));
+        return [...prev, ...e.points.filter((p) => !seen.has(p.seq))].sort((a, b) => a.seq - b.seq);
       });
-      if (typeof pt.distMeters === "number") setLiveDist(pt.distMeters);
+      const top = Math.max(...e.points.map((p) => p.seq));
+      setLiveDist((prev) => (prev && prev.seq > top ? prev : { seq: top, meters: e.distMeters }));
     };
     const onEnded = (p: { walkId?: string }) => {
       if (p.walkId && p.walkId !== walk.id) return;
@@ -137,16 +124,17 @@ export function LiveWalkView() {
       qc.invalidateQueries({ queryKey: qk.walk(walk.id) });
     };
 
-    socket.on("walk:state", onState);
-    socket.on("walk:point", onPoint);
+    socket.on("walk:points", onPoints);
     socket.on("walk:ended", onEnded);
     return () => {
-      socket.off("walk:state", onState);
-      socket.off("walk:point", onPoint);
+      socket.off("walk:points", onPoints);
       socket.off("walk:ended", onEnded);
       leaveLiveWalk(walk.id);
     };
-  }, [walk?.id, walk?.status, walk?.startLat, walk?.startLng]);
+  }, [walk?.id, walk?.status]);
+
+  // A refetched detail already contains pushed points up to its lastSeq.
+  const lastSeq = walk?.lastSeq ?? -1;
 
   // elapsed timer (ticks only while the walk is running)
   useEffect(() => {
@@ -168,9 +156,9 @@ export function LiveWalkView() {
   })();
 
   const distanceKm = useMemo(() => {
-    const m = liveDist ?? walk?.distanceMeters ?? 0;
+    const m = liveDist && liveDist.seq > lastSeq ? liveDist.meters : (walk?.distanceMeters ?? 0);
     return fmtKm(m).replace(" km", "");
-  }, [liveDist, walk?.distanceMeters]);
+  }, [liveDist, lastSeq, walk?.distanceMeters]);
 
   if (!activeWalkId) {
     return (
@@ -203,11 +191,18 @@ export function LiveWalkView() {
   const dog = walk.dog;
   const walker = walk.booking?.walker ?? null;
   const walkerFirst = walker?.name.split(" ")[0] ?? t("own.theWalker");
-  const liveTrack = inProgress ? track : walk.track;
+  const liveTrack: [number, number][] = inProgress
+    ? [...walk.track, ...livePoints.filter((p) => p.seq > lastSeq).map((p) => [p.lat, p.lng] as [number, number])]
+    : walk.track;
   const center: [number, number] = [
-    walk.startLat ?? -17.7931,
-    walk.startLng ?? -63.1998,
+    walk.startLat ?? walk.pickup?.lat ?? -17.7931,
+    walk.startLng ?? walk.pickup?.lng ?? -63.1998,
   ];
+  // Real duration once finished (falls back to the booked duration).
+  const actualMin =
+    walk.startedAt && walk.endedAt
+      ? Math.max(1, Math.round((new Date(walk.endedAt).getTime() - new Date(walk.startedAt).getTime()) / 60_000))
+      : walk.durationMin;
 
   return (
     <motion.div
@@ -344,7 +339,7 @@ export function LiveWalkView() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {fmtDateShort(walk.startedAt ?? walk.scheduledStart)} · {t("own.live.durationWord")}{" "}
-                    {walk.durationMin} min · {distanceKm} km
+                    {actualMin} min · {distanceKm} km
                   </p>
                 </div>
               </div>

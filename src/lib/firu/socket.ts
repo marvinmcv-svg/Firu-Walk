@@ -84,11 +84,10 @@ function joinRoom(room: string, event: string, payload: Record<string, unknown>)
   if (getSocket().connected) join();
 }
 
-export interface LivePoint {
-  seq: number;
-  lat: number;
-  lng: number;
-  ts: number;
+/** `walk:points` — GPS fixes the server accepted (POST /api/walks/[id]/track). */
+export interface WalkPointsEvent {
+  walkId: string;
+  points: { seq: number; lat: number; lng: number; ts: number }[];
   distMeters: number;
 }
 
@@ -103,18 +102,13 @@ export interface ChatMessage {
 }
 
 /** Join a live-walk room (owner, assigned walker or admin). */
-export function joinLiveWalk(opts: { walkId: string; startLat?: number; startLng?: number }) {
-  joinRoom(`walk:${opts.walkId}`, "walk:join", opts);
+export function joinLiveWalk(walkId: string) {
+  joinRoom(`walk:${walkId}`, "walk:join", { walkId });
 }
 
 export function leaveLiveWalk(walkId: string) {
   joined.delete(`walk:${walkId}`);
   socket?.emit("walk:leave", { walkId });
-}
-
-/** Dev GPS simulator only: stop it before recording the final track. */
-export function stopLiveWalkSim(walkId: string) {
-  socket?.emit("walk:stop", { walkId });
 }
 
 export function joinChat(threadId: string) {

@@ -241,7 +241,7 @@ const owner: Record<string, string> = {
   "own.live.timeWord": "tiempo",
   "own.live.inProgress": "Paseo en curso · inició {time}",
   "own.live.updateNote":
-    "Actualizamos la ubicación cada pocos segundos. Disfruta viendo a {dog} felíz 🐾",
+    "El recorrido real del GPS se actualiza mientras caminan (cada ~15 s). Disfruta viendo a {dog} feliz 🐾",
   "own.live.support": "Soporte",
   "own.live.supportMsg": "Hola, tengo un problema con el paseo de {dog} (FiruWalk)",
   "own.live.thanks": "¡Paseo completado! Gracias {walker} 💚",

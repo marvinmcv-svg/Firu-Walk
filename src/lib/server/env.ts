@@ -36,6 +36,9 @@ const EnvSchema = z.object({
   REALTIME_SECRET: z.string().min(32, "REALTIME_SECRET must be at least 32 characters").optional(),
   LIVE_SERVICE_INTERNAL_URL: optionalUrl,
   NEXT_PUBLIC_LIVE_URL: optionalUrl,
+  // Walker GPS simulator in the browser (development / e2e only). Simulated
+  // fixes look real to the server, so it must never reach production.
+  NEXT_PUBLIC_GPS_SIM: z.enum(["true", "false"]).optional(),
 
   // Observability
   SENTRY_DSN: optionalUrl,
@@ -75,6 +78,13 @@ const EnvSchema = z.object({
       code: "custom",
       path: ["REALTIME_SECRET"],
       message: "REALTIME_SECRET is required in production when the live-service is configured",
+    });
+  }
+  if ((env.VERCEL_ENV === "production" || env.NODE_ENV === "production") && env.NEXT_PUBLIC_GPS_SIM === "true") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["NEXT_PUBLIC_GPS_SIM"],
+      message: "NEXT_PUBLIC_GPS_SIM must not be enabled in production builds",
     });
   }
   if (env.VERCEL_ENV === "production" && env.DEMO_MODE === "true") {

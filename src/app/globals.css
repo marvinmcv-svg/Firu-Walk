@@ -339,6 +339,24 @@
     scroll-behavior: auto;
   }
 }
+/* Battery-light walker app (AppShell adds .walker-lite for WALKER): no
+   decorative animation, transitions or backdrop blur. Spinners stay. */
+.walker-lite *:not(.animate-spin),
+.walker-lite *::before,
+.walker-lite *::after {
+  animation: none !important;
+  transition: none !important;
+}
+.walker-lite .firu-glass,
+.walker-lite .firu-frost,
+.walker-lite [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.walker-lite .firu-glass {
+  background: var(--background);
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .firu-glass,
   .firu-frost {

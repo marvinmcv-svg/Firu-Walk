@@ -3,7 +3,7 @@
 // App frame: top bar (notifications, user), left sidebar on lg+, bottom nav on mobile.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import { useT } from "@/lib/firu/i18n";
 import { LangToggle } from "@/components/firu/shared/LangToggle";
 import {
@@ -158,8 +158,13 @@ export function AppShell() {
     }
   };
 
+  // Walkers run the app on low-end phones during walks with GPS on:
+  // battery-light mode drops decorative motion and blur (see globals.css).
+  const lite = role === "WALKER";
+
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <MotionConfig reducedMotion={lite ? "always" : "user"}>
+    <div className={cn("min-h-screen flex flex-col bg-background", lite && "walker-lite")}>
       {/* Top bar — translucent Apple material, hairline bottom edge */}
       <header className="firu-glass sticky top-0 z-40 border-b border-border/50 pt-safe">
         <div className="mx-auto max-w-7xl px-4 h-14 flex items-center gap-3">
@@ -272,6 +277,7 @@ export function AppShell() {
         </div>
       </nav>
     </div>
+    </MotionConfig>
   );
 }
 
