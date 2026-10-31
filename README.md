@@ -127,6 +127,15 @@ To go live you need a WhatsApp Business **authentication** template with a copy-
 - Scheduled jobs: `GET /api/cron/daily` (reconciliation + plan expiry) and `GET /api/cron/payouts` (weekly batch), protected by `CRON_SECRET` and scheduled in `vercel.json`.
 - Tests: `tests/api/payments.test.ts` (full MockProvider flow; the ledger must balance after every step).
 
+## 🔔 Notifications & keeping it in FiruWalk
+
+- **One `Notifier`, three channels** (`src/lib/server/notifications/`): in-app (the bell — always on), **WhatsApp Cloud API templates**, and **web push** (`public/sw.js`, VAPID). Users choose WhatsApp / push and the message language under the bell → ⚙️.
+- **Templated events (ES/EN):** booking request (walker), booking confirmed, walker on the way (walker taps *Voy en camino*), walk started (live link), walk finished (report link), payment received, payout sent, plan expiring (`plans.expiryReminderDays`, daily job). Texts to submit to Meta: [docs/WHATSAPP_TEMPLATES.md](docs/WHATSAPP_TEMPLATES.md). Other alerts (disputes, admin ops…) go in-app + push only.
+- Every attempt is logged in `NotificationDelivery` (SENT / FAILED / SKIPPED). A failing channel never fails the request; seeded demo phones are never sent real WhatsApp messages. Without credentials, development logs WhatsApp messages to the console.
+- Links in messages open `APP_URL/?walk=<id>` (owner → that walk's live map or report).
+- **Anti-disintermediation:** owners and walkers never receive each other's phone number (only admins do). Chat messages with a phone number or a `wa.me` / WhatsApp link are delivered but flagged (`Message.contactFlag`), and the chat shows a gentle *"Mantenlo en FiruWalk"* reminder — also while typing.
+- Tests: `tests/api/notifications.test.ts` (each event → its template with the mock sender; preferences; push; phone privacy; chat flag).
+
 ## ☁️ Deployment (Vercel)
 
 Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).
