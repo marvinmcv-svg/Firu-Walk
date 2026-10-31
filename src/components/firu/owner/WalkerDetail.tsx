@@ -29,7 +29,6 @@ import {
   EmptyState,
   RatingStars,
   SectionHeader,
-  whatsappHref,
 } from "@/components/firu/shared/bits";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -306,24 +305,6 @@ export function WalkerDetail() {
           >
             {t("own.detail.bookWith", { name: firstName })}
           </Button>
-          {walker.phone && (
-            <Button
-              variant="outline"
-              size="lg"
-            className="rounded-full font-bold h-12"
-              onClick={() =>
-                window.open(
-                  whatsappHref(
-                    walker.phone,
-                    t("own.detail.waMsg", { name: firstName })
-                  ),
-                  "_blank"
-                )
-              }
-            >
-              WhatsApp
-            </Button>
-          )}
         </div>
         <div className="flex items-center justify-center gap-4 mt-3 text-[11px] font-semibold text-muted-foreground">
           <span className="inline-flex items-center gap-1">

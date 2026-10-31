@@ -1,5 +1,5 @@
 // GET /api/walkers/[id] (id = USER id) → WalkerDetailDTO
-// Marketplace detail: card + phone + experience + availability + latest 10 reviews.
+// Marketplace detail: card + experience + availability + latest 10 reviews.
 
 import { db } from "@/lib/db";
 import { ApiError, ok, run } from "@/lib/server/http";

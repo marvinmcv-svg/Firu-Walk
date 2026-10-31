@@ -1,15 +1,19 @@
 // POST /api/walkers/apply — PUBLIC application form.
 // Creates User(role WALKER) + WalkerProfile(status PENDING) + default availability.
-// The phone becomes the login. Returns LoginResponse-ish {user, isNew:true}.
+// The phone becomes the login (the applicant signs in later with a login code).
+// Returns {applied:true}; it never opens a session.
 
 import { db } from "@/lib/db";
 import { ApiError, ok, optStr, readJson, reqNum, reqStr, run } from "@/lib/server/http";
 import { getAppConfig } from "@/lib/server/config";
 import { notify, notifyAdmins } from "@/lib/server/notify";
-import { sessionUserOf } from "@/lib/server/serialize";
+import { requirePhone } from "@/lib/server/auth/phone";
+import { enforceRateLimit } from "@/lib/server/rateLimit";
+import { clientIp } from "@/lib/server/request";
 
 export async function POST(req: Request) {
   return run(async () => {
+    await enforceRateLimit(`apply:ip:${clientIp(req)}`, 5, 3_600_000);
     const body = await readJson(req);
     const name = reqStr(body, "name", "Tu nombre", { max: 80 });
     const rawPhone = reqStr(body, "phone", "Tu teléfono");
@@ -22,13 +26,7 @@ export async function POST(req: Request) {
     const selfieUrl = optStr(body, "selfieUrl", { max: 300 }) ?? null;
     const idPhotoUrl = optStr(body, "idPhotoUrl", { max: 300 }) ?? null;
 
-    // Same normalization as login
-    let phone = rawPhone.replace(/[\s\-().]/g, "");
-    if (/^5917\d{7}$/.test(phone)) phone = `+${phone}`;
-    if (/^7\d{7}$/.test(phone)) phone = `+591${phone}`;
-    if (!/^\+\d{6,15}$/.test(phone)) {
-      throw new ApiError(400, "El teléfono es inválido (usa formato +5917xxxxxxx).");
-    }
+    const phone = requirePhone(rawPhone);
 
     const zone = await db.zone.findUnique({ where: { id: zoneId } });
     if (!zone || !zone.active) throw new ApiError(400, "La zona seleccionada no existe.");
@@ -81,6 +79,6 @@ export async function POST(req: Request) {
       `Recibimos tu solicitud, ${name}. Te avisaremos cuando el equipo FiruWalk la revise (normalmente en menos de 24 h).`,
       null
     );
-    return ok({ user: sessionUserOf(user), isNew: true });
+    return ok({ applied: true });
   });
 }

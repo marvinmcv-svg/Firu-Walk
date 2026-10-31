@@ -331,7 +331,6 @@ const owner: Record<string, string> = {
     "No reviews yet — be one of the first to walk with {name} 🐾",
   "own.detail.pricesTitle": "{name}'s prices",
   "own.detail.bookWith": "Book with {name}",
-  "own.detail.waMsg": "Hi {name}, I'm reaching out through FiruWalk 🐾",
   "own.detail.trustGps": "Walks with live GPS",
   "own.detail.trustHeld": "Payment held until the report",
   "own.detail.trustNoSpam": "No request blasting",

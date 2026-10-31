@@ -9,6 +9,8 @@ import { db } from "@/lib/db";
 import { getAppConfig } from "@/lib/server/config";
 import { fail, ok } from "@/lib/server/http";
 import { log } from "@/lib/server/log";
+import { rateLimit } from "@/lib/server/rateLimit";
+import { clientIp } from "@/lib/server/request";
 import ZAI from "z-ai-web-dev-sdk";
 
 type Lang = "es" | "en";
@@ -29,27 +31,6 @@ const FALLBACK: Record<Lang, string> = {
   es: "¡Guau! 🐾 Mis patitas están ocupadas ahora mismo. Escribinos por WhatsApp y el equipo humano te ayuda al toque: https://wa.me/59177165787",
   en: "Woof! 🐾 My paws are a bit busy right now. Message us on WhatsApp and the human team will help you out: https://wa.me/59177165787",
 };
-
-/* ---------------- Naive in-memory rate limit (per instance) ---------------- */
-
-const hits = new Map<string, { count: number; resetAt: number }>();
-
-function overRate(ip: string): boolean {
-  const now = Date.now();
-  // occasional sweep so the map never grows unbounded
-  if (hits.size > 500) {
-    for (const [k, v] of hits) {
-      if (v.resetAt <= now) hits.delete(k);
-    }
-  }
-  const entry = hits.get(ip);
-  if (!entry || entry.resetAt <= now) {
-    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > RATE_LIMIT;
-}
 
 /* ------------------------------ helpers ------------------------------ */
 
@@ -121,11 +102,9 @@ function extractReply(completion: unknown): string | null {
 /* -------------------------------- POST -------------------------------- */
 
 export async function POST(req: Request) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "local";
-  if (overRate(ip)) {
+  // Shared across instances (Redis or Postgres) — see lib/server/rateLimit.ts.
+  const limit = await rateLimit(`firulai:ip:${clientIp(req)}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) {
     return fail(429, "Demasiadas consultas seguidas. Esperá un momentito 🐾");
   }
 

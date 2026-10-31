@@ -383,7 +383,7 @@ export function walkerCardOf(
   };
 }
 
-/** Walker detail: card + phone + experience + availability + latest 10 reviews. */
+/** Walker detail (public): card + experience + availability + latest 10 reviews. No phone. */
 export function walkerDetailOf(
   u: Prisma.UserGetPayload<{ include: { walker: true; zone: true } }>,
   p: Prisma.WalkerProfileGetPayload<Record<never, never>>,
@@ -393,7 +393,6 @@ export function walkerDetailOf(
 ): WalkerDetailDTO {
   return {
     ...walkerCardOf(u, p, zoneName),
-    phone: u.phone,
     experienceYears: p.experienceYears,
     availability: slots
       .map((s) => ({ dayOfWeek: s.dayOfWeek, startMinute: s.startMinute, endMinute: s.endMinute }))

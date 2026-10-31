@@ -28,6 +28,17 @@ export async function GET(req: Request) {
         throw new ApiError(400, "Indica el dueño con ?ownerId= para ver sus mascotas.");
       }
       targetOwnerId = ownerId;
+      // Walkers only see dogs of owners who booked (or asked) them.
+      if (user.role === "WALKER") {
+        const related = await db.booking.findFirst({
+          where: {
+            ownerId: targetOwnerId,
+            OR: [{ walkerId: user.id }, { candidatesJson: { contains: `"${user.id}"` } }],
+          },
+          select: { id: true },
+        });
+        if (!related) throw new ApiError(403, "No tienes acceso a las mascotas de este dueño.");
+      }
     }
 
     const dogs = await db.dog.findMany({ where: { ownerId: targetOwnerId } });
