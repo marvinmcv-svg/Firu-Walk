@@ -92,7 +92,7 @@ Full stack in containers instead: `SEED=true docker compose up --build` (app on 
 
 Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).
 
-- Build runs `scripts/vercel-build.sh`: `prisma generate` → `prisma migrate deploy` (**production only**) → `next build`.
+- Build runs `scripts/vercel-build.sh`: `prisma generate` → `prisma migrate deploy` (production, or any deploy with `RUN_MIGRATIONS=true`) → optional demo seed (`SEED_ON_BUILD=true`, **wipes the DB**) → `next build`.
 - Database: Neon (Vercel → Storage). It sets `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`; the build uses the unpooled one as `DIRECT_URL` for migrations.
 - The socket.io live-service does **not** run on Vercel; host it separately (Milestone 3).
 

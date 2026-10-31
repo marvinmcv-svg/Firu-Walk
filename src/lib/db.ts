@@ -8,6 +8,9 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
+    // On Vercel + Neon, POSTGRES_PRISMA_URL is the pooled URL with the
+    // Prisma-specific flags (pgbouncer=true, connect_timeout) already set.
+    datasourceUrl: process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL,
     log: process.env.LOG_QUERIES === 'true' ? ['query', 'warn', 'error'] : ['warn', 'error'],
   })
 
