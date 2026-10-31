@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # FiruWalk E2E runner — pristine seed → full Playwright suite → pristine seed.
+# Requires: app + live-service running behind the gateway at $BASE_URL
+# (default http://localhost:81), DATABASE_URL pointing at a DISPOSABLE dev DB.
+# Env: PY (python with pytest+playwright, default python3), BASE_URL, CHROMIUM_PATH.
 set -uo pipefail
-cd /home/z/my-project
+cd "$(dirname "$0")/../.."
 
-PY=/home/z/.venv/bin/python
+PY="${PY:-python3}"
 
 echo "━━━ [1/3] Reseeding database to pristine demo state ━━━"
 bun prisma/seed.ts >/dev/null 2>&1 || { echo "SEED FAILED"; exit 1; }
 echo "seed OK"
 
-echo "━━━ [2/3] Running Playwright end-to-end suite (via :81 gateway) ━━━"
-$PY -m pytest tests/e2e -q --tb=short -p no:cacheprovider
+echo "━━━ [2/3] Running Playwright end-to-end suite (${BASE_URL:-http://localhost:81}) ━━━"
+"$PY" -m pytest tests/e2e -q --tb=short -p no:cacheprovider
 status=$?
 
 echo "━━━ [3/3] Restoring pristine demo state ━━━"

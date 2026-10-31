@@ -1,15 +1,18 @@
 """FiruWalk E2E suite — shared fixtures & helpers.
 
-Run through the Caddy gateway (:81) so socket.io XTransformPort routing works.
+Run through a gateway that routes `?XTransformPort=3003` to the live-service
+and everything else to the Next.js app (default http://localhost:81).
+Env overrides: BASE_URL, CHROMIUM_PATH (use a preinstalled Chromium binary).
 """
 import datetime
+import os
 import re
 from pathlib import Path
 
 import pytest
 from playwright.sync_api import Page, expect
 
-BASE_URL = "http://localhost:81"
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:81")
 SHOT_DIR = Path(__file__).parent / "screenshots"
 
 # Console noise that is NOT an app defect (map tiles are external, HMR is dev-mode).
@@ -34,7 +37,7 @@ SKIP_INTRO = "try{sessionStorage.setItem('firu-intro-played','1')}catch(e){}"
 def browser():
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
         yield browser
         browser.close()
 

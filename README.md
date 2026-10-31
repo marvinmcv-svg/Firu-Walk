@@ -2,7 +2,7 @@
 
 **Premium dog-walking PWA for Bolivia — with FirulAI, your AI dog receptionist.**
 
-FiruWalk connects dog owners with trusted, vetted walkers across La Paz's safest zones. Built as an installable Progressive Web App with an Apple-grade, glossy user experience — buttery motion, glass surfaces, and a bilingual (English / Español) interface throughout.
+FiruWalk connects dog owners with trusted, vetted walkers across Santa Cruz de la Sierra's safest zones. Built as an installable Progressive Web App with an Apple-grade, glossy user experience — buttery motion, glass surfaces, and a bilingual (English / Español) interface throughout.
 
 ```text
    / \__
@@ -39,28 +39,30 @@ FiruWalk connects dog owners with trusted, vetted walkers across La Paz's safest
 - **Next.js 16** (App Router) + **React 19** + **TypeScript 5**
 - **Tailwind CSS 4** + **shadcn/ui** (New York style) + **Lucide icons**
 - **Framer Motion** for the silky animation layer
-- **Prisma ORM** + **SQLite**
+- **Prisma ORM** + **PostgreSQL** (migrations in `prisma/migrations`)
+- **Redis** (optional for now — rate limits & sessions from Milestone 2)
+- **Sentry** error tracking + structured JSON logs (`src/lib/server/log.ts`)
 - **socket.io** live-service (mini-service on port `3003`)
 - **z-ai-web-dev-sdk** (server-side only) — the LLM brain behind FirulAI
 - **Playwright** (Python) end-to-end suite — 7 test files covering landing, golden paths for owner/walker/admin, language toggle, and FirulAI
 
 ## 🚀 Getting started
 
-> Prerequisites: [Bun](https://bun.sh) 1.2+
+> Prerequisites: [Bun](https://bun.sh) 1.2+, Docker (for local Postgres/Redis)
 
 ```bash
-# 1. Install dependencies
+# 1. Install dependencies (also generates the Prisma client)
 bun install
 
-# 2. Configure environment
-cp .env.example .env        # then edit DATABASE_URL if needed
+# 2. Start Postgres + Redis
+docker compose up -d db redis
 
-# 3. Create & seed the database (walkers, owners, demo bookings…)
-bun run db:push
+# 3. Configure environment
+cp .env.example .env        # defaults match docker-compose
+
+# 4. Apply migrations & seed demo data (walkers, owners, bookings…)
+bun run db:migrate:deploy
 bun run db:seed
-
-# 4. Generate the Prisma client
-bun run db:generate
 
 # 5. Start the live walk-tracking service (port 3003)
 cd mini-services/live-service && bun install && bun run dev &
@@ -70,16 +72,29 @@ bun run dev
 ```
 
 Open **http://localhost:3000** — the intro plays, then the landing page greets you with FirulAI in the corner. 🐕
+Health check: **http://localhost:3000/api/health**.
+
+Full stack in containers instead: `SEED=true docker compose up --build` (app on :3000, live-service on :3003).
 
 ### Useful scripts
 
 | Command | What it does |
 |---|---|
 | `bun run dev` | Dev server on port 3000 |
-| `bun run lint` | ESLint (Next.js core-web-vitals rules) |
-| `bun run db:push` | Sync `prisma/schema.prisma` → SQLite |
-| `bun run db:seed` | Seed demo data (walkers, zones, bookings, fees) |
-| `bun run db:reset` | Reset + re-seed from scratch |
+| `bun run lint` / `bun run typecheck` | ESLint / TypeScript checks |
+| `bun run db:migrate` | Create a new migration after editing `schema.prisma` (dev) |
+| `bun run db:migrate:deploy` | Apply pending migrations (CI / production) |
+| `bun run db:seed` | Seed demo data — **wipes the DB**; refuses in production unless `ALLOW_SEED=true` |
+| `bun run db:reset` | Reset schema + re-seed from scratch |
+| `bun run db:studio` | Browse the database |
+
+## ☁️ Deployment (Vercel)
+
+Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).
+
+- Build runs `scripts/vercel-build.sh`: `prisma generate` → `prisma migrate deploy` (**production only**) → `next build`.
+- Required env vars in Vercel: `DATABASE_URL` (pooled) and `DIRECT_URL` (direct) — see `.env.example`.
+- The socket.io live-service does **not** run on Vercel; host it separately (Milestone 3).
 
 ## 📁 Project structure
 
@@ -112,8 +127,8 @@ public/                     # brand assets, pet imagery, intro video, PWA icons
 The Playwright suite (Python) covers the whole product — landing (light/dark, desktop/mobile), the owner golden path (dog CRUD → wizard → payment → live walk → review), the walker golden path (accept → walk → report → withdraw), admin operations, the language toggle journey, and FirulAI (greeting, pricing, WhatsApp handoff).
 
 ```bash
-cd tests/e2e
-./run_all.sh          # runs every test file
+node scripts/dev-gateway.mjs &          # :81 → app :3000 + live-service :3003
+CHROMIUM_PATH=/path/to/chrome tests/e2e/run_all.sh   # needs pytest + playwright (Python)
 ```
 
 > Screenshots from test runs are written to `tests/e2e/screenshots/` (git-ignored).
