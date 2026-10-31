@@ -316,6 +316,72 @@
   background-size: 22px 22px;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Landing ambient motion — compositor-only (transform / opacity)     */
+/* ------------------------------------------------------------------ */
+@keyframes firu-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(4%, -3%, 0) scale(1.06); }
+  66% { transform: translate3d(-3%, 4%, 0) scale(0.97); }
+}
+.firu-drift {
+  animation: firu-drift 22s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes firu-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -8px; }
+}
+.firu-bob {
+  animation: firu-bob 6s ease-in-out infinite;
+}
+
+@keyframes firu-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
+}
+.firu-marquee-track {
+  animation: firu-marquee 38s linear infinite;
+}
+.group:hover .firu-marquee-track {
+  animation-play-state: paused;
+}
+
+/* Light sweep across primary CTAs (Apple "shimmer" on hover) */
+.firu-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.firu-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    oklch(1 0 0 / 35%) 48%,
+    transparent 66%
+  );
+  transform: translateX(-120%);
+}
+.firu-shine:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.9s var(--ease-out-expo);
+}
+
+/* View transition used by the app shell between tabs */
+@keyframes firu-view-in {
+  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.firu-view-in {
+  animation: firu-view-in 0.45s var(--ease-out-expo) both;
+}
+
 /* Safe-area helper for bottom nav */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);

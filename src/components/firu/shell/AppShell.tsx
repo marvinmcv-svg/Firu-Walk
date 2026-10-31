@@ -286,7 +286,11 @@ export function AppShell() {
 
         {/* Main content */}
         <main className={cn("flex-1 min-w-0 px-4 pt-6 lg:pb-10", role === "ADMIN" ? "pb-40" : "pb-28")}>
-          {currentView()}
+          {/* Keyed wrapper: every tab/screen change gets an Apple-style
+              rise + un-blur (CSS, so walker-lite and reduced motion drop it) */}
+          <div key={`${role}-${activeView}`} className="firu-view-in">
+            {currentView()}
+          </div>
         </main>
       </div>
 

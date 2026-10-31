@@ -47,9 +47,9 @@ def test_language_toggle_full_journey(page, shot, errors):
         expect(page.locator("header").get_by_role("link", name=link)).to_be_visible()
     expect(page.get_by_role("button", name="Sign in").first).to_be_visible()
     expect(page.get_by_role("button", name="I'm a walker")).to_be_visible()
-    expect(page.get_by_role("heading", level=1)).to_contain_text("Happy walks")
-    expect(page.get_by_role("heading", level=1)).to_contain_text("worry-free owners")
-    expect(page.get_by_role("button", name="Book a walk")).to_be_visible()
+    expect(page.get_by_role("heading", level=1)).to_contain_text("Home happy and tired")
+    expect(page.get_by_role("heading", level=1)).to_contain_text("You watch every step live")
+    expect(page.get_by_role("button", name="Plan their first walk").first).to_be_visible()
     assert page.evaluate("document.documentElement.lang") == "en"
     shot("landing-en")
 
@@ -137,7 +137,7 @@ def test_language_toggle_mobile(mobile_page, mshot, errors):
     # Toggle to EN with a touch tap
     _toggle(mobile_page, "EN")
     expect(mobile_page.get_by_role("button", name="Sign in").first).to_be_visible()
-    expect(mobile_page.get_by_role("heading", level=1)).to_contain_text("Happy walks")
+    expect(mobile_page.get_by_role("heading", level=1)).to_contain_text("Home happy and tired")
 
     # No horizontal overflow at 390px with the toggle in the header
     sw = mobile_page.evaluate("document.documentElement.scrollWidth")

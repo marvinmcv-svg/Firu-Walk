@@ -249,9 +249,9 @@ def test_premium_cards_and_whatsapp_number(page, shot, errors):
     trust = page.locator("#confianza")
     trust.scroll_into_view_if_needed()
     page.wait_for_timeout(1_300)  # count-up is 0.9s
-    for stat in ["100%", "GPS", "12%", "24/7"]:
+    for stat in ["100%", "GPS", "Bs 15", "24/7"]:
         expect(trust.get_by_text(stat, exact=False).first).to_be_visible()
-    expect(trust.get_by_text("La confianza es el producto")).to_be_visible()
+    expect(trust.get_by_text("Le confías a tu familia", exact=False)).to_be_visible()
     shot("09_confianza_premium")
 
     # WhatsApp support line → +59177165787 on every public CTA.

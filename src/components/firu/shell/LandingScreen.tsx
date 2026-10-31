@@ -1,7 +1,10 @@
 "use client";
 
 // Landing + login (demo accounts / phone OTP / walker application).
-// Sticky footer per design standards (min-h-screen flex-col, footer mt-auto).
+// Owner-first funnel: promise (hero) → empathy (pain) → how → proof (report,
+// pack, trust) → coverage (zones) → conversion (WhatsApp funnel) → objections
+// (FAQ) → final CTA. Sticky footer per design standards (min-h-screen
+// flex-col, footer mt-auto). Section components live in ../landing/.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -12,7 +15,9 @@ import {
   useInView,
   useMotionTemplate,
   useMotionValue,
+  useMotionValueEvent,
   useReducedMotion,
+  useScroll,
   useSpring,
   useTransform,
   type Variants,
@@ -25,11 +30,9 @@ import {
   MapPin,
   MessageCircle,
   PawPrint,
-  QrCode,
   ShieldCheck,
   Smartphone,
   Sparkles,
-  Star,
   Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -49,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { api, qk } from "@/lib/firu/api";
 import { useFiruSession } from "@/lib/firu/session";
 import { srvErr, useT } from "@/lib/firu/i18n";
+import { formatBOBShort } from "@/lib/firu/money";
 import { LangToggle } from "@/components/firu/shared/LangToggle";
 import type {
   AppConfig,
@@ -65,19 +69,33 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  fadeUp,
   springMomentum,
   springSnappy,
-  springSmooth,
   staggerContainer,
   staggerItem,
 } from "@/lib/firu/motion";
+import { Hero } from "@/components/firu/landing/Hero";
+import { PainSection } from "@/components/firu/landing/PainSection";
+import { ReportShowcase } from "@/components/firu/landing/ReportShowcase";
+import { WalkFunnel } from "@/components/firu/landing/WalkFunnel";
+import { Faq } from "@/components/firu/landing/Faq";
+import { StickyCta } from "@/components/firu/landing/StickyCta";
+import {
+  EXPO,
+  Magnetic,
+  Marquee,
+  Reveal,
+  ScrollProgress,
+  SectionHeading,
+  WhatsAppIcon,
+  scrollToId,
+  useFinePointer,
+} from "@/components/firu/landing/primitives";
 
 export function LandingScreen({
-  onLogin,
   initiallyShowLogin,
 }: {
-  onLogin: () => void;
+  onLogin?: () => void;
   initiallyShowLogin: boolean;
 }) {
   const { t } = useT();
@@ -93,10 +111,25 @@ export function LandingScreen({
   });
 
   const supportWa = config?.platform.supportWhatsApp ?? "+59177165787";
+  const waLink = `https://wa.me/${supportWa.replace(/\D/g, "")}`;
+  const city = config?.platform.city ?? "Santa Cruz de la Sierra";
+  const cancelHours = config?.policy.cancellationFreeHours ?? 12;
+  const pricing = config
+    ? {
+        30: config.pricing.price30Cents,
+        45: config.pricing.price45Cents,
+        60: config.pricing.price60Cents,
+      }
+    : null;
   const reduceMotion = useReducedMotion();
 
-  // Section data — t() stays at these call sites so the Playwright-asserted
-  // ES strings ("1. Reserva", "100%", …) render byte-identical.
+  // Header turns into a floating material once the page moves.
+  const { scrollY } = useScroll();
+  const [scrolled, setScrolled] = useState(false);
+  useMotionValueEvent(scrollY, "change", (y) => setScrolled(y > 12));
+
+  const goFunnel = () => scrollToId("reservar");
+
   const howSteps = [
     { icon: Smartphone, title: t("land.how.s1.title"), text: t("land.how.s1.text") },
     { icon: MapPin, title: t("land.how.s2.title"), text: t("land.how.s2.text") },
@@ -116,171 +149,99 @@ export function LandingScreen({
     icon: LucideIcon;
     label: string;
     num?: number;
+    prefix?: string;
     suffix?: string;
     text?: string;
   }[] = [
     { icon: BadgeCheck, num: 100, suffix: "%", label: t("land.trust.stat1") },
     { icon: MapPin, text: "GPS", label: t("land.trust.stat2") },
-    { icon: Wallet, num: 12, suffix: "%", label: t("land.trust.stat3") },
+    pricing
+      ? { icon: Wallet, num: Math.round(pricing[30] / 100), prefix: "Bs ", label: t("land.trust.stat3") }
+      : { icon: Wallet, text: "Bs —", label: t("land.trust.stat3") },
     { icon: MessageCircle, num: 24, suffix: "/7", label: t("land.trust.stat4") },
   ];
+  const marquee = [1, 2, 3, 4, 5, 6, 7].map((n) => (
+    <span
+      key={n}
+      className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-bold text-foreground/80 shadow-card"
+    >
+      <PawPrint className="size-3.5 text-primary" aria-hidden />
+      {t(`land.marquee.${n}`)}
+    </span>
+  ));
 
   return (
     <MotionConfig reducedMotion="user">
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="firu-glass sticky top-0 z-40 border-b border-border/50 pt-safe">
+      {/* Header — glass material + reading-progress hairline */}
+      <header
+        className={`firu-glass sticky top-0 z-40 border-b pt-safe transition-[border-color,box-shadow] duration-300 ${
+          scrolled ? "border-border/60 shadow-card" : "border-transparent"
+        }`}
+      >
         <div className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center">
-            {/* Brand logo (family-designed wordmark) */}
-            <img
-              src="/images/brand/logo-wordmark.png"
-              alt="FiruWalk"
-              className="h-9 w-auto dark:hidden"
-            />
-            <img
-              src="/images/brand/logo-wordmark-dark.png"
-              alt="FiruWalk"
-              className="h-9 w-auto hidden dark:block"
-            />
-          </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-muted-foreground">
-            <a href="#como-funciona" className="hover:text-foreground transition-colors">
-              {t("land.nav.how")}
-            </a>
-            <a href="#confianza" className="hover:text-foreground transition-colors">
-              {t("land.nav.trust")}
-            </a>
-            <a href="#zonas" className="hover:text-foreground transition-colors">
-              {t("land.nav.zones")}
-            </a>
+          <button
+            type="button"
+            className="flex items-center transition-transform duration-150 ease-out-expo active:scale-95"
+            onClick={() => window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" })}
+            aria-label="FiruWalk"
+          >
+            <img src="/images/brand/logo-wordmark.png" alt="FiruWalk" className="h-9 w-auto dark:hidden" />
+            <img src="/images/brand/logo-wordmark-dark.png" alt="FiruWalk" className="h-9 w-auto hidden dark:block" />
+          </button>
+          <nav className="hidden md:flex items-center gap-1 text-sm font-semibold text-muted-foreground">
+            {[
+              ["#como-funciona", t("land.nav.how")],
+              ["#confianza", t("land.nav.trust")],
+              ["#zonas", t("land.nav.zones")],
+              ["#preguntas", t("land.nav.faq")],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="rounded-full px-3 py-1.5 hover:text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                {label}
+              </a>
+            ))}
           </nav>
           <div className="flex items-center gap-2">
             <LangToggle />
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="rounded-full hidden md:inline-flex"
+              className="rounded-full hidden md:inline-flex font-bold"
               onClick={() => setApplyOpen(true)}
             >
               {t("land.cta.walker")}
             </Button>
-            <Button size="sm" className="rounded-full" onClick={() => setLoginOpen(true)}>
+            <Button size="sm" className="rounded-full font-bold firu-btn-gloss" onClick={() => setLoginOpen(true)}>
               {t("land.cta.login")}
             </Button>
           </div>
         </div>
+        <ScrollProgress />
       </header>
 
-      {/* Hero — overflow-x-clip keeps the rotated decorative tiles from
-          stretching the mobile viewport; content stays untouched */}
-      <section className="firu-paw-pattern overflow-x-clip">
-        <motion.div
-            className="mx-auto max-w-6xl px-4 pt-10 pb-14 lg:pt-16 lg:pb-20 grid lg:grid-cols-2 gap-10 items-center"
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer(0.12)}
-          >
-          <motion.div variants={staggerContainer(0.07)}>
-            <motion.span variants={fadeUp} className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1 text-xs font-extrabold text-primary shadow-card">
-              <PawPrint className="size-3.5" aria-hidden />
-              {t("land.hero.badge")}
-            </motion.span>
-            <motion.h1 variants={fadeUp} className="mt-3 text-4xl sm:text-5xl font-black leading-[1.05] tracking-tight text-balance">
-              {t("land.hero.titleLead")}{" "}
-              <span className="text-primary">{t("land.hero.titleTail")}</span> 🐾
-            </motion.h1>
-            <motion.p variants={fadeUp} className="mt-4 text-lg text-muted-foreground max-w-lg">
-              {t("land.hero.bodyLead")}{" "}
-              <strong>{config?.platform.city ?? "Santa Cruz de la Sierra"}</strong>
-              {t("land.hero.bodyTail")}
-            </motion.p>
-            <motion.div variants={fadeUp} className="mt-6 flex flex-wrap gap-3">
-              <Button size="lg" className="rounded-full text-base font-bold" onClick={() => setLoginOpen(true)}>
-                {t("land.hero.ctaPrimary")}
-                <ChevronRight className="size-5" />
-              </Button>
-              <Button size="lg" variant="outline" className="rounded-full text-base font-bold" onClick={() => setApplyOpen(true)}>
-                <Footprints className="size-5" />
-                {t("land.hero.ctaSecondary")}
-              </Button>
-            </motion.div>
-            <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <ShieldCheck className="size-4 text-primary" /> {t("land.hero.trustVerified")}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Star className="size-4 fill-sun text-sun" /> {t("land.hero.trustRating")}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <QrCode className="size-4 text-primary" /> {t("land.hero.trustQr")}
-              </span>
-            </motion.div>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={springSmooth}
-            className="relative"
-          >
-            <div className="absolute -top-4 -left-4 size-24 rounded-3xl bg-sun-soft rotate-12" aria-hidden />
-            <div className="absolute -bottom-4 -right-4 size-28 rounded-3xl bg-brand-soft -rotate-6" aria-hidden />
-            {/* Main photo: a real FiruWalk walk — walker's point of view */}
-            <img
-              src="/images/pets/pack-walker.jpg"
-              alt={t("land.hero.photoAlt")}
-              className="relative rounded-3xl border shadow-xl w-full object-cover aspect-[4/5]"
-            />
-            {/* Family photo wall: floating polaroid of the pack */}
-            <motion.figure
-              whileHover={{ scale: 1.06, rotate: 3 }}
-              transition={springMomentum}
-              className="absolute -top-5 -right-2 sm:-right-5 w-24 sm:w-32 rounded-xl bg-card border border-border/70 p-1.5 pb-1.5 shadow-raise rotate-6"
-            >
-              <img
-                src="/images/pets/pack-heart.jpg"
-                alt={t("land.pack.heartAlt")}
-                className="rounded-lg w-full aspect-square object-cover"
-              />
-              <figcaption className="text-[10px] font-extrabold text-center text-muted-foreground mt-1">
-                {t("land.pack.madeWithLove")}
-              </figcaption>
-            </motion.figure>
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ ...springMomentum, delay: 0.45 }}
-              className="absolute -bottom-6 left-4 sm:left-8"
-            >
-            <Card className="shadow-float border-0 firu-frost">
-              <CardContent className="p-3 flex items-center gap-3">
-                <span className="relative flex size-3">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
-                  <span className="relative inline-flex rounded-full size-3 bg-primary" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold leading-none">{t("land.hero.liveTitle")}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("land.hero.liveText")}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            </motion.div>
-          </motion.div>
-        </motion.div>
-      </section>
+      <Hero
+        city={city}
+        cancelHours={cancelHours}
+        onPrimary={goFunnel}
+        onSecondary={() => scrollToId("como-funciona")}
+      />
 
-      {/* Cómo funciona — premium tilt-glass step cards + drawn paw timeline */}
-      <section id="como-funciona" className="mx-auto max-w-6xl px-4 py-14 w-full overflow-x-clip">
-        <h2 className="text-3xl font-black tracking-tight text-center">
-          {t("land.nav.how")}
-        </h2>
-        <p className="text-center text-muted-foreground mt-2">
-          {t("land.how.subtitle")}
-        </p>
+      {/* Proof strip */}
+      <div className="border-y bg-secondary/40 py-4">
+        <Marquee items={marquee} />
+      </div>
+
+      <PainSection />
+
+      {/* Cómo funciona — tilt-glass step cards + drawn paw timeline */}
+      <section id="como-funciona" className="mx-auto max-w-6xl px-4 py-20 sm:py-24 w-full overflow-x-clip">
+        <SectionHeading eyebrow={t("land.how.eyebrow")} title={t("land.nav.how")} subtitle={t("land.how.subtitle")} />
         <motion.div
-          className="relative mt-8 grid sm:grid-cols-3 gap-4"
+          className="relative mt-12 grid sm:grid-cols-3 gap-4"
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-80px" }}
@@ -302,9 +263,7 @@ export function LandingScreen({
               initial={{ pathLength: 0 }}
               whileInView={{ pathLength: 1 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={
-                reduceMotion ? { duration: 0.01 } : { duration: 0.8, ease: EXPO, delay: 0.35 }
-              }
+              transition={reduceMotion ? { duration: 0.01 } : { duration: 0.8, ease: EXPO, delay: 0.35 }}
             />
           </svg>
           {/* sm+: hairline drawn behind the icon row, fading at both ends */}
@@ -323,25 +282,18 @@ export function LandingScreen({
               initial={{ pathLength: 0 }}
               whileInView={{ pathLength: 1 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={
-                reduceMotion ? { duration: 0.01 } : { duration: 0.8, ease: EXPO, delay: 0.35 }
-              }
+              transition={reduceMotion ? { duration: 0.01 } : { duration: 0.8, ease: EXPO, delay: 0.35 }}
             />
           </svg>
-          {/* Paw stops between the cards, popping as the line passes */}
           {[0, 1].map((n) => (
             <motion.span
               key={`paw-${n}`}
               aria-hidden
-              className={`pointer-events-none absolute top-[42px] hidden -translate-x-1/2 sm:block ${
-                n ? "left-2/3" : "left-1/3"
-              }`}
+              className={`pointer-events-none absolute top-[42px] hidden -translate-x-1/2 sm:block ${n ? "left-2/3" : "left-1/3"}`}
               initial={{ opacity: 0, scale: 0, rotate: -16 }}
               whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={
-                reduceMotion ? { duration: 0.01 } : { ...springMomentum, delay: 0.75 + n * 0.2 }
-              }
+              transition={reduceMotion ? { duration: 0.01 } : { ...springMomentum, delay: 0.75 + n * 0.2 }}
             >
               <PawPrint className="size-3.5 text-primary/45" />
             </motion.span>
@@ -350,77 +302,64 @@ export function LandingScreen({
             <HowStepCard key={s.title} index={i} icon={s.icon} title={s.title} text={s.text} />
           ))}
         </motion.div>
+        <Reveal className="mt-10 flex justify-center" delay={0.2}>
+          <Button size="lg" className="rounded-full font-extrabold firu-btn-gloss" onClick={goFunnel}>
+            {t("land.hero.ctaPrimary")} <ChevronRight className="size-5" />
+          </Button>
+        </Reveal>
       </section>
 
+      <ReportShowcase />
+
       {/* La manada — family photo wall */}
-      <section id="manada" className="bg-brand-soft/50 border-y">
-        <div className="mx-auto max-w-6xl px-4 py-14">
-          <h2 className="text-3xl font-black tracking-tight text-center">
-            {t("land.pack.title")}
-          </h2>
-          <p className="text-center text-muted-foreground mt-2 max-w-xl mx-auto">
-            {t("land.pack.subtitle")}
-          </p>
+      <section id="manada" className="relative overflow-x-clip">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:py-24">
+          <SectionHeading title={t("land.pack.title")} subtitle={t("land.pack.subtitle")} />
           <motion.div
-          className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: "-60px" }}
-          variants={staggerContainer(0.08)}
-        >
+            className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-60px" }}
+            variants={staggerContainer(0.1)}
+          >
             {[
-              {
-                src: "/images/pets/pack-row.jpg",
-                alt: t("land.pack.p1.alt"),
-                cap: t("land.pack.p1.cap"),
-                rot: "-rotate-1",
-              },
-              {
-                src: "/images/pets/pack-camp.jpg",
-                alt: t("land.pack.p2.alt"),
-                cap: t("land.pack.p2.cap"),
-                rot: "rotate-1",
-              },
-              {
-                src: "/images/pets/pack-leashes.jpg",
-                alt: t("land.pack.p3.alt"),
-                cap: t("land.pack.p3.cap"),
-                rot: "-rotate-1",
-              },
-            ].map((p) => (
+              { src: "/images/pets/pack-row.jpg", alt: t("land.pack.p1.alt"), cap: t("land.pack.p1.cap"), rot: -2 },
+              { src: "/images/pets/pack-camp.jpg", alt: t("land.pack.p2.alt"), cap: t("land.pack.p2.cap"), rot: 2 },
+              { src: "/images/pets/pack-leashes.jpg", alt: t("land.pack.p3.alt"), cap: t("land.pack.p3.cap"), rot: -1.5 },
+            ].map((p, i) => (
               <motion.figure
                 key={p.src}
-                variants={staggerItem}
-                className={`rounded-2xl bg-card border border-border/70 p-2 pb-2.5 shadow-card transition-[transform,box-shadow] duration-300 ease-out-expo hover:rotate-0 hover:-translate-y-1 hover:shadow-raise ${p.rot}`}
+                variants={{
+                  hidden: { opacity: 0, y: 40, rotate: p.rot * 4, scale: 0.92 },
+                  show: {
+                    opacity: 1,
+                    y: 0,
+                    rotate: p.rot,
+                    scale: 1,
+                    transition: { type: "spring", duration: 0.9, bounce: 0.25 },
+                  },
+                }}
+                whileHover={reduceMotion ? undefined : { rotate: 0, y: -8, scale: 1.03, transition: springSnappy }}
+                className="rounded-2xl bg-card border border-border/70 p-2 pb-2.5 shadow-card hover:shadow-float transition-shadow duration-300"
+                style={{ zIndex: 3 - i }}
               >
-                <img
-                  src={p.src}
-                  alt={p.alt}
-                  className="rounded-xl w-full aspect-[4/5] object-cover"
-                />
+                <div className="overflow-hidden rounded-xl">
+                  <img src={p.src} alt={p.alt} className="w-full aspect-[4/5] object-cover transition-transform duration-700 ease-out-expo hover:scale-105" />
+                </div>
                 <figcaption className="text-xs font-bold text-center mt-2 text-muted-foreground leading-snug">
                   {p.cap}
                 </figcaption>
               </motion.figure>
             ))}
             {/* CTA tile: join the pack */}
-            <motion.div variants={staggerItem} className="relative overflow-hidden rounded-2xl firu-gloss bg-primary text-primary-foreground p-4 flex flex-col items-center justify-center text-center gap-2 shadow-raise">
-              <PawPrint
-                className="absolute -bottom-4 -right-4 size-24 opacity-15 rotate-12"
-                aria-hidden
-              />
-              <p className="font-black text-lg leading-snug">
-                {t("land.pack.ctaTitle")}
-              </p>
-              <p className="text-xs opacity-90">
-                {t("land.pack.ctaText")}
-              </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="rounded-full font-bold"
-                onClick={() => setLoginOpen(true)}
-              >
+            <motion.div
+              variants={staggerItem}
+              className="relative overflow-hidden rounded-2xl firu-gloss bg-primary text-primary-foreground p-4 flex flex-col items-center justify-center text-center gap-2 shadow-raise"
+            >
+              <PawPrint className="absolute -bottom-4 -right-4 size-24 opacity-15 rotate-12 firu-bob" aria-hidden />
+              <p className="font-black text-lg leading-snug">{t("land.pack.ctaTitle")}</p>
+              <p className="text-xs opacity-90">{t("land.pack.ctaText")}</p>
+              <Button size="sm" variant="secondary" className="rounded-full font-bold" onClick={goFunnel}>
                 {t("land.pack.ctaBtn")}
               </Button>
             </motion.div>
@@ -438,31 +377,23 @@ export function LandingScreen({
           viewport={{ once: true, margin: "-40px" }}
           transition={reduceMotion ? { duration: 0.01 } : { duration: 1, ease: EXPO }}
         />
-        <div className="relative mx-auto max-w-6xl px-4 py-14">
+        <div className="relative mx-auto max-w-6xl px-4 py-20 sm:py-24">
           <motion.div
-            className="grid lg:grid-cols-2 gap-10 items-center"
+            className="grid lg:grid-cols-2 gap-12 items-center"
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: "-80px" }}
             variants={staggerContainer(0.1)}
           >
-            <motion.div variants={fadeUp}>
-              <h2 className="text-3xl font-black tracking-tight">
-                {t("land.trust.title")}
-              </h2>
-              <p className="text-muted-foreground mt-3 leading-relaxed">
-                {t("land.trust.intro")}
-              </p>
-              <motion.ul className="mt-6 space-y-4" variants={staggerContainer(0.09)}>
+            <div>
+              <SectionHeading align="left" eyebrow={t("land.trust.eyebrow")} title={t("land.trust.title")} subtitle={t("land.trust.intro")} />
+              <motion.ul className="mt-8 space-y-4" variants={staggerContainer(0.09)}>
                 {trustItems.map(([itemTitle, itemText], i) => (
                   <TrustItem key={itemTitle} index={i} title={itemTitle} text={itemText} />
                 ))}
               </motion.ul>
-            </motion.div>
-            <motion.div
-              className="relative grid grid-cols-2 gap-4"
-              variants={staggerContainer(0.07)}
-            >
+            </div>
+            <motion.div className="relative grid grid-cols-2 gap-4" variants={staggerContainer(0.07)}>
               <motion.span
                 aria-hidden
                 className="pointer-events-none absolute -inset-6 rounded-[2.5rem] bg-brand-soft/60 blur-3xl"
@@ -477,6 +408,7 @@ export function LandingScreen({
                   index={i}
                   icon={s.icon}
                   num={s.num}
+                  prefix={s.prefix}
                   suffix={s.suffix}
                   text={s.text}
                   label={s.label}
@@ -488,103 +420,135 @@ export function LandingScreen({
       </section>
 
       {/* Zonas */}
-      <section id="zonas" className="mx-auto max-w-6xl px-4 py-14 w-full">
-        <h2 className="text-3xl font-black tracking-tight text-center">
-          {t("land.zones.title")}
-        </h2>
-        <p className="text-center text-muted-foreground mt-2 max-w-xl mx-auto">
-          {t("land.zones.subtitle", { city: config?.platform.city ?? "Santa Cruz" })}
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+      <section id="zonas" className="mx-auto max-w-6xl px-4 pt-20 sm:pt-24 pb-4 w-full">
+        <SectionHeading
+          eyebrow={t("land.zones.eyebrow")}
+          title={t("land.zones.title")}
+          subtitle={t("land.zones.subtitle", { city: config?.platform.city ?? "Santa Cruz" })}
+        />
+        <motion.div
+          className="mt-8 flex flex-wrap justify-center gap-2.5"
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-40px" }}
+          variants={staggerContainer(0.06)}
+        >
           {(zones ?? []).map((z) => (
-            <span
+            <motion.span
               key={z.id}
-              className="inline-flex items-center gap-1.5 rounded-full border bg-card px-4 py-2 text-sm font-bold"
+              variants={{
+                hidden: { opacity: 0, y: 14, scale: 0.9 },
+                show: { opacity: 1, y: 0, scale: 1, transition: springMomentum },
+              }}
+              whileHover={reduceMotion ? undefined : { y: -3 }}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-card px-4 py-2.5 text-sm font-bold shadow-card hover:border-primary/40 hover:shadow-raise transition-[border-color,box-shadow]"
             >
-              <MapPin className="size-3.5 text-primary" />
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping [animation-duration:2.4s]" />
+                <span className="relative inline-flex size-2 rounded-full bg-primary" />
+              </span>
               {z.name}
-            </span>
+            </motion.span>
           ))}
-        </div>
+        </motion.div>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 pb-16 w-full">
-        <div className="rounded-3xl firu-gloss bg-primary text-primary-foreground p-8 sm:p-12 text-center relative shadow-raise">
-          <PawPrint className="absolute -top-6 -right-4 size-40 opacity-10 rotate-12" aria-hidden />
-          <PawPrint className="absolute -bottom-10 -left-6 size-32 opacity-10 -rotate-12" aria-hidden />
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-            {t("land.final.title")}
-          </h2>
-          <p className="mt-3 opacity-90 max-w-xl mx-auto">
-            {t("land.final.text")}
-          </p>
-          <p className="mt-1.5 text-sm opacity-80">
-            {t("land.final.sub")}
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button
-              size="lg"
-              variant="secondary"
-              className="rounded-full text-base font-bold"
-              onClick={() => setLoginOpen(true)}
-            >
-              {t("land.final.cta")}
-            </Button>
-            <a
-              href={`https://wa.me/${supportWa.replace("+", "")}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-full text-base font-bold bg-transparent border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
-              >
-                <MessageCircle className="size-5" /> {t("land.final.whatsapp")}
-              </Button>
-            </a>
+      <WalkFunnel
+        zones={(zones ?? []).map((z) => z.name)}
+        pricing={pricing}
+        supportWa={supportWa}
+        onApp={() => setLoginOpen(true)}
+      />
+
+      <Faq
+        prices={{
+          p30: pricing ? formatBOBShort(pricing[30]) : "—",
+          p45: pricing ? formatBOBShort(pricing[45]) : "—",
+          p60: pricing ? formatBOBShort(pricing[60]) : "—",
+        }}
+        cancelHours={cancelHours}
+      />
+
+      {/* Final CTA */}
+      <section className="mx-auto max-w-6xl px-4 pb-10 w-full">
+        <Reveal>
+          <div className="rounded-[2rem] firu-gloss bg-primary text-primary-foreground p-8 sm:p-14 text-center relative shadow-float overflow-hidden">
+            <div aria-hidden className="absolute -top-32 left-1/2 size-[30rem] -translate-x-1/2 rounded-full bg-white/10 blur-3xl firu-drift" />
+            <PawPrint className="absolute -top-6 -right-4 size-40 opacity-10 rotate-12 firu-bob" aria-hidden />
+            <PawPrint className="absolute -bottom-10 -left-6 size-32 opacity-10 -rotate-12 firu-bob [animation-delay:-3s]" aria-hidden />
+            <h2 className="relative text-3xl sm:text-5xl font-black tracking-tight text-balance">
+              {t("land.final.title")}
+            </h2>
+            <p className="relative mt-4 opacity-90 max-w-xl mx-auto text-lg">{t("land.final.text")}</p>
+            <p className="relative mt-1.5 text-sm opacity-80">{t("land.final.sub")}</p>
+            <div className="relative mt-8 flex flex-wrap justify-center gap-3">
+              <Magnetic>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="rounded-full text-base font-extrabold h-13 px-7"
+                  onClick={() => setLoginOpen(true)}
+                >
+                  {t("land.final.cta")}
+                </Button>
+              </Magnetic>
+              <a href={waLink} target="_blank" rel="noreferrer">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full text-base font-bold h-13 px-6 bg-transparent border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
+                >
+                  <WhatsAppIcon className="size-5" /> {t("land.final.whatsapp")}
+                </Button>
+              </a>
+            </div>
           </div>
-        </div>
+        </Reveal>
+      </section>
+
+      {/* Walker recruitment band — kept out of the owner path above */}
+      <section className="mx-auto max-w-6xl px-4 pb-16 w-full">
+        <Reveal>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-3xl border border-dashed border-border bg-card/60 p-5 sm:p-6">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-sun-soft text-[color-mix(in_oklab,var(--sun)_70%,var(--foreground))]">
+              <Footprints className="size-6" aria-hidden />
+            </span>
+            <div className="flex-1">
+              <p className="font-extrabold">{t("land.walkerBand.title")}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{t("land.walkerBand.text")}</p>
+            </div>
+            <Button variant="outline" className="rounded-full font-bold" onClick={() => setApplyOpen(true)}>
+              {t("land.walkerBand.cta")}
+            </Button>
+          </div>
+        </Reveal>
       </section>
 
       {/* Footer (sticky bottom) */}
       <footer className="mt-auto border-t bg-secondary/40 pb-safe">
         <div className="mx-auto max-w-6xl px-4 py-8 grid sm:grid-cols-3 gap-6 text-sm">
           <div>
-            <img
-              src="/images/brand/logo-wordmark.png"
-              alt="FiruWalk"
-              className="h-8 w-auto dark:hidden"
-            />
-            <img
-              src="/images/brand/logo-wordmark-dark.png"
-              alt="FiruWalk"
-              className="h-8 w-auto hidden dark:block"
-            />
+            <img src="/images/brand/logo-wordmark.png" alt="FiruWalk" className="h-8 w-auto dark:hidden" />
+            <img src="/images/brand/logo-wordmark-dark.png" alt="FiruWalk" className="h-8 w-auto hidden dark:block" />
             <p className="text-muted-foreground mt-3">
-              {t("land.footer.about", { city: config?.platform.city ?? "Santa Cruz de la Sierra" })}
+              {t("land.footer.about", { city })}
             </p>
           </div>
           <div>
             <p className="font-bold mb-2">{t("land.footer.support")}</p>
             <a
               className="inline-flex items-center gap-1.5 text-primary font-semibold hover:underline"
-              href={`https://wa.me/${supportWa.replace("+", "")}`}
+              href={waLink}
               target="_blank"
               rel="noreferrer"
             >
               <MessageCircle className="size-4" /> {t("land.footer.whatsapp", { phone: supportWa })}
             </a>
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-              {t("land.footer.demoNote")}
-            </p>
+            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{t("land.footer.demoNote")}</p>
           </div>
           <div>
             <p className="font-bold mb-2">{t("land.footer.company")}</p>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              {t("land.footer.legal")}
-            </p>
+            <p className="text-muted-foreground text-xs leading-relaxed">{t("land.footer.legal")}</p>
             <p className="text-muted-foreground mt-3 text-xs">
               {t("land.footer.copyright", { year: new Date().getFullYear() })}
             </p>
@@ -592,6 +556,7 @@ export function LandingScreen({
         </div>
       </footer>
 
+      <StickyCta onClick={goFunnel} />
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
       <ApplyDialog open={applyOpen} onOpenChange={setApplyOpen} />
     </div>
@@ -606,22 +571,6 @@ export function LandingScreen({
 /* prefers-reduced-motion. All asserted strings live in the plain JSX  */
 /* above — everything here is aria-hidden decoration.                   */
 /* ------------------------------------------------------------------ */
-
-/** Mirrors --ease-out-expo from globals.css for per-property transitions. */
-const EXPO: [number, number, number, number] = [0.23, 1, 0.32, 1];
-
-/** Cursor tilt only makes sense with a precise pointer on a wide screen. */
-function useFinePointer(): boolean {
-  const [fine, setFine] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px) and (pointer: fine)");
-    const update = () => setFine(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return fine;
-}
 
 const reducedCardVariants: Variants = {
   hidden: { opacity: 0 },
@@ -806,14 +755,18 @@ const statCardVariants: Variants = {
  * "100%" / "12%" / "24/7" without scrolling first) and replays a ≤0.9s
  * count-up from 0 the first time it scrolls into view.
  */
-function StatValue({ num, suffix, text }: { num?: number; suffix?: string; text?: string }) {
+function StatValue({ num, prefix, suffix, text }: { num?: number; prefix?: string; suffix?: string; text?: string }) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
   const count = useMotionValue(num ?? 0);
   const rounded = useTransform(count, (v) => `${Math.round(v)}`);
   useEffect(() => {
-    if (!inView || reduce || num === undefined) return;
+    if (num === undefined) return;
+    if (!inView || reduce) {
+      count.set(num);
+      return;
+    }
     count.set(0);
     const controls = animate(count, num, { duration: 0.9, ease: EXPO });
     return () => controls.stop();
@@ -821,6 +774,7 @@ function StatValue({ num, suffix, text }: { num?: number; suffix?: string; text?
   if (text !== undefined) return <span>{text}</span>;
   return (
     <span ref={ref}>
+      {prefix}
       <motion.span>{rounded}</motion.span>
       {suffix}
     </span>
@@ -831,6 +785,7 @@ function TrustStatCard({
   index,
   icon: Icon,
   num,
+  prefix,
   suffix,
   text,
   label,
@@ -838,6 +793,7 @@ function TrustStatCard({
   index: number;
   icon: LucideIcon;
   num?: number;
+  prefix?: string;
   suffix?: string;
   text?: string;
   label: string;
@@ -872,7 +828,7 @@ function TrustStatCard({
             />
           </span>
           <p className="text-2xl sm:text-3xl font-black tracking-tight">
-            <StatValue num={num} suffix={suffix} text={text} />
+            <StatValue key={text ?? "n"} num={num} prefix={prefix} suffix={suffix} text={text} />
           </p>
           <p className="text-xs text-muted-foreground mt-1 leading-snug">{label}</p>
         </CardContent>

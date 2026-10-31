@@ -10,7 +10,7 @@ def test_landing_desktop_everything(page, shot, errors):
 
     # --- header: logo + nav anchors + CTAs
     expect(page.locator("header img[alt='FiruWalk']").filter(visible=True).first).to_be_visible()
-    for link in ["Cómo funciona", "Confianza", "Zonas"]:
+    for link in ["Cómo funciona", "Confianza", "Zonas", "Preguntas"]:
         expect(page.locator("header").get_by_role("link", name=link)).to_be_visible()
     expect(page.get_by_role("button", name="Soy paseador")).to_be_visible()
     expect(page.get_by_role("button", name="Ingresar")).to_be_visible()
@@ -18,11 +18,13 @@ def test_landing_desktop_everything(page, shot, errors):
 
     # --- hero
     hero = page.locator("section").first
-    expect(page.get_by_role("heading", level=1)).to_contain_text("Paseos felices")
-    expect(page.get_by_role("heading", level=1)).to_contain_text("dueños tranquilos")
+    expect(page.get_by_role("heading", level=1)).to_contain_text("Vuelve feliz y cansado.")
+    expect(page.get_by_role("heading", level=1)).to_contain_text("Tú lo ves todo en vivo.")
     expect(page.get_by_text("Empresa familiar · Santa Cruz", exact=False)).to_be_visible()
-    expect(page.get_by_role("button", name="Reservar un paseo")).to_be_visible()
-    expect(page.get_by_role("button", name="Quiero pasear y ganar")).to_be_visible()
+    expect(page.get_by_role("button", name="Armar su primer paseo").first).to_be_visible()
+    expect(page.get_by_role("button", name="Ver cómo funciona")).to_be_visible()
+    # walker recruitment lives in its own band, out of the owner path
+    expect(page.get_by_role("button", name="Quiero pasear y ganar")).to_be_attached()
     for badge in ["Paseadores verificados", "4,8", "QR Simple"]:
         expect(page.get_by_text(badge, exact=False).first).to_be_visible()
     expect(page.locator("img[alt*='paseo con FiruWalk']")).to_be_visible()
@@ -34,6 +36,8 @@ def test_landing_desktop_everything(page, shot, errors):
     expect(page.locator("#manada")).to_be_visible()
     expect(page.locator("#confianza")).to_be_visible()
     expect(page.locator("#zonas")).to_be_visible()
+    for sid in ["#por-que", "#reporte", "#reservar", "#preguntas"]:
+        expect(page.locator(sid)).to_be_attached()
     shot("sections", full=True)
 
     # --- cómo funciona: 3 steps
@@ -47,13 +51,36 @@ def test_landing_desktop_everything(page, shot, errors):
     expect(page.get_by_text("¿Tu peludo falta en esta foto?")).to_be_visible()
 
     # --- confianza: stat cards + guarantee list
-    for stat in ["100%", "GPS", "12%", "24/7"]:
+    for stat in ["100%", "GPS", "Bs 15", "24/7"]:
         expect(page.locator("#confianza").get_by_text(stat, exact=False).first).to_be_visible()
 
     # --- anchor scroll works
     page.locator("header").get_by_role("link", name="Confianza").click()
     page.wait_for_timeout(900)
     assert page.evaluate("window.scrollY") > 100, "anchor link did not scroll"
+
+    # --- sales funnel: form → live WhatsApp preview → wa.me deep link
+    page.get_by_role("button", name="Armar su primer paseo").first.click()
+    page.wait_for_timeout(900)
+    funnel = page.locator("#reservar")
+    wa_cta = funnel.get_by_role("link", name="Continuar en WhatsApp")
+    expect(wa_cta).to_be_visible()
+    wa_cta.click()  # empty form → nudge instead of leaving the page
+    expect(funnel.get_by_role("alert")).to_contain_text("tu perro")
+    funnel.locator("#fn-name").fill("Carla")
+    funnel.locator("#fn-dog").fill("Rocky")
+    expect(funnel.get_by_role("heading", level=2)).to_contain_text("Rocky")
+    funnel.get_by_role("radio", name="Mediano").click()
+    funnel.get_by_role("radio", name="3 veces / semana").click()
+    expect(funnel.get_by_text("Rocky (Mediano)")).to_be_visible()
+    href = wa_cta.get_attribute("href") or ""
+    assert href.startswith("https://wa.me/59177165787?text="), href
+    assert "Rocky" in href and "Carla" in href, href
+    expect(funnel.get_by_text("al mes", exact=False)).to_be_visible()
+    shot("funnel")
+
+    # --- faq: first answer open, prices from config
+    expect(page.locator("#preguntas").get_by_text("Bs 15", exact=False).first).to_be_visible()
 
     # --- zonas chips
     chips = page.locator("#zonas .rounded-full")
@@ -131,8 +158,14 @@ def test_landing_mobile_no_overflow(mobile_page, mshot, errors):
         path=str(mshot.dir / "landing-mobile-full.png"), full_page=True
     )
 
-    # CTA opens login on touch too
-    mobile_page.get_by_role("button", name="Reservar un paseo").click()
+    # Hero CTA takes the visitor straight to the funnel
+    mobile_page.get_by_role("button", name="Armar su primer paseo").first.click()
+    mobile_page.wait_for_timeout(1_200)
+    expect(mobile_page.locator("#fn-name")).to_be_in_viewport()
+
+    # Sign-in opens on touch too
+    mobile_page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
+    mobile_page.get_by_role("button", name="Ingresar").click()
     expect(mobile_page.get_by_role("dialog")).to_contain_text("Entra a FiruWalk")
     mshot("login-mobile")
     mobile_page.keyboard.press("Escape")
