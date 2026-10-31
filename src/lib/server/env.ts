@@ -23,8 +23,13 @@ const EnvSchema = z.object({
   // Public base URL of the app (links in notifications, OTP messages…).
   APP_URL: optionalUrl,
 
-  // Session signing secret (required from Milestone 2 — real auth).
+  // HMAC key for session tokens and login codes. Required in production.
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters").optional(),
+
+  // Demo mode: one-click demo accounts + fixed login code (config.demo.otpCode).
+  // Never allowed on a Vercel production deployment.
+  DEMO_MODE: z.enum(["true", "false"]).optional(),
+  VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
 
   // Observability
   SENTRY_DSN: optionalUrl,
@@ -40,12 +45,32 @@ const EnvSchema = z.object({
   LLM_API_KEY: optionalStr,
   WHATSAPP_TOKEN: optionalStr,
   WHATSAPP_PHONE_NUMBER_ID: optionalStr,
+  WHATSAPP_OTP_TEMPLATE: optionalStr,
+  WHATSAPP_OTP_LANGUAGE: optionalStr,
+  TWILIO_ACCOUNT_SID: optionalStr,
+  TWILIO_AUTH_TOKEN: optionalStr,
+  TWILIO_FROM: optionalStr,
   PAYMENT_PROVIDER: optionalStr,
   PAYMENT_API_KEY: optionalStr,
   PAYMENT_WEBHOOK_SECRET: optionalStr,
 
   // Seed safety switch (prisma/seed.ts refuses to run in production without it)
   ALLOW_SEED: z.enum(["true", "false"]).optional(),
+}).superRefine((env, ctx) => {
+  if (env.NODE_ENV === "production" && !env.SESSION_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["SESSION_SECRET"],
+      message: "SESSION_SECRET is required in production (openssl rand -base64 48)",
+    });
+  }
+  if (env.VERCEL_ENV === "production" && env.DEMO_MODE === "true") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["DEMO_MODE"],
+      message: "DEMO_MODE must not be enabled on the production deployment",
+    });
+  }
 });
 
 export type Env = z.infer<typeof EnvSchema>;

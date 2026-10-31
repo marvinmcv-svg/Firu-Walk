@@ -1,17 +1,17 @@
 // GET /api/auth/demo-accounts → DemoAccountDTO[]
 // Lists the seeded demo users with a friendly subtitle per role.
+// DEMO MODE ONLY — 404 otherwise.
 
 import { db } from "@/lib/db";
-import { ok, run } from "@/lib/server/http";
+import { ApiError, ok, run } from "@/lib/server/http";
+import { DEMO_PHONE_PREFIX, isDemoMode } from "@/lib/server/auth/demo";
 import type { DemoAccountDTO } from "@/lib/firu/types";
-
-/** Seeded demo phones live in the +591 7000 00xx range. */
-const SEEDED_PREFIX = "+59170000";
 
 export async function GET() {
   return run(async () => {
+    if (!isDemoMode()) throw new ApiError(404, "No encontrado.");
     const users = await db.user.findMany({
-      where: { phone: { startsWith: SEEDED_PREFIX } },
+      where: { phone: { startsWith: DEMO_PHONE_PREFIX } },
       include: { walker: { include: { zone: true } }, zone: true, dogs: true },
     });
 

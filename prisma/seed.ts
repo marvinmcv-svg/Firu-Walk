@@ -156,6 +156,9 @@ async function main() {
 
   // Wipe (idempotent re-seed)
   const tablenames = [
+    "session",
+    "otpChallenge",
+    "rateLimit",
     "auditLog",
     "message",
     "notification",
