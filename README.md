@@ -64,7 +64,7 @@ cp .env.example .env        # defaults match docker-compose
 bun run db:migrate:deploy
 bun run db:seed
 
-# 5. Start the live walk-tracking service (port 3003)
+# 5. Start the live-service (sockets :3003, internal API :3004; dev GPS simulator on)
 cd mini-services/live-service && bun install && bun run dev &
 
 # 6. Start the app (port 3000)
@@ -99,13 +99,21 @@ Full stack in containers instead: `SEED=true docker compose up --build` (app on 
 
 To go live you need a WhatsApp Business **authentication** template with a copy-code button (`WHATSAPP_OTP_TEMPLATE`) and/or Twilio credentials.
 
+## 📡 Realtime (live walks & chat)
+
+- The browser connects to the live-service with a 10-minute token from `POST /api/realtime/token`; identity (user id, name, role) comes from that token, never from event payloads.
+- Joining `walk:{id}` or `chat:{bookingId}` needs a 2-minute room ticket from the same endpoint (`{ room }`), issued only to the dog's owner, the assigned walker, booking participants or admins. Only the walker/admin may stop a walk.
+- Chat messages are saved by `POST /api/messages`, which then publishes them to the room through the service's internal port (`:3004`, signed with `REALTIME_SECRET`). Sockets cannot send messages.
+- The GPS simulator runs only with `LIVE_SIM=true` (set by `bun run dev` in the service; refused in production). Real tracking arrives in Milestone 4.
+- Tests: `tests/api/realtime.test.ts` (forged/expired tokens, foreign tickets, wrong rooms, spoofed senders).
+
 ## ☁️ Deployment (Vercel)
 
 Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).
 
 - Build runs `scripts/vercel-build.sh`: `prisma generate` → `prisma migrate deploy` (production, or any deploy with `RUN_MIGRATIONS=true`) → optional demo seed (`SEED_ON_BUILD=true`, **wipes the DB**) → `next build`.
 - Database: Neon (Vercel → Storage). It sets `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`; the build uses the unpooled one as `DIRECT_URL` for migrations.
-- The socket.io live-service does **not** run on Vercel; host it separately (Milestone 3).
+- The socket.io live-service does **not** run on Vercel; host it separately (any container host — `mini-services/live-service/Dockerfile`). Set the same `REALTIME_SECRET` on both, `LIVE_SERVICE_INTERNAL_URL` on the app (private network URL of port 3004), `NEXT_PUBLIC_LIVE_URL` on the app (public URL of port 3003), and `REDIS_URL` on the service to run more than one instance.
 
 ## 📁 Project structure
 
@@ -126,7 +134,7 @@ src/
     ├── firu/               # i18n (en/es locales), session, motion, api
     └── server/             # bookingEngine, ledger, notify, config
 
-mini-services/live-service/ # socket.io GPS simulation + chat relay (:3003)
+mini-services/live-service/ # authenticated socket.io rooms: live walks + chat (:3003)
 intro-video/                # Source composition used to render the intro MP4
 prisma/                     # schema.prisma + seed.ts
 tests/e2e/                  # Playwright (Python) end-to-end suite

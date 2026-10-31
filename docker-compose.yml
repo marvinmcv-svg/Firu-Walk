@@ -2,6 +2,11 @@
 #   docker compose up -d db redis        # just the databases (for `bun run dev`)
 #   docker compose up --build            # full stack: db, redis, migrate, app, live
 #   SEED=true docker compose up migrate  # (re)load demo data — WIPES the DB
+# The secrets below are LOCAL-ONLY defaults; set real ones in your shell or
+# a .env file next to this compose file for anything shared.
+x-secrets: &secrets
+  SESSION_SECRET: ${SESSION_SECRET:-local-compose-session-secret-change-me-000000}
+  REALTIME_SECRET: ${REALTIME_SECRET:-local-compose-realtime-secret-change-me-00000}
 services:
   db:
     image: postgres:16-alpine
@@ -40,19 +45,32 @@ services:
       db: { condition: service_healthy }
 
   app:
-    build: { context: ., target: runner }
+    build:
+      context: .
+      target: runner
+      args: { NEXT_PUBLIC_LIVE_URL: "http://localhost:3003" }
     environment:
+      <<: *secrets
       DATABASE_URL: postgresql://firu:firu@db:5432/firuwalk?schema=public
       REDIS_URL: redis://redis:6379
       APP_URL: http://localhost:3000
+      LIVE_SERVICE_INTERNAL_URL: http://live:3004
     ports: ["3000:3000"]
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
 
+  # Realtime: public socket.io on :3003; internal publish API on :3004 is
+  # only reachable inside the compose network (not published to the host).
   live:
     build: ./mini-services/live-service
+    environment:
+      REALTIME_SECRET: ${REALTIME_SECRET:-local-compose-realtime-secret-change-me-00000}
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
     ports: ["3003:3003"]
+    depends_on:
+      redis: { condition: service_healthy }
 
 volumes:
   pgdata:

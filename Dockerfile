@@ -20,6 +20,9 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Public socket URL of the live-service, inlined into the client bundle.
+ARG NEXT_PUBLIC_LIVE_URL=""
+ENV NEXT_PUBLIC_LIVE_URL=$NEXT_PUBLIC_LIVE_URL
 RUN bunx prisma generate && bunx next build
 
 # ---- runner: minimal runtime ----

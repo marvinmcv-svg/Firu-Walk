@@ -23,6 +23,7 @@ import * as paymentConfirm from "@/app/api/payments/[id]/confirm/route";
 import * as payments from "@/app/api/payments/route";
 import * as payout from "@/app/api/payouts/[id]/route";
 import * as payouts from "@/app/api/payouts/route";
+import * as realtimeToken from "@/app/api/realtime/token/route";
 import * as reviews from "@/app/api/reviews/route";
 import * as me from "@/app/api/users/me/route";
 import * as walkerDetail from "@/app/api/walkers/[id]/route";
@@ -66,6 +67,7 @@ const PROTECTED: [string, H, string, Record<string, string>?][] = [
   ["PATCH /payouts/[id]", payout.PATCH as H, "PATCH", P],
   ["GET /payouts", payouts.GET as H, "GET"],
   ["POST /payouts", payouts.POST as H, "POST"],
+  ["POST /realtime/token", realtimeToken.POST as H, "POST"],
   ["POST /reviews", reviews.POST as H, "POST"],
   ["GET /users/me", me.GET as H, "GET"],
   ["PATCH /users/me", me.PATCH as H, "PATCH"],
