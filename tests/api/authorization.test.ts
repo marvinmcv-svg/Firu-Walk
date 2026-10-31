@@ -11,6 +11,18 @@ import * as adminMetrics from "@/app/api/admin/metrics/route";
 import * as adminUsers from "@/app/api/admin/users/route";
 import * as adminWalker from "@/app/api/admin/walkers/[id]/route";
 import * as adminWalkers from "@/app/api/admin/walkers/route";
+import * as adminWalkerDeposit from "@/app/api/admin/walkers/[id]/deposit/route";
+import * as adminPlans from "@/app/api/admin/plans/route";
+import * as adminPlan from "@/app/api/admin/plans/[id]/route";
+import * as adminRecon from "@/app/api/admin/reconciliation/route";
+import * as adminReconIssue from "@/app/api/admin/reconciliation/[id]/route";
+import * as adminBatches from "@/app/api/admin/payout-batches/route";
+import * as adminBatch from "@/app/api/admin/payout-batches/[id]/route";
+import * as adminBatchCsv from "@/app/api/admin/payout-batches/[id]/csv/route";
+import * as paymentOne from "@/app/api/payments/[id]/route";
+import * as paymentQr from "@/app/api/payments/[id]/qr/route";
+import * as mockPay from "@/app/api/payments/mock/pay/route";
+import * as subscriptions from "@/app/api/subscriptions/route";
 import * as booking from "@/app/api/bookings/[id]/route";
 import * as bookings from "@/app/api/bookings/route";
 import * as dispute from "@/app/api/disputes/[id]/route";
@@ -62,6 +74,23 @@ const PROTECTED: [string, H, string, Record<string, string>?][] = [
   ["GET /notifications", notifications.GET as H, "GET"],
   ["PATCH /notifications", notifications.PATCH as H, "PATCH"],
   ["POST /payments/[id]/confirm", paymentConfirm.POST as H, "POST", P],
+  ["GET /payments/[id]", paymentOne.GET as H, "GET", P],
+  ["POST /payments/[id]/qr", paymentQr.POST as H, "POST", P],
+  ["POST /payments/mock/pay", mockPay.POST as H, "POST"],
+  ["GET /subscriptions", subscriptions.GET as H, "GET"],
+  ["POST /subscriptions", subscriptions.POST as H, "POST"],
+  ["GET /admin/plans", adminPlans.GET as H, "GET"],
+  ["POST /admin/plans", adminPlans.POST as H, "POST"],
+  ["PATCH /admin/plans/[id]", adminPlan.PATCH as H, "PATCH", P],
+  ["GET /admin/reconciliation", adminRecon.GET as H, "GET"],
+  ["POST /admin/reconciliation", adminRecon.POST as H, "POST"],
+  ["PATCH /admin/reconciliation/[id]", adminReconIssue.PATCH as H, "PATCH", P],
+  ["GET /admin/payout-batches", adminBatches.GET as H, "GET"],
+  ["POST /admin/payout-batches", adminBatches.POST as H, "POST"],
+  ["PATCH /admin/payout-batches/[id]", adminBatch.PATCH as H, "PATCH", P],
+  ["GET /admin/payout-batches/[id]/csv", adminBatchCsv.GET as H, "GET", P],
+  ["POST /admin/walkers/[id]/deposit", adminWalkerDeposit.POST as H, "POST", P],
+  ["PATCH /wallet", wallet.PATCH as H, "PATCH"],
   ["GET /payments", payments.GET as H, "GET"],
   ["POST /payments", payments.POST as H, "POST"],
   ["PATCH /payouts/[id]", payout.PATCH as H, "PATCH", P],
@@ -92,6 +121,7 @@ const cookies: Record<string, string> = {};
 let anaBookingId: string;
 let anaWalkId: string;
 let anaHeldPaymentId: string;
+let sofiaPendingPaymentId: string;
 let anaDogId: string;
 let requestedPayoutId: string;
 let openDisputeId: string;
@@ -103,6 +133,11 @@ beforeAll(async () => {
   anaBookingId = (await db.booking.findFirstOrThrow({ where: { ownerId: ana, status: "CONFIRMED" } })).id;
   anaWalkId = (await db.walk.findFirstOrThrow({ where: { ownerId: ana, status: "IN_PROGRESS" } })).id;
   anaHeldPaymentId = (await db.payment.findFirstOrThrow({ where: { ownerId: ana, status: "HELD" } })).id;
+  sofiaPendingPaymentId = (
+    await db.payment.findFirstOrThrow({
+      where: { ownerId: await userId(PHONES.sofia), status: "PENDING", method: { in: ["QR", "TRANSFER"] } },
+    })
+  ).id;
   anaDogId = (await db.dog.findFirstOrThrow({ where: { ownerId: ana } })).id;
   requestedPayoutId = (await db.payout.findFirstOrThrow({ where: { status: "REQUESTED" } })).id;
   openDisputeId = (await db.dispute.findFirstOrThrow({ where: { status: "OPEN" } })).id;
@@ -122,6 +157,18 @@ describe("admin routes reject owners and walkers", () => {
     ["PATCH /admin/walkers/[id]", adminWalker.PATCH as H, "PATCH", () => ({ id: pendingWalkerProfileId })],
     ["PATCH /disputes/[id]", dispute.PATCH as H, "PATCH", () => ({ id: openDisputeId })],
     ["PATCH /payouts/[id]", payout.PATCH as H, "PATCH", () => ({ id: requestedPayoutId })],
+    ["POST /payments/[id]/confirm", paymentConfirm.POST as H, "POST", () => ({ id: sofiaPendingPaymentId })],
+    ["GET /admin/plans", adminPlans.GET as H, "GET", () => ({})],
+    ["POST /admin/plans", adminPlans.POST as H, "POST", () => ({})],
+    ["PATCH /admin/plans/[id]", adminPlan.PATCH as H, "PATCH", () => ({ id: "x" })],
+    ["GET /admin/reconciliation", adminRecon.GET as H, "GET", () => ({})],
+    ["POST /admin/reconciliation", adminRecon.POST as H, "POST", () => ({})],
+    ["PATCH /admin/reconciliation/[id]", adminReconIssue.PATCH as H, "PATCH", () => ({ id: "x" })],
+    ["GET /admin/payout-batches", adminBatches.GET as H, "GET", () => ({})],
+    ["POST /admin/payout-batches", adminBatches.POST as H, "POST", () => ({})],
+    ["PATCH /admin/payout-batches/[id]", adminBatch.PATCH as H, "PATCH", () => ({ id: "x" })],
+    ["GET /admin/payout-batches/[id]/csv", adminBatchCsv.GET as H, "GET", () => ({ id: "x" })],
+    ["POST /admin/walkers/[id]/deposit", adminWalkerDeposit.POST as H, "POST", () => ({ id: pendingWalkerProfileId })],
   ];
   for (const who of ["ana", "luis"] as const) {
     for (const [name, handler, method, params] of ADMIN_ONLY) {
@@ -204,6 +251,29 @@ describe("owners cannot touch another owner's data", () => {
       params: { id: anaHeldPaymentId },
       cookie: cookies.carlos,
       body: {},
+    });
+    expect(r.status).toBe(403);
+  });
+
+  test("owners cannot confirm their own payment (admin-only reconciliation)", async () => {
+    const r = await call(paymentConfirm.POST as H, {
+      method: "POST",
+      params: { id: sofiaPendingPaymentId },
+      cookie: cookies.sofia,
+      body: { reason: "ya pagué, lo juro" },
+    });
+    expect(r.status).toBe(403);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: sofiaPendingPaymentId } })).status).toBe("PENDING");
+  });
+
+  test("someone else's payment cannot be read, get a QR or be mock-paid", async () => {
+    const opts = { params: { id: sofiaPendingPaymentId }, cookie: cookies.carlos };
+    expect((await call(paymentOne.GET as H, opts)).status).toBe(403);
+    expect((await call(paymentQr.POST as H, { ...opts, method: "POST", body: {} })).status).toBe(403);
+    const r = await call(mockPay.POST as H, {
+      method: "POST",
+      cookie: cookies.carlos,
+      body: { paymentId: sofiaPendingPaymentId },
     });
     expect(r.status).toBe(403);
   });
