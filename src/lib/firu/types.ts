@@ -3,7 +3,7 @@
 
 export type Role = "OWNER" | "WALKER" | "ADMIN";
 
-export type PaymentMethod = "QR" | "TRANSFER" | "CASH";
+export type PaymentMethod = "QR" | "TRANSFER" | "CASH" | "PLAN";
 
 // ---------------------------------------------------------------
 // Config (server-truth, loaded from Config table)
@@ -42,6 +42,13 @@ export interface AppConfig {
   payouts: {
     cycle: string; // "weekly"
     minPayoutCents: number;
+    maxCashDebtCents: number; // walkers owing more (cash-walk fees) get no new bookings
+  };
+  plans: {
+    unusedWalkPolicy: "forfeit" | "credit"; // at period end: platform keeps it / owner credit
+  };
+  payments: {
+    qrExpiryMinutes: number; // lifetime of a generated QR
   };
   tracking: {
     geofenceMeters: number; // start/end must be this close to the owner's address
@@ -204,11 +211,54 @@ export interface WalkDTO {
 
 export interface PaymentDTO {
   id: string;
+  purpose: "WALK" | "PLAN";
   method: PaymentMethod;
   status: "PENDING" | "HELD" | "RELEASED" | "REFUNDED" | "CASH_SETTLED";
-  amountCents: number;
+  amountCents: number; // total the owner pays
+  ownerFeeCents: number; // service fee included in amountCents
+  refundedCents: number;
   qrRef?: string | null;
+  /** Provider QR (data: URI) while the payment is pending. */
+  qrImage?: string | null;
+  qrExpiresAt?: string | null;
   confirmedAt?: string | null;
+  confirmSource?: string | null;
+  createdAt: string;
+}
+
+/** Breakdown shown before paying. */
+export interface PriceBreakdown {
+  baseCents: number;
+  ownerFeeCents: number;
+  totalCents: number;
+}
+
+export interface PlanDTO {
+  id: string;
+  key: string;
+  name: string;
+  walks: number;
+  durationMin: number;
+  priceCents: number;
+  periodDays: number;
+  active: boolean;
+  perWalkCents: number;
+  ownerFeeCents: number;
+  totalCents: number;
+}
+
+export interface SubscriptionDTO {
+  id: string;
+  status: "PENDING_PAYMENT" | "ACTIVE" | "EXPIRED" | "CANCELLED";
+  plan: PlanDTO;
+  walksTotal: number;
+  walksUsed: number;
+  walksLeft: number;
+  durationMin: number;
+  priceCents: number;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  payment?: PaymentDTO | null;
   createdAt: string;
 }
 
@@ -273,15 +323,68 @@ export interface WalletDTO {
   pendingPayoutCents: number;
   lifetimeEarnedCents: number;
   entries: LedgerEntryDTO[];
+  destination: PayoutDestinationDTO;
+  maxCashDebtCents: number;
+  blockedForDebt: boolean; // cash debt over the limit → no new bookings
 }
 
 export interface PayoutDTO {
   id: string;
   amountCents: number;
   method: string;
-  status: "REQUESTED" | "PAID" | "CANCELLED";
+  status: "REQUESTED" | "APPROVED" | "PAID" | "CANCELLED";
   requestedAt: string;
   paidAt?: string | null;
+  reference?: string | null;
+  batchId?: string | null;
+  destRef?: string | null;
+}
+
+export interface PayoutDestinationDTO {
+  payoutMethod: "QR" | "BANK" | null;
+  payoutBank: string | null;
+  payoutAccount: string | null;
+  payoutHolder: string | null;
+}
+
+export interface PayoutBatchDTO {
+  id: string;
+  status: "DRAFT" | "APPROVED" | "PAID";
+  periodStart: string;
+  periodEnd: string;
+  totalCents: number;
+  reference?: string | null;
+  approvedAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  payouts: (PayoutDTO & { walkerId: string; walkerName: string | null })[];
+}
+
+export interface ReconIssueDTO {
+  id: string;
+  kind: "SETTLED_NOT_RECORDED" | "RECORDED_NOT_SETTLED" | "AMOUNT_MISMATCH" | "UNKNOWN_REFERENCE" | "LEDGER_UNBALANCED" | "MANUAL_REFUND";
+  status: "OPEN" | "RESOLVED";
+  paymentId?: string | null;
+  providerRef?: string | null;
+  expectedCents?: number | null;
+  actualCents?: number | null;
+  detail: string;
+  resolution?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+}
+
+export interface ReconRunDTO {
+  id: string;
+  provider: string;
+  periodStart: string;
+  periodEnd: string;
+  settledCount: number;
+  settledCents: number;
+  recordedCount: number;
+  recordedCents: number;
+  issuesFound: number;
+  createdAt: string;
 }
 
 // ---------------------------------------------------------------

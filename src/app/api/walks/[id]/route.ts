@@ -14,7 +14,7 @@ import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { notify } from "@/lib/server/notify";
 import { publishRealtime } from "@/lib/server/realtime";
-import { payerShare, postTxn } from "@/lib/server/ledger";
+import { settleCompletedWalk } from "@/lib/server/payments/settle";
 import { formatBOB } from "@/lib/firu/money";
 import { ensurePendingPayment } from "@/lib/server/bookingEngine";
 import { geofenceDistance } from "@/lib/server/tracking";
@@ -257,48 +257,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         orderBy: { createdAt: "desc" },
       });
       if (payment) {
-        const gross = payment.amountCents;
-        const { feeCents, netCents } = payerShare(gross, cfg.fees.commissionPct);
-        if ((payment.method === "QR" || payment.method === "TRANSFER") && payment.status === "HELD") {
-          await postTxn(
-            [
-              { account: "platform:held", debit: gross, memo: `Liberación — paseo completado (${dogName})` },
-              { account: `walker:${walk.walkerId}`, credit: netCents, memo: `Ingreso neto paseo de ${dogName} (comisión ${cfg.fees.commissionPct}%)` },
-              { account: "platform:revenue", credit: feeCents, memo: `Comisión ${cfg.fees.commissionPct}% — paseo completado` },
-            ],
-            "walk",
-            walk.id,
-            now
-          );
-          await db.payment.update({
-            where: { id: payment.id },
-            data: { status: "RELEASED" },
-          });
-        } else if (payment.method === "CASH" && payment.status === "PENDING") {
-          // Cash: fee accrues as a negative wallet entry, owner pays offline.
-          await postTxn(
-            [
-              { account: `walker:${walk.walkerId}`, debit: feeCents, memo: `Comisión ${cfg.fees.commissionPct}% — paseo pagado en efectivo (${dogName})` },
-              { account: "platform:revenue", credit: feeCents, memo: `Comisión ${cfg.fees.commissionPct}% — paseo en efectivo` },
-            ],
-            "walk",
-            walk.id,
-            now
-          );
-          await db.payment.update({
-            where: { id: payment.id },
-            data: { status: "CASH_SETTLED", confirmedAt: now },
-          });
-        } else if ((payment.method === "QR" || payment.method === "TRANSFER") && payment.status === "PENDING") {
-          // Owner never confirmed the QR — remind them (no money moved yet).
-          await notify(
-            walk.ownerId,
-            "PAYMENT",
-            "Pago pendiente ⏳",
-            `El paseo de ${dogName} terminó, pero tu pago (${payment.method}) sigue pendiente. Confírmalo para que el paseador reciba su ingreso.`,
-            "bookings"
-          );
-        }
+        await settleCompletedWalk({ payment, walk, dogName, cfg, at: now });
       }
 
       // ---- Walker counters ----

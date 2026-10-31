@@ -1,5 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bun run vercel-build",
-  "regions": ["gru1"]
+  "regions": [
+    "gru1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/payouts",
+      "schedule": "0 12 * * 1"
+    }
+  ]
 }

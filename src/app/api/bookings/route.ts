@@ -1,5 +1,7 @@
 // GET  /api/bookings → BookingDTO[] role-scoped (sweeps expired requests first)
-// POST /api/bookings → create REQUESTED booking with candidate chain + PENDING payment
+// POST /api/bookings → create REQUESTED booking with candidate chain + first payment:
+//   QR/TRANSFER/CASH → PENDING (walk price + owner service fee from Config)
+//   PLAN {subscriptionId} → HELD in the owner's active monthly plan
 
 import { db } from "@/lib/db";
 import {
@@ -24,6 +26,9 @@ import {
   walkerPriceForDuration,
 } from "@/lib/server/bookingEngine";
 import type { BookingType } from "@/lib/server/bookingEngine";
+import { priceBreakdown } from "@/lib/firu/money";
+import { assertNotDebtBlocked } from "@/lib/server/payments/debt";
+import { planWalkEstimate, usableSubscription } from "@/lib/server/payments/plans";
 
 export async function GET(req: Request) {
   return run(async () => {
@@ -75,7 +80,11 @@ export async function POST(req: Request) {
       throw new ApiError(400, "La duración debe ser de 30, 45 o 60 minutos.");
     }
     const schedule = normalizeSchedule(type, body.schedule);
-    const paymentMethod = oneOf(body.paymentMethod, ["QR", "TRANSFER", "CASH"] as const, "El método de pago");
+    const paymentMethod = oneOf(body.paymentMethod, ["QR", "TRANSFER", "CASH", "PLAN"] as const, "El método de pago");
+    const subscription =
+      paymentMethod === "PLAN"
+        ? await usableSubscription(user.id, optStr(body, "subscriptionId") ?? "", durationMin)
+        : null;
     const notes = optStr(body, "notes", { max: 500 }) ?? null;
     const preferredWalkerUserId = optStr(body, "preferredWalkerUserId") ?? null;
 
@@ -89,6 +98,7 @@ export async function POST(req: Request) {
       if (!preferredProfile || preferredProfile.status !== "ACTIVE") {
         throw new ApiError(400, "El paseador elegido no está disponible actualmente.");
       }
+      await assertNotDebtBlocked(preferredWalkerUserId, cfg, "other");
       pricePerWalkCents = walkerPriceForDuration(preferredProfile, durationMin);
     }
 
@@ -129,19 +139,37 @@ export async function POST(req: Request) {
         requestedAt: now,
         expiresAt,
         notes,
+        subscriptionId: subscription?.id ?? null,
       },
     });
 
-    await db.payment.create({
-      data: {
-        bookingId: booking.id,
-        ownerId: user.id,
-        walkerId: candidates[0],
-        method: paymentMethod,
-        amountCents: pricePerWalkCents,
-        status: "PENDING",
-      },
-    });
+    if (subscription) {
+      // Prepaid: the walk is already covered by the plan's balance.
+      await db.payment.create({
+        data: {
+          bookingId: booking.id,
+          subscriptionId: subscription.id,
+          ownerId: user.id,
+          walkerId: candidates[0],
+          method: "PLAN",
+          amountCents: planWalkEstimate(subscription),
+          status: "HELD",
+        },
+      });
+    } else {
+      const price = priceBreakdown(pricePerWalkCents, cfg.fees.ownerFeePct);
+      await db.payment.create({
+        data: {
+          bookingId: booking.id,
+          ownerId: user.id,
+          walkerId: candidates[0],
+          method: paymentMethod,
+          amountCents: price.totalCents,
+          ownerFeeCents: price.ownerFeeCents,
+          status: "PENDING",
+        },
+      });
+    }
 
     // Notify the first candidate (one-at-a-time request)
     const summary = scheduleSummary(schedule, type);

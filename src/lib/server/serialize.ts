@@ -11,6 +11,8 @@ import type {
   PartyDTO,
   PaymentDTO,
   PayoutDTO,
+  ReconIssueDTO,
+  ReconRunDTO,
   ReportCardDTO,
   ReviewDTO,
   ScheduleItem,
@@ -161,20 +163,34 @@ export function dogOf(d: {
 
 export function paymentOf(p: {
   id: string;
+  purpose: string;
   method: string;
   status: string;
   amountCents: number;
+  ownerFeeCents: number;
+  refundedCents: number;
   qrRef: string | null;
+  qrImage: string | null;
+  qrExpiresAt: Date | null;
   confirmedAt: Date | null;
+  confirmSource: string | null;
   createdAt: Date;
 }): PaymentDTO {
+  const pending = p.status === "PENDING";
   return {
     id: p.id,
+    purpose: p.purpose as PaymentDTO["purpose"],
     method: p.method as PaymentDTO["method"],
     status: p.status as PaymentDTO["status"],
     amountCents: p.amountCents,
+    ownerFeeCents: p.ownerFeeCents,
+    refundedCents: p.refundedCents,
     qrRef: p.qrRef,
+    // The QR only matters while it can still be paid.
+    qrImage: pending ? p.qrImage : null,
+    qrExpiresAt: pending ? iso(p.qrExpiresAt) : null,
     confirmedAt: iso(p.confirmedAt),
+    confirmSource: p.confirmSource,
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -461,6 +477,9 @@ export function payoutOf(
     status: p.status as PayoutDTO["status"],
     requestedAt: p.requestedAt.toISOString(),
     paidAt: iso(p.paidAt),
+    reference: p.reference,
+    batchId: p.batchId,
+    destRef: p.destRef,
     // extras the UIs find handy (superset of the strict DTO)
     walkerId: p.walkerId,
     walkerName: walkerName ?? null,
@@ -490,5 +509,36 @@ export function ledgerEntryOf(e: Prisma.LedgerEntryGetPayload<Record<never, neve
     refType: e.refType,
     refId: e.refId,
     createdAt: e.createdAt.toISOString(),
+  };
+}
+
+export function reconIssueOf(i: Prisma.ReconciliationIssueGetPayload<Record<never, never>>): ReconIssueDTO {
+  return {
+    id: i.id,
+    kind: i.kind,
+    status: i.status,
+    paymentId: i.paymentId,
+    providerRef: i.providerRef,
+    expectedCents: i.expectedCents,
+    actualCents: i.actualCents,
+    detail: i.detail,
+    resolution: i.resolution,
+    resolvedAt: iso(i.resolvedAt),
+    createdAt: i.createdAt.toISOString(),
+  };
+}
+
+export function reconRunOf(r: Prisma.ReconciliationRunGetPayload<Record<never, never>>): ReconRunDTO {
+  return {
+    id: r.id,
+    provider: r.provider,
+    periodStart: r.periodStart.toISOString(),
+    periodEnd: r.periodEnd.toISOString(),
+    settledCount: r.settledCount,
+    settledCents: r.settledCents,
+    recordedCount: r.recordedCount,
+    recordedCents: r.recordedCents,
+    issuesFound: r.issuesFound,
+    createdAt: r.createdAt.toISOString(),
   };
 }

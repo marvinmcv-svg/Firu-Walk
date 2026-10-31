@@ -53,3 +53,12 @@ export function parseBOB(input: string): number {
 export function takePortion(amountCents: number, pct: number): number {
   return Math.round((amountCents * pct) / 100);
 }
+
+/**
+ * Owner service fee on top of a walk/plan price (fees.ownerFeePct).
+ * Shared by the server (what is charged) and the UI (breakdown before paying).
+ */
+export function priceBreakdown(baseCents: number, ownerFeePct: number) {
+  const ownerFeeCents = takePortion(baseCents, ownerFeePct);
+  return { baseCents, ownerFeeCents, totalCents: baseCents + ownerFeeCents };
+}

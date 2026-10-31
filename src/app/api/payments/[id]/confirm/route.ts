@@ -1,84 +1,56 @@
-// POST /api/payments/[id]/confirm {qrRef?} → PaymentDTO
-// Simulates the owner's QR scan / transfer deposit:
-// QR/TRANSFER PENDING→HELD + payment.hold txn (owner→platform:held) + notify.
+// POST /api/payments/[id]/confirm {reason, reference?} → PaymentDTO (ADMIN only)
+// Manual reconciliation: ops saw the money arrive (bank statement, transfer,
+// provider dashboard) but the webhook/poll did not record it. Requires a
+// reason and leaves an audit log. Owners can no longer confirm their own
+// payments — money is confirmed by the provider.
 
 import { db } from "@/lib/db";
-import { ApiError, ok, optStr, readJson, run } from "@/lib/server/http";
-import { requireUser } from "@/lib/server/session";
-import { postTxn } from "@/lib/server/ledger";
-import { notify } from "@/lib/server/notify";
+import { z } from "zod";
+import { ApiError, ok, readJson, run } from "@/lib/server/http";
+import { requireAdmin } from "@/lib/server/session";
 import { paymentOf } from "@/lib/server/serialize";
-import { formatBOB } from "@/lib/firu/money";
+import { markPaid } from "@/lib/server/payments/service";
+
+const Body = z.object({
+  reason: z.string().trim().min(5, "Explica el motivo (mínimo 5 caracteres).").max(300),
+  reference: z.string().trim().max(80).optional(),
+});
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return run(async () => {
     const { id } = await params;
-    const user = await requireUser(req);
-    const body = await readJson(req);
+    const admin = await requireAdmin(req);
+    const parsed = Body.safeParse(await readJson(req));
+    if (!parsed.success) {
+      throw new ApiError(400, parsed.error.issues[0]?.message ?? "Datos inválidos.");
+    }
+    const { reason, reference } = parsed.data;
 
-    const payment = await db.payment.findUnique({
-      where: { id },
-      include: { booking: { include: { dog: true } } },
-    });
+    const payment = await db.payment.findUnique({ where: { id } });
     if (!payment) throw new ApiError(404, "Pago no encontrado.");
-    if (payment.ownerId !== user.id && user.role !== "ADMIN") {
-      throw new ApiError(403, "Solo el dueño puede confirmar este pago.");
-    }
-    if (payment.status !== "PENDING") {
-      throw new ApiError(400, "Este pago ya fue confirmado.");
-    }
-    if (payment.method === "CASH") {
-      throw new ApiError(
-        400,
-        "El pago en efectivo no necesita confirmación previa: se entrega al finalizar el paseo."
-      );
+    if (payment.status !== "PENDING") throw new ApiError(400, "Este pago ya fue confirmado.");
+    if (payment.method === "CASH" || payment.method === "PLAN") {
+      throw new ApiError(400, "Los pagos en efectivo o con plan no se confirman manualmente.");
     }
 
-    const now = new Date();
-    const qrRef =
-      optStr(body, "qrRef", { max: 40 }) ?? `QR-FW-${payment.id.slice(-6).toUpperCase()}`;
-
-    // Hold txn: money flows owner → platform:held
-    await postTxn(
-      [
-        {
-          account: `owner:${payment.ownerId}`,
-          debit: payment.amountCents,
-          memo: `Pago ${payment.method === "QR" ? "QR Simple" : "por transferencia"} — ${payment.booking?.dog?.name ?? "paseo"}`,
-        },
-        {
-          account: "platform:held",
-          credit: payment.amountCents,
-          memo: "Retención hasta completar el paseo",
-        },
-      ],
-      "payment",
-      payment.id,
-      now
-    );
-
-    const updated = await db.payment.update({
-      where: { id: payment.id },
-      data: { status: "HELD", confirmedAt: now, qrRef },
+    const res = await markPaid(payment.id, {
+      paidCents: payment.amountCents,
+      source: "admin",
+      method: payment.method,
     });
-
-    const bs = formatBOB(payment.amountCents);
-    await notify(
-      payment.ownerId,
-      "PAYMENT",
-      "Pago confirmado 🔒",
-      `Tu pago de ${bs} quedó retenido por FiruWalk y se liberará al paseador cuando el paseo se complete.`,
-      "bookings"
-    );
-    if (payment.walkerId) {
-      await notify(
-        payment.walkerId,
-        "PAYMENT",
-        "Paseo prepagado ✅",
-        `El dueño confirmó el pago de ${bs} del paseo de ${payment.booking?.dog?.name ?? "tu próximo paseo"}. El dinero queda retenido hasta completar el paseo.`,
-        "home"
-      );
-    }
+    if (!res.applied) throw new ApiError(400, "Este pago ya fue confirmado.");
+    const updated = reference
+      ? await db.payment.update({ where: { id: payment.id }, data: { qrRef: reference } })
+      : res.payment;
+    await db.auditLog.create({
+      data: {
+        actorId: admin.id,
+        action: "PAYMENT_MANUAL_CONFIRM",
+        entity: "payment",
+        entityId: payment.id,
+        detail: JSON.stringify({ reason, reference: reference ?? null, amountCents: payment.amountCents }),
+      },
+    });
     return ok(paymentOf(updated));
   });
 }

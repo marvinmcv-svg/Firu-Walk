@@ -1,6 +1,7 @@
 // PATCH /api/disputes/[id] (admin) {action:"refund"|"credit"|"dismiss",
 //   refundCents?, creditCents?, resolution?}
-//   refund (payment HELD → refund from platform:held; RELEASED → claw back from walker)
+//   refund (payment HELD → refund from platform:held; RELEASED → claw back from walker;
+//          QR payments are refunded through the provider or queued for ops)
 //   credit → owner receives credit from platform:revenue
 //   dismiss → no money
 // All paths: audit log + notify both parties.
@@ -11,6 +12,7 @@ import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { postTxn } from "@/lib/server/ledger";
+import { refundPayment } from "@/lib/server/payments/service";
 import { notify } from "@/lib/server/notify";
 import { formatBOB } from "@/lib/firu/money";
 import { disputeInclude, disputeOf } from "@/lib/server/serialize";
@@ -46,43 +48,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!Number.isInteger(refundCents) || refundCents <= 0) {
         throw new ApiError(400, "El monto de reembolso es inválido.");
       }
+      // Latest collected payment of the booking (held or already released).
       const payment = await db.payment.findFirst({
-        where: { bookingId: dispute.bookingId },
+        where: { bookingId: dispute.bookingId, status: { in: ["HELD", "RELEASED"] } },
         orderBy: { createdAt: "desc" },
       });
-      if (!payment) throw new ApiError(400, "No hay un pago asociado a esta reserva.");
+      if (!payment) throw new ApiError(400, "No hay un pago cobrado asociado a esta reserva.");
       const ownerId = dispute.booking!.ownerId;
+      refundCents = Math.min(refundCents, payment.amountCents - payment.refundedCents);
       const bs = formatBOB(refundCents);
-
-      if ((payment.method === "QR" || payment.method === "TRANSFER") && payment.status === "HELD") {
-        // Refund straight from held funds; payment marked REFUNDED.
-        await postTxn(
-          [
-            { account: "platform:held", debit: refundCents, memo: `Reembolso por disputa — ${dogName}` },
-            { account: `owner:${ownerId}`, credit: refundCents, memo: `Reembolso de ${bs} por disputa` },
-          ],
-          "dispute",
-          dispute.id,
-          now
-        );
-        await db.payment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } });
-      } else if (payment.status === "RELEASED") {
-        // Funds already settled: claw back from the walker's wallet to the owner.
-        await postTxn(
-          [
-            { account: `walker:${payment.walkerId}`, debit: refundCents, memo: `Reversión por disputa — ${dogName}` },
-            { account: `owner:${ownerId}`, credit: refundCents, memo: `Reembolso de ${bs} por disputa` },
-          ],
-          "dispute",
-          dispute.id,
-          now
-        );
-      } else {
-        throw new ApiError(
-          400,
-          "El pago de esta reserva no permite reembolso en este estado."
-        );
-      }
+      await refundPayment(payment, refundCents, { refType: "dispute", refId: dispute.id, dogName, at: now });
 
       // Optional walker strike on refunds
       if (dispute.againstUserId) {

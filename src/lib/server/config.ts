@@ -5,7 +5,17 @@
 import { db } from "@/lib/db";
 import type { AppConfig } from "@/lib/firu/types";
 
-export const CONFIG_SECTIONS = ["platform", "fees", "pricing", "policy", "demo", "payouts", "tracking"] as const;
+export const CONFIG_SECTIONS = [
+  "platform",
+  "fees",
+  "pricing",
+  "policy",
+  "demo",
+  "payouts",
+  "tracking",
+  "plans",
+  "payments",
+] as const;
 export type ConfigSection = (typeof CONFIG_SECTIONS)[number];
 
 /** Whitelisted keys per section (admin PATCH only touches these). */
@@ -21,8 +31,15 @@ export const CONFIG_WHITELIST: Record<ConfigSection, string[]> = {
     "noShowCreditCents",
   ],
   demo: ["otpCode", "acceptTimeoutSeconds"],
-  payouts: ["cycle", "minPayoutCents"],
+  payouts: ["cycle", "minPayoutCents", "maxCashDebtCents"],
   tracking: ["geofenceMeters", "maxSpeedKmh", "maxJumpMeters", "maxAccuracyMeters"],
+  plans: ["unusedWalkPolicy"],
+  payments: ["qrExpiryMinutes"],
+};
+
+/** Allowed values for enum-like text settings (admin PATCH validates them). */
+export const CONFIG_ENUMS: Partial<Record<string, readonly string[]>> = {
+  "plans.unusedWalkPolicy": ["forfeit", "credit"],
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -43,8 +60,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     noShowCreditCents: 1000,
   },
   demo: { otpCode: "123456", acceptTimeoutSeconds: 90 },
-  payouts: { cycle: "weekly", minPayoutCents: 2000 },
+  payouts: { cycle: "weekly", minPayoutCents: 2000, maxCashDebtCents: 10000 },
   tracking: { geofenceMeters: 150, maxSpeedKmh: 25, maxJumpMeters: 1000, maxAccuracyMeters: 100 },
+  plans: { unusedWalkPolicy: "forfeit" },
+  payments: { qrExpiryMinutes: 30 },
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {

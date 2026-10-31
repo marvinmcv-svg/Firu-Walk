@@ -59,9 +59,14 @@ const EnvSchema = z.object({
   TWILIO_ACCOUNT_SID: optionalStr,
   TWILIO_AUTH_TOKEN: optionalStr,
   TWILIO_FROM: optionalStr,
-  PAYMENT_PROVIDER: optionalStr,
+  // Payments (Milestone 5). "mock" is refused in production; "bankqr" is the
+  // adapter skeleton for the provider the business picks.
+  PAYMENT_PROVIDER: z.enum(["mock", "bankqr"]).optional(),
+  PAYMENT_API_URL: optionalUrl,
   PAYMENT_API_KEY: optionalStr,
-  PAYMENT_WEBHOOK_SECRET: optionalStr,
+  PAYMENT_WEBHOOK_SECRET: z.string().min(16, "PAYMENT_WEBHOOK_SECRET must be at least 16 characters").optional(),
+  // Bearer token for /api/cron/* (Vercel Cron sends it automatically).
+  CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 characters").optional(),
 
   // Seed safety switch (prisma/seed.ts refuses to run in production without it)
   ALLOW_SEED: z.enum(["true", "false"]).optional(),
@@ -85,6 +90,13 @@ const EnvSchema = z.object({
       code: "custom",
       path: ["NEXT_PUBLIC_GPS_SIM"],
       message: "NEXT_PUBLIC_GPS_SIM must not be enabled in production builds",
+    });
+  }
+  if (env.PAYMENT_PROVIDER === "bankqr" && !env.PAYMENT_WEBHOOK_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["PAYMENT_WEBHOOK_SECRET"],
+      message: "PAYMENT_WEBHOOK_SECRET is required with a real payment provider",
     });
   }
   if (env.VERCEL_ENV === "production" && env.DEMO_MODE === "true") {

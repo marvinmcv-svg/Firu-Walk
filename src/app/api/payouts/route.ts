@@ -1,16 +1,19 @@
 // GET  /api/payouts → PayoutDTO[] (walker own; admin all)
-// POST /api/payouts {amountCents?, method?} → PayoutDTO
-//   Walker requests a withdrawal: validates ≥ payouts.minPayoutCents and ≤ balance,
-//   posts payout.request txn (walker → payout:{id}), notifies admin.
+// POST /api/payouts {amountCents?} → PayoutDTO
+//   Walker asks to be paid before the weekly batch: validates ≥
+//   payouts.minPayoutCents and ≤ balance, moves the money walker →
+//   payout:{id}; the payout joins the next batch at the walker's saved
+//   destination (Ganancias → cuenta de cobro).
 
 import { db } from "@/lib/db";
-import { ApiError, ok, oneOf, optNum, readJson, run } from "@/lib/server/http";
+import { ApiError, ok, optNum, readJson, run } from "@/lib/server/http";
 import { requireUser, requireWalker } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
-import { postTxn, walletBalance } from "@/lib/server/ledger";
+import { walletBalance } from "@/lib/server/ledger";
 import { notifyAdmins, notify } from "@/lib/server/notify";
 import { formatBOB } from "@/lib/firu/money";
 import { payoutOf } from "@/lib/server/serialize";
+import { createPayout, destinationOf } from "@/lib/server/payments/payouts";
 
 export async function GET(req: Request) {
   return run(async () => {
@@ -44,6 +47,7 @@ export async function POST(req: Request) {
     const user = await requireWalker(req);
     const cfg = await getAppConfig();
     const body = await readJson(req);
+    const profile = user.walker!;
 
     const balance = await walletBalance(user.id);
     const requested = optNum(body, "amountCents");
@@ -51,7 +55,6 @@ export async function POST(req: Request) {
       throw new ApiError(400, "El monto a retirar es inválido.");
     }
     const amount = requested ?? balance;
-    const method = oneOf(body.method ?? "QR", ["QR", "BANK"] as const, "El método de pago");
 
     if (balance <= 0) {
       throw new ApiError(400, "No tienes saldo disponible para retirar todavía.");
@@ -68,33 +71,29 @@ export async function POST(req: Request) {
         `No tienes saldo suficiente (disponible: ${formatBOB(balance)}).`
       );
     }
+    if (!profile.payoutAccount) {
+      throw new ApiError(400, "Primero registra tu cuenta de cobro (banco o QR).");
+    }
+    const method = profile.payoutMethod ?? "BANK";
 
-    const payout = await db.payout.create({
-      data: { walkerId: user.id, amountCents: amount, method, status: "REQUESTED" },
+    const payout = await createPayout(user.id, amount, {
+      method,
+      destRef: destinationOf(profile),
+      memo: "Solicitud de pago",
     });
-
-    // payout.request: money leaves the wallet into the payout escrow account
-    await postTxn(
-      [
-        { account: `walker:${user.id}`, debit: amount, memo: "Solicitud de pago" },
-        { account: `payout:${payout.id}`, credit: amount, memo: "En proceso de pago" },
-      ],
-      "payout",
-      payout.id
-    );
 
     const bs = formatBOB(amount);
     await notifyAdmins(
       "PAYOUT",
       "Pago solicitado 💸",
-      `${user.name} solicitó retirar ${bs} de su billetera (${method}).`,
-      "users"
+      `${user.name} solicitó retirar ${bs} de su billetera (${method}). Entra en el próximo lote.`,
+      "payments"
     );
     await notify(
       user.id,
       "PAYOUT",
       "Solicitud registrada ✅",
-      `Tu retiro de ${bs} está en la cola de pagos ${cfg.payouts.cycle === "weekly" ? "semanales" : ""}. Te avisaremos al enviarlo.`,
+      `Tu retiro de ${bs} entra en el próximo lote de pagos ${cfg.payouts.cycle === "weekly" ? "semanal" : ""}. Te avisaremos al enviarlo.`,
       "earnings"
     );
     return ok(payoutOf(payout, user.name), { status: 201 });

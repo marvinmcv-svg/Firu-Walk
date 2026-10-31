@@ -8,6 +8,9 @@ import { ApiError } from "./http";
 import { notify } from "./notify";
 import { DAY_ES, dateAtLocalMinute, nextOccurrences } from "./botime";
 import { parseJson, walkerCardOf } from "./serialize";
+import { formatBOB, priceBreakdown } from "@/lib/firu/money";
+import { debtBlockedWalkers } from "./payments/debt";
+import { planWalkEstimate } from "./payments/plans";
 import type { AppConfig, ScheduleItem, WalkerCardDTO } from "@/lib/firu/types";
 
 export const MAX_CANDIDATES = 4;
@@ -151,7 +154,11 @@ export async function matchWalkers(input: {
     slotsByWalker.set(s.walkerId, arr);
   }
 
+  // Walkers over the cash-debt limit get no new requests.
+  const blocked = await debtBlockedWalkers(shortlist.map((p) => p.userId), await getAppConfig());
+
   const candidates = shortlist
+    .filter((p) => !blocked.has(p.userId))
     .filter((p) => {
       const walkerSlots = slotsByWalker.get(p.id) ?? [];
       // every requested day must be covered by some slot (±tolerance)
@@ -297,31 +304,70 @@ export async function cancelFutureWalks(bookingId: string, reason: string): Prom
 }
 
 /**
- * Recurring bookings settle per walk: after a settlement, ensure a fresh
- * PENDING payment exists for the next walk (same method, same price).
+ * Recurring bookings settle per walk: after a settlement, ensure the next
+ * walk has a payment. Plan bookings draw the next walk from the plan while it
+ * has walks left; otherwise a fresh PENDING payment (same method, walk price
+ * + owner service fee from Config).
  */
 export async function ensurePendingPayment(bookingId: string): Promise<void> {
   const booking = await db.booking.findUnique({
     where: { id: bookingId },
-    include: { payments: true, walks: { where: { status: "SCHEDULED" } } },
+    include: { payments: true, walks: { where: { status: "SCHEDULED" } }, subscription: true },
   });
   if (!booking) return;
   if (booking.walks.length === 0) return; // nothing left to pay for
-  const hasPending = booking.payments.some((p) => p.status === "PENDING");
-  if (hasPending) return;
+  const hasOpen = booking.payments.some(
+    (p) => p.status === "PENDING" || (p.status === "HELD" && p.purpose === "WALK")
+  );
+  if (hasOpen) return;
   const last = [...booking.payments].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
   )[0];
+
+  const sub = booking.subscription;
+  const planUsable =
+    sub &&
+    sub.status === "ACTIVE" &&
+    sub.walksUsed < sub.walksTotal &&
+    (!sub.periodEnd || sub.periodEnd > new Date());
+  if (planUsable && last?.method === "PLAN") {
+    await db.payment.create({
+      data: {
+        bookingId: booking.id,
+        subscriptionId: sub.id,
+        ownerId: booking.ownerId,
+        walkerId: booking.walkerId,
+        method: "PLAN",
+        amountCents: planWalkEstimate(sub),
+        status: "HELD",
+      },
+    });
+    return;
+  }
+
+  const cfg = await getAppConfig();
+  const price = priceBreakdown(booking.pricePerWalkCents, cfg.fees.ownerFeePct);
+  const method = !last || last.method === "PLAN" ? "QR" : last.method;
   await db.payment.create({
     data: {
       bookingId: booking.id,
       ownerId: booking.ownerId,
-      walkerId: booking.walkerId ?? "",
-      method: last?.method ?? "QR",
-      amountCents: booking.pricePerWalkCents,
+      walkerId: booking.walkerId,
+      method,
+      amountCents: price.totalCents,
+      ownerFeeCents: price.ownerFeeCents,
       status: "PENDING",
     },
   });
+  if (last?.method === "PLAN") {
+    await notify(
+      booking.ownerId,
+      "PAYMENT",
+      "Tu plan se agotó 📅",
+      `Los próximos paseos se pagan por paseo (${formatBOB(price.totalCents)}). Renueva tu plan para seguir ahorrando.`,
+      "home"
+    );
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -343,7 +389,10 @@ export async function advanceCandidate(bookingId: string): Promise<Prisma.Bookin
   const zone = await db.zone.findUnique({ where: { id: booking.zoneId } });
 
   const candidates = parseJson<string[]>(booking.candidatesJson, []);
-  const nextIdx = booking.candidateIdx + 1;
+  // Skip candidates that went over the cash-debt limit since the match.
+  const blocked = await debtBlockedWalkers(candidates.slice(booking.candidateIdx + 1), cfg);
+  let nextIdx = booking.candidateIdx + 1;
+  while (nextIdx < candidates.length && blocked.has(candidates[nextIdx])) nextIdx++;
 
   if (nextIdx >= candidates.length) {
     const updated = await db.booking.update({

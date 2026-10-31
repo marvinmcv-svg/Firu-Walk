@@ -13,7 +13,9 @@ import { ApiError, ok, optStr, readJson, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { notify } from "@/lib/server/notify";
-import { postTxn, payerShare } from "@/lib/server/ledger";
+import { postTxn } from "@/lib/server/ledger";
+import { settleCancellation } from "@/lib/server/payments/settle";
+import { assertNotDebtBlocked } from "@/lib/server/payments/debt";
 import { bookingInclude, bookingOf, parseJson, zonesById } from "@/lib/server/serialize";
 import {
   advanceCandidate,
@@ -88,6 +90,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (booking.walkerId !== user.id) {
         throw new ApiError(403, "Esta solicitud fue enviada a otro paseador.");
       }
+      await assertNotDebtBlocked(user.id, cfg, "self");
       await db.booking.update({
         where: { id: booking.id },
         data: { status: "CONFIRMED", acceptedAt: new Date(), expiresAt: null },
@@ -98,7 +101,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const paymentHint =
         booking.payments.some((p) => p.method === "CASH")
           ? "El pago será en efectivo al finalizar el paseo."
-          : "Confirma tu pago (QR o transferencia) para asegurar el primer paseo.";
+          : booking.payments.some((p) => p.method === "PLAN")
+            ? "Los paseos se descuentan de tu plan."
+            : "Paga con QR (o transferencia) para asegurar el primer paseo.";
       await notify(
         booking.ownerId,
         "BOOKING",
@@ -227,61 +232,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         null;
 
       if (payment) {
-        const gross = payment.amountCents;
-        if ((payment.method === "QR" || payment.method === "TRANSFER") && payment.status === "HELD") {
-          if (isLate && booking.walkerId) {
-            // walker share from held funds; fee split; remainder refunded to owner
-            const share = Math.round((gross * cfg.policy.lateCancelWalkerSharePct) / 100);
-            const { feeCents, netCents } = payerShare(share, cfg.fees.commissionPct);
-            const remainder = gross - share;
-            await postTxn(
-              [
-                { account: "platform:held", debit: share, memo: `Cancelación tardía — parte del paseador (${dogName})` },
-                { account: `walker:${booking.walkerId}`, credit: netCents, memo: `Compensación por cancelación tardía (comisión ${cfg.fees.commissionPct}%)` },
-                { account: "platform:revenue", credit: feeCents, memo: `Comisión ${cfg.fees.commissionPct}% — cancelación tardía` },
-                { account: "platform:held", debit: remainder, memo: `Reembolso al dueño — cancelación (${dogName})` },
-                { account: `owner:${booking.ownerId}`, credit: remainder, memo: `Reembolso de ${formatBOB(remainder)} por cancelación` },
-              ],
-              "booking",
-              booking.id,
-              now
-            );
-            await db.payment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } });
-            if (booking.walkerId) {
-              await notify(
-                booking.walkerId,
-                "PAYMENT",
-                "Compensación por cancelación 💛",
-                `El dueño canceló el paseo de ${dogName} con poco tiempo. Recibiste ${formatBOB(netCents)} (50% del paseo, neto de comisión).`,
-                "earnings"
-              );
-            }
-          } else {
-            // free cancel (or no walker yet): full refund from held
-            await postTxn(
-              [
-                { account: "platform:held", debit: gross, memo: `Reembolso total — cancelación (${dogName})` },
-                { account: `owner:${booking.ownerId}`, credit: gross, memo: `Reembolso de ${formatBOB(gross)} por cancelación` },
-              ],
-              "booking",
-              booking.id,
-              now
-            );
-            await db.payment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } });
-          }
-        } else if (payment.method === "CASH" && isLate && booking.walkerId) {
-          // cash: nothing collected — journal the walker's late-cancel share
-          const share = Math.round((gross * cfg.policy.lateCancelWalkerSharePct) / 100);
-          const { feeCents, netCents } = payerShare(share, cfg.fees.commissionPct);
-          await postTxn(
-            [
-              { account: `owner:${booking.ownerId}`, debit: share, memo: `Cargo por cancelación tardía (efectivo) — ${dogName}` },
-              { account: `walker:${booking.walkerId}`, credit: netCents, memo: `Compensación por cancelación tardía (efectivo)` },
-              { account: "platform:revenue", credit: feeCents, memo: `Comisión ${cfg.fees.commissionPct}% — cancelación tardía (efectivo)` },
-            ],
-            "booking",
-            booking.id,
-            now
+        const { walkerNetCents } = await settleCancellation({
+          payment,
+          walkerId: booking.walkerId,
+          ownerId: booking.ownerId,
+          bookingId: booking.id,
+          isLate,
+          dogName,
+          cfg,
+          at: now,
+        });
+        if (walkerNetCents > 0 && booking.walkerId) {
+          await notify(
+            booking.walkerId,
+            "PAYMENT",
+            "Compensación por cancelación 💛",
+            `El dueño canceló el paseo de ${dogName} con poco tiempo. Recibiste ${formatBOB(walkerNetCents)} (${cfg.policy.lateCancelWalkerSharePct}% del paseo, neto de comisión).`,
+            "earnings"
           );
         }
       }

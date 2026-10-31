@@ -82,7 +82,7 @@ function PseudoQr({ seed }: { seed: string }) {
 }
 
 const METHOD_INFO: Record<
-  PaymentMethod,
+  Exclude<PaymentMethod, "PLAN">,
   { labelKey: string; descKey: string; icon: React.ElementType }
 > = {
   QR: { labelKey: "sh.pay.method.qr.label", descKey: "sh.pay.method.qr.desc", icon: QrCode },
@@ -184,7 +184,7 @@ export function PaymentDialog({
             </div>
 
             <div className="grid gap-2">
-              {(Object.keys(METHOD_INFO) as PaymentMethod[]).map((m) => {
+              {(Object.keys(METHOD_INFO) as Exclude<PaymentMethod, "PLAN">[]).map((m) => {
                 const info = METHOD_INFO[m];
                 const active = method === m;
                 return (

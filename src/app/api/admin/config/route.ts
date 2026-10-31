@@ -4,7 +4,7 @@
 import { db } from "@/lib/db";
 import { ApiError, ok, readJson, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
-import { CONFIG_SECTIONS, CONFIG_WHITELIST, getAppConfig, updateConfigSection } from "@/lib/server/config";
+import { CONFIG_ENUMS, CONFIG_SECTIONS, CONFIG_WHITELIST, getAppConfig, updateConfigSection } from "@/lib/server/config";
 import type { ConfigSection } from "@/lib/server/config";
 
 /** Expected JS type per whitelisted key. */
@@ -12,7 +12,8 @@ function expectedType(section: ConfigSection, key: string): "string" | "number" 
   if (section === "platform") return "string";
   if (section === "demo") return key === "otpCode" ? "string" : "number";
   if (section === "payouts") return key === "cycle" ? "string" : "number";
-  return "number"; // fees, pricing, policy
+  if (section === "plans") return "string";
+  return "number"; // fees, pricing, policy, tracking, payments
 }
 
 export async function PATCH(req: Request) {
@@ -52,6 +53,10 @@ export async function PATCH(req: Request) {
       } else {
         if (typeof value !== "string" || !value.trim()) {
           throw new ApiError(400, `El valor de "${key}" debe ser un texto.`);
+        }
+        const options = CONFIG_ENUMS[`${sec}.${key}`];
+        if (options && !options.includes(value.trim())) {
+          throw new ApiError(400, `El valor de "${key}" debe ser: ${options.join(", ")}.`);
         }
         clean[key] = value.trim();
       }
