@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const dogs = await db.dog.findMany({ where: { ownerId: targetOwnerId } });
+    const dogs = await db.dog.findMany({ where: { ownerId: targetOwnerId }, orderBy: { createdAt: "asc" } });
     return ok(dogs.map(dogOf));
   });
 }
