@@ -3,6 +3,10 @@
 # then build. Preview deployments never migrate (they may share the DB).
 set -euo pipefail
 
+# Prisma migrations need a direct (non-pooled) connection. Neon's Vercel
+# integration exposes it as DATABASE_URL_UNPOOLED; fall back to DATABASE_URL.
+export DIRECT_URL="${DIRECT_URL:-${DATABASE_URL_UNPOOLED:-${DATABASE_URL:-}}}"
+
 prisma generate
 
 if [ "${VERCEL_ENV:-}" = "production" ]; then
