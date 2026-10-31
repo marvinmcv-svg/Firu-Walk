@@ -168,6 +168,18 @@ enum NotificationType {
   SYSTEM
 }
 
+enum NotificationChannel {
+  IN_APP
+  WHATSAPP
+  PUSH
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED // channel off, not configured, or no address (recorded for ops)
+}
+
 // ---------------------------------------------------------------
 // Geography / supply curation
 // ---------------------------------------------------------------
@@ -216,6 +228,8 @@ model User {
   reviewsReceived  Review[]       @relation("ReviewWalker")
   sessions         Session[]
   subscriptions    Subscription[]
+  notificationPref NotificationPreference?
+  pushSubs         PushSubscription[]
 }
 
 model WalkerProfile {
@@ -367,6 +381,7 @@ model Walk {
   startOverride  String?
   endOverride    String?
   cancelReason   String?
+  onTheWayAt     DateTime? // walker tapped "on my way" (owner notified once)
   createdAt      DateTime   @default(now())
 
   booking     Booking          @relation(fields: [bookingId], references: [id])
@@ -590,6 +605,7 @@ model Subscription {
   periodEnd   DateTime?
   closedAt    DateTime?
   closeNote   String?
+  expiryRemindedAt DateTime? // "plan expiring" reminder sent (once per period)
   createdAt   DateTime           @default(now())
 
   owner    User      @relation(fields: [ownerId], references: [id])
@@ -687,6 +703,9 @@ model Message {
   senderId   String
   senderName String
   body       String
+  // Looks like an attempt to move off-platform (phone number, wa.me link…).
+  // The sender sees a gentle warning; ops can review flagged threads.
+  contactFlag Boolean @default(false)
   createdAt  DateTime @default(now())
 
   @@index([threadId, createdAt])
@@ -703,6 +722,51 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([userId, read])
+}
+
+// Per-user channel preferences. In-app notifications are always on (they are
+// the record); WhatsApp and web push can be switched off. `locale` picks the
+// template language (es | en).
+model NotificationPreference {
+  userId    String   @id
+  whatsapp  Boolean  @default(true)
+  push      Boolean  @default(true)
+  locale    String   @default("es")
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// A browser's Web Push subscription (one per device/browser).
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// One attempt to deliver a notification on one channel (ops + tests).
+model NotificationDelivery {
+  id             String              @id @default(cuid())
+  userId         String
+  notificationId String?
+  template       String // "booking_request" | … | "generic"
+  channel        NotificationChannel
+  status         DeliveryStatus
+  providerRef    String? // WhatsApp message id
+  error          String?
+  createdAt      DateTime            @default(now())
+
+  @@index([userId, createdAt])
+  @@index([template, channel])
 }
 
 // ---------------------------------------------------------------
