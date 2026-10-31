@@ -1,0 +1,5 @@
+[test]
+# API tests run against a disposable Postgres DB (TEST_DATABASE_URL) that the
+# preload migrates and seeds. See tests/api/preload.ts.
+preload = ["./tests/api/preload.ts"]
+root = "./tests/api"

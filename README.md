@@ -88,6 +88,17 @@ Full stack in containers instead: `SEED=true docker compose up --build` (app on 
 | `bun run db:reset` | Reset schema + re-seed from scratch |
 | `bun run db:studio` | Browse the database |
 
+## 🔐 Authentication
+
+- **Phone + 6-digit code.** `POST /api/auth/otp` sends a code (WhatsApp Cloud API → Twilio SMS fallback; printed to the server log in development). `POST /api/auth/login` verifies it and sets an **httpOnly `fw_session` cookie** (30 days, `SameSite=Lax`, `Secure` over HTTPS). Only HMACs of codes and session tokens are stored.
+- Codes expire after 5 min, allow 5 attempts, are single-use, and have a 60 s resend cooldown. Requests are rate-limited per phone and per IP (Redis when `REDIS_URL` is set, otherwise Postgres).
+- `POST /api/auth/logout` revokes the session server-side. Cross-site writes to `/api/*` are rejected (`src/proxy.ts`).
+- **Admins** are only created with `bun run admin:create +5917xxxxxxx "Name"` — never through the app.
+- **Demo mode** (`DEMO_MODE=true`): one-click demo accounts and the fixed code `123456`. Refused on Vercel production deployments.
+- API permission tests: `bun run test:api` (needs `TEST_DATABASE_URL`, a disposable DB).
+
+To go live you need a WhatsApp Business **authentication** template with a copy-code button (`WHATSAPP_OTP_TEMPLATE`) and/or Twilio credentials.
+
 ## ☁️ Deployment (Vercel)
 
 Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).

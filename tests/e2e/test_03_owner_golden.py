@@ -178,17 +178,11 @@ def test_owner_golden_path(page, shot, errors):
     page.wait_for_timeout(1_200)
     shot("23-booking-requested")
 
-    # stash the assigned walker for the walker test. Demo auth travels via the
-    # X-User-Id header (zustand persists the session under firuwalk-session).
+    # stash the assigned walker for the walker test. Auth rides on the
+    # httpOnly session cookie, which same-origin fetch sends automatically.
     walker_name = page.evaluate(
         """async () => {
-          const s = JSON.parse(localStorage.getItem('firuwalk-session') || '{}');
-          const uid = s?.state?.user?.id;
-          if (!uid) return null;
-          const res = await fetch('/api/bookings', {
-            credentials: 'include',
-            headers: { 'X-User-Id': uid },
-          });
+          const res = await fetch('/api/bookings', { credentials: 'same-origin' });
           const bs = await res.json();
           if (!Array.isArray(bs)) return null;
           const b = bs.find(x => x.status === 'REQUESTED');

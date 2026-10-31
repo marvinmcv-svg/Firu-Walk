@@ -10,12 +10,14 @@
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:api": "bun test",
     "db:seed": "bun prisma/seed.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --skip-seed && bun prisma/seed.ts",
     "db:studio": "prisma studio",
+    "admin:create": "bun scripts/create-admin.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
