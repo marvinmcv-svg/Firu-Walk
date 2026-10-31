@@ -43,6 +43,12 @@ export interface AppConfig {
     cycle: string; // "weekly"
     minPayoutCents: number;
   };
+  tracking: {
+    geofenceMeters: number; // start/end must be this close to the owner's address
+    maxSpeedKmh: number; // faster between two GPS points → rejected
+    maxJumpMeters: number; // longer jump between two points → rejected (teleport)
+    maxAccuracyMeters: number; // fixes less precise than this are ignored
+  };
 }
 
 // ---------------------------------------------------------------

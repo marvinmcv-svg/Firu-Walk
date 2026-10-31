@@ -308,8 +308,16 @@ model Walk {
   startLng       Float?
   endLat         Float?
   endLng         Float?
-  distanceMeters Float      @default(0)
-  trackJson      String     @default("[]") // denormalized polyline [[lat,lng],...]
+  distanceMeters Float      @default(0) // server-computed from accepted track points
+  trackJson      String     @default("[]") // denormalized polyline of accepted points [[lat,lng],...]
+  // GPS integrity (Milestone 4)
+  startDistanceM Float? // walker → pickup distance when the walk started
+  endDistanceM   Float? // walker → pickup distance when the walk ended
+  rejectedPoints Int        @default(0) // points refused by validation (speed, teleport, …)
+  mockLocation   Boolean    @default(false) // device reported a mock/simulated location
+  // Admin geofence overrides: the reason, set by an admin, consumed on use.
+  startOverride  String?
+  endOverride    String?
   cancelReason   String?
   createdAt      DateTime   @default(now())
 
@@ -326,17 +334,24 @@ model Walk {
   @@index([bookingId])
 }
 
+// One GPS fix uploaded by the walker app. `seq` is assigned by the device
+// (per walk, increasing) and makes uploads idempotent. Rejected fixes are kept
+// (with the reason) so retries stay idempotent and ops can audit them.
 model WalkTrackPoint {
-  id         String   @id @default(cuid())
-  walkId     String
-  seq        Int
-  lat        Float
-  lng        Float
-  recordedAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  walkId       String
+  seq          Int
+  lat          Float
+  lng          Float
+  accuracyM    Float?
+  mocked       Boolean  @default(false)
+  rejectReason String? // null = accepted | "too_fast" | "teleport" | "out_of_order" | "bad_timestamp" | "mock_location" | "inaccurate"
+  recordedAt   DateTime @default(now()) // device timestamp
+  receivedAt   DateTime @default(now())
 
   walk Walk @relation(fields: [walkId], references: [id], onDelete: Cascade)
 
-  @@index([walkId, seq])
+  @@unique([walkId, seq])
 }
 
 model ReportCard {

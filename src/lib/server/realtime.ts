@@ -1,6 +1,6 @@
 // Realtime (live-service) integration: short-lived HS256 tokens for the
 // socket handshake and room joins, room access checks, and server-side
-// publishing of events (chat messages, walk ended) over the live-service's
+// publishing of events (chat messages, GPS points, walk ended) over the live-service's
 // internal port. Token format must match mini-services/live-service/token.ts.
 
 import { createHmac } from "node:crypto";
@@ -74,7 +74,7 @@ export async function walkRoomAccess(walkId: string, userId: string, role: Role)
 
 /* ------------------------------------------------------------ publish */
 
-export type RealtimeEvent = "chat:message" | "walk:point" | "walk:ended";
+export type RealtimeEvent = "chat:message" | "walk:points" | "walk:ended";
 type Publisher = (room: string, event: RealtimeEvent, data: Record<string, unknown>) => Promise<void>;
 
 let override: Publisher | null = null;

@@ -1,12 +1,13 @@
 /// <reference types="bun-types" />
-// Milestone 3 — secure realtime: token/ticket issuing, server-side chat
-// publishing, and the live-service refusing anything without valid tokens.
+// Milestone 3 — secure realtime: token/ticket issuing, server-side chat and
+// GPS publishing, and the live-service refusing anything without valid tokens.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { io as ioClient, type Socket } from "socket.io-client";
 import { db } from "@/lib/db";
 import * as messages from "@/app/api/messages/route";
 import * as realtimeToken from "@/app/api/realtime/token/route";
+import * as track from "@/app/api/walks/[id]/track/route";
 import { setRealtimePublisherForTests } from "@/lib/server/realtime";
 import { createLiveServer, type LiveServer } from "../../mini-services/live-service/server";
 import { DEV_REALTIME_SECRET, signToken } from "../../mini-services/live-service/token";
@@ -118,7 +119,7 @@ describe("live-service", () => {
   const sockets: Socket[] = [];
 
   beforeAll(async () => {
-    server = createLiveServer({ secret: DEV_REALTIME_SECRET, simEnabled: false, quiet: true });
+    server = createLiveServer({ secret: DEV_REALTIME_SECRET, quiet: true });
     const ports = await server.listen(0, 0);
     url = `http://127.0.0.1:${ports.port}`;
     internalUrl = `http://127.0.0.1:${ports.internalPort}`;
@@ -203,16 +204,40 @@ describe("live-service", () => {
     });
   });
 
-  test("walk:stop needs the walker or admin capability", async () => {
-    const ana = await connectAs("ana");
-    const ticket = (await token("ana", `walk:${walkId}`)).json.token;
-    expect(await emitAck(ana, "walk:join", { walkId, ticket })).toEqual({ ok: true });
-    expect(await emitAck(ana, "walk:stop", { walkId })).toEqual({ ok: false, error: "forbidden" });
-
-    const walker = await connectAs(walkerKey);
-    const wt = (await token(walkerKey, `walk:${walkId}`)).json.token;
-    expect(await emitAck(walker, "walk:join", { walkId, ticket: wt })).toEqual({ ok: true });
-    expect(await emitAck(walker, "walk:stop", { walkId })).toEqual({ ok: true });
+  test("GPS points reach the walk room only through the track API", async () => {
+    const live = await db.walk.findUniqueOrThrow({ where: { id: walkId } });
+    const fresh = await db.walk.create({
+      data: {
+        bookingId: live.bookingId,
+        walkerId: live.walkerId,
+        ownerId: live.ownerId,
+        dogId: live.dogId,
+        zoneId: live.zoneId,
+        status: "IN_PROGRESS",
+        scheduledStart: new Date(),
+        startedAt: new Date(Date.now() - 60_000),
+        startLat: -17.7931,
+        startLng: -63.1998,
+      },
+    });
+    process.env.LIVE_SERVICE_INTERNAL_URL = internalUrl;
+    try {
+      const ana = await connectAs("ana");
+      const ticket = (await token("ana", `walk:${fresh.id}`)).json.token;
+      expect(await emitAck(ana, "walk:join", { walkId: fresh.id, ticket })).toEqual({ ok: true });
+      const got = nextEvent<{ walkId: string; points: { seq: number }[]; distMeters: number }>(ana, "walk:points");
+      const r = await call(track.POST as H, {
+        method: "POST",
+        cookie: cookies[walkerKey],
+        params: { id: fresh.id },
+        body: { points: [{ seq: 0, lat: -17.79315, lng: -63.19985, ts: Date.now() - 1_000, acc: 5 }] },
+      });
+      expect(r.status).toBe(200);
+      expect(await got).toMatchObject({ walkId: fresh.id, points: [{ seq: 0 }] });
+    } finally {
+      delete process.env.LIVE_SERVICE_INTERNAL_URL;
+      await db.walk.delete({ where: { id: fresh.id } });
+    }
   });
 
   test("internal publish requires the internal token and reaches only the room", async () => {

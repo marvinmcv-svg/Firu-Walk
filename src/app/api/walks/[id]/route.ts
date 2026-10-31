@@ -1,31 +1,115 @@
-// GET   /api/walks/[id] → full detail (parsed track, report, booking context)
-// PATCH /api/walks/[id] {action:"start"|"finish"|"no_show"} — walker lifecycle:
-//   start:  SCHEDULED→IN_PROGRESS (within 60min window) + startLat/Lng
-//   finish: IN_PROGRESS→COMPLETED + track + report + money settlement
+// GET   /api/walks/[id] → full detail (parsed track, report, booking context,
+//        pickup point, last stored GPS seq)
+// PATCH /api/walks/[id] {action:"start"|"finish"|"no_show", lat?, lng?, acc?, mock?}
+//   start:  SCHEDULED→IN_PROGRESS (within 60min window), walker within the
+//           geofence of the owner's address (or an admin override)
+//   finish: IN_PROGRESS→COMPLETED, same geofence + report + money settlement.
+//           Track and distance come from the uploaded GPS fixes, never the body.
 //   no_show: SCHEDULED→NO_SHOW (owner absent at pickup)
 
 import { db } from "@/lib/db";
-import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
+import { z } from "zod";
+import { ApiError, ok, optStr, readJson, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { notify } from "@/lib/server/notify";
 import { publishRealtime } from "@/lib/server/realtime";
 import { payerShare, postTxn } from "@/lib/server/ledger";
 import { formatBOB } from "@/lib/firu/money";
-import { ensurePendingPayment, polylineDistanceMeters } from "@/lib/server/bookingEngine";
+import { ensurePendingPayment } from "@/lib/server/bookingEngine";
+import { geofenceDistance } from "@/lib/server/tracking";
+import type { AppConfig } from "@/lib/firu/types";
 import { bookingContextOf, walkDetailOf, walkInclude, zonesById } from "@/lib/server/serialize";
 import type { FullWalk } from "@/lib/server/serialize";
 
 const START_WINDOW_MS = 60 * 60 * 1000; // may start up to 60 min early
 
+const PositionSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  acc: z.number().min(0).max(100_000).nullish(),
+  mock: z.boolean().optional(),
+});
+type Position = z.infer<typeof PositionSchema>;
+
 async function withContext(w: FullWalk) {
-  const zones = await zonesById(w.booking ? [w.booking.zoneId] : []);
+  const [zones, lastPoint] = await Promise.all([
+    zonesById(w.booking ? [w.booking.zoneId] : []),
+    db.walkTrackPoint.findFirst({
+      where: { walkId: w.id },
+      orderBy: { seq: "desc" },
+      select: { seq: true },
+    }),
+  ]);
+  const owner = w.booking?.owner;
   return {
     ...walkDetailOf(w),
+    // Where the walk starts and ends (the owner's address). Only the owner,
+    // the assigned walker and admins can read a walk.
+    pickup:
+      owner?.addressLat != null && owner.addressLng != null
+        ? { lat: owner.addressLat, lng: owner.addressLng, note: owner.addressNote }
+        : null,
+    // Highest GPS seq stored — the walker app resumes numbering after it.
+    lastSeq: lastPoint?.seq ?? -1,
     booking: w.booking
       ? bookingContextOf(w.booking, zones.get(w.booking.zoneId) ?? null)
       : null,
   };
+}
+
+/**
+ * Geofence for start/end: the walker must be within `tracking.geofenceMeters`
+ * of the owner's address, unless an admin left an override for this phase.
+ * Returns the distance to record (null when unknown) and the override used.
+ */
+function checkGeofence(
+  walk: FullWalk,
+  phase: "start" | "end",
+  pos: Position | null,
+  cfg: AppConfig
+): { distance: number | null; override: string | null } {
+  const override = phase === "start" ? walk.startOverride : walk.endOverride;
+  const owner = walk.booking?.owner;
+  const pickup =
+    owner?.addressLat != null && owner.addressLng != null
+      ? { lat: owner.addressLat, lng: owner.addressLng }
+      : null;
+  const distance = pos && pickup ? Math.round(geofenceDistance(pos, pickup).meters) : null;
+  if (override) return { distance, override };
+
+  if (!pos) {
+    throw new ApiError(400, "Activa la ubicación del teléfono para registrar el paseo.");
+  }
+  if (pos.mock) {
+    throw new ApiError(400, "Desactiva la ubicación simulada del teléfono para continuar.");
+  }
+  if (!pickup) {
+    throw new ApiError(
+      400,
+      "El dueño no tiene su dirección marcada en el mapa. Pide a soporte que autorice el paseo."
+    );
+  }
+  const radius = cfg.tracking.geofenceMeters;
+  if (geofenceDistance(pos, pickup).effective > radius) {
+    throw new ApiError(
+      400,
+      `${phase === "start" ? "Estás demasiado lejos del domicilio del dueño para iniciar el paseo:" : "Estás demasiado lejos del domicilio del dueño para finalizar el paseo:"} ${distance} m / ${radius} m`
+    );
+  }
+  return { distance, override: null };
+}
+
+async function auditOverride(actorId: string, walkId: string, phase: "start" | "end", reason: string) {
+  await db.auditLog.create({
+    data: {
+      actorId,
+      action: "WALK_GEOFENCE_OVERRIDE_USED",
+      entity: "walk",
+      entityId: walkId,
+      detail: JSON.stringify({ phase, reason }),
+    },
+  });
 }
 
 async function loadWalk(id: string): Promise<FullWalk> {
@@ -75,18 +159,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           "Aún no puedes iniciar: el paseo comienza en menos de 60 minutos."
         );
       }
-      const lat = optNum(body, "lat");
-      const lng = optNum(body, "lng");
-      await db.walk.update({
-        where: { id: walk.id },
+      const pos = positionOf(body);
+      const fence = checkGeofence(walk, "start", pos, cfg);
+      // Conditional update: two concurrent starts cannot both succeed.
+      const started = await db.walk.updateMany({
+        where: { id: walk.id, status: "SCHEDULED" },
         data: {
           status: "IN_PROGRESS",
           startedAt: new Date(),
-          ...(typeof lat === "number" && typeof lng === "number"
-            ? { startLat: lat, startLng: lng }
-            : {}),
+          startDistanceM: fence.distance,
+          ...(fence.override ? { startOverride: null } : {}),
+          ...(pos ? { startLat: pos.lat, startLng: pos.lng } : {}),
+          ...(pos?.mock ? { mockLocation: true } : {}),
         },
       });
+      if (started.count === 0) throw new ApiError(400, "El paseo no está en estado programado.");
+      if (fence.override) await auditOverride(user.id, walk.id, "start", fence.override);
       await notify(
         walk.ownerId,
         "WALK",
@@ -116,53 +204,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ? rep.photos.filter((p): p is string => typeof p === "string").slice(0, 6)
         : [];
 
-      // Track: replace the polyline + track points with the final route.
-      let track: [number, number][] | null = null;
-      if (Array.isArray(body.track)) {
-        track = (body.track as unknown[])
-          .filter(
-            (p): p is [number, number] =>
-              Array.isArray(p) &&
-              p.length >= 2 &&
-              typeof p[0] === "number" &&
-              typeof p[1] === "number"
-          )
-          .map((p) => [p[0], p[1]]);
-      }
-      const distance =
-        optNum(body, "distanceMeters") ??
-        (track && track.length > 1 ? polylineDistanceMeters(track) : undefined);
-      const lat = optNum(body, "lat");
-      const lng = optNum(body, "lng");
+      // Track + distance were built from the uploaded GPS fixes
+      // (POST /api/walks/[id]/track); the body cannot change them.
+      const pos = positionOf(body);
+      const fence = checkGeofence(walk, "end", pos, cfg);
       const now = new Date();
 
-      await db.walk.update({
-        where: { id: walk.id },
+      const finished = await db.walk.updateMany({
+        where: { id: walk.id, status: "IN_PROGRESS" },
         data: {
           status: "COMPLETED",
           endedAt: now,
-          ...(distance !== undefined ? { distanceMeters: Math.round(distance) } : {}),
-          ...(track
-            ? { trackJson: JSON.stringify(track) }
-            : {}),
-          ...(typeof lat === "number" && typeof lng === "number"
-            ? { endLat: lat, endLng: lng }
-            : {}),
+          endDistanceM: fence.distance,
+          ...(fence.override ? { endOverride: null } : {}),
+          ...(pos ? { endLat: pos.lat, endLng: pos.lng } : {}),
+          ...(pos?.mock ? { mockLocation: true } : {}),
         },
       });
-      if (track) {
-        // refresh the point rows so the detail map matches the polyline
-        await db.walkTrackPoint.deleteMany({ where: { walkId: walk.id } });
-        await db.walkTrackPoint.createMany({
-          data: track.map((p, i) => ({
-            walkId: walk.id,
-            seq: i,
-            lat: p[0],
-            lng: p[1],
-            recordedAt: now,
-          })),
-        });
-      }
+      if (finished.count === 0) throw new ApiError(400, "Solo puedes finalizar un paseo en curso.");
+      if (fence.override) await auditOverride(user.id, walk.id, "end", fence.override);
+      const hasTrack = walk.trackJson !== "[]";
 
       // Report card upsert
       const existingReport = await db.reportCard.findUnique({ where: { walkId: walk.id } });
@@ -270,7 +331,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         walk.ownerId,
         "WALK",
         "Reporte listo 🎉",
-        `${user.name} terminó el paseo de ${dogName}${track && track.length > 1 ? " con mapa del recorrido" : ""}. Mira las fotos y el reporte completo.${payment?.method === "CASH" ? ` Ten listo ${formatBOB(cashAmount)} en efectivo.` : ""}`,
+        `${user.name} terminó el paseo de ${dogName}${hasTrack ? " con mapa del recorrido" : ""}. Mira las fotos y el reporte completo.${payment?.method === "CASH" ? ` Ten listo ${formatBOB(cashAmount)} en efectivo.` : ""}`,
         "bookings"
       );
       await publishRealtime(`walk:${walk.id}`, "walk:ended", { walkId: walk.id });
@@ -303,4 +364,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     throw new ApiError(400, `Acción desconocida: ${action}`);
   });
+}
+
+/** Optional device position in the body ({lat, lng, acc?, mock?}). */
+function positionOf(body: Record<string, unknown>): Position | null {
+  if (body.lat === undefined && body.lng === undefined) return null;
+  const parsed = PositionSchema.safeParse(body);
+  if (!parsed.success) throw new ApiError(400, "La ubicación enviada es inválida.");
+  return parsed.data;
 }

@@ -5,7 +5,7 @@
 import { db } from "@/lib/db";
 import type { AppConfig } from "@/lib/firu/types";
 
-export const CONFIG_SECTIONS = ["platform", "fees", "pricing", "policy", "demo", "payouts"] as const;
+export const CONFIG_SECTIONS = ["platform", "fees", "pricing", "policy", "demo", "payouts", "tracking"] as const;
 export type ConfigSection = (typeof CONFIG_SECTIONS)[number];
 
 /** Whitelisted keys per section (admin PATCH only touches these). */
@@ -22,6 +22,7 @@ export const CONFIG_WHITELIST: Record<ConfigSection, string[]> = {
   ],
   demo: ["otpCode", "acceptTimeoutSeconds"],
   payouts: ["cycle", "minPayoutCents"],
+  tracking: ["geofenceMeters", "maxSpeedKmh", "maxJumpMeters", "maxAccuracyMeters"],
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -43,6 +44,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   demo: { otpCode: "123456", acceptTimeoutSeconds: 90 },
   payouts: { cycle: "weekly", minPayoutCents: 2000 },
+  tracking: { geofenceMeters: 150, maxSpeedKmh: 25, maxJumpMeters: 1000, maxAccuracyMeters: 100 },
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {

@@ -212,7 +212,7 @@ export function walkOf(
     durationMin: w.durationMin,
     startedAt: iso(w.startedAt),
     endedAt: iso(w.endedAt),
-    distanceMeters: w.distanceMeters,
+    distanceMeters: Math.round(w.distanceMeters),
     hasTrack: track.length > 0,
     dog: dogOf((w.dog ?? fallbackDog) as Prisma.DogGetPayload<Record<never, never>>),
     report: reportOf(w.report),
