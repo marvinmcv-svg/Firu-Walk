@@ -34,7 +34,7 @@ import { useSyncExternalStore } from "react";
 import { api, qk } from "@/lib/firu/api";
 import { springSnappy } from "@/lib/firu/motion";
 import { useFiruSession } from "@/lib/firu/session";
-import type { NotificationDTO } from "@/lib/firu/types";
+import type { NotificationDTO, SessionUserDTO } from "@/lib/firu/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -104,6 +104,19 @@ export function AppShell() {
   const walkerView = useFiruSession((s) => s.walkerView);
   const adminView = useFiruSession((s) => s.adminView);
   const logout = useFiruSession((s) => s.logout);
+
+  // Confirm the cached session against the server cookie (and refresh the
+  // profile). A 401 here clears the local session via the api client.
+  useQuery({
+    queryKey: qk.me,
+    queryFn: async () => {
+      const me = await api.get<SessionUserDTO>("/api/users/me");
+      useFiruSession.getState().setUser(me);
+      return me;
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
 
   if (!user) return null;
   const role = user.role;

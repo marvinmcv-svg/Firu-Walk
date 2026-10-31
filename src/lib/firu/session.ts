@@ -1,7 +1,8 @@
 "use client";
 
 // FiruWalk client session — zustand store persisted to localStorage.
-// Demo auth: the session userId is sent as X-User-Id header on every API call.
+// This is only a UI cache of who is signed in: the real session is the
+// httpOnly cookie, checked by the server on every API call.
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -47,7 +48,10 @@ interface FiruState {
   } | null;
   // actions
   login: (user: SessionUserDTO) => void;
+  /** Revoke the server session, then clear local state. */
   logout: () => void;
+  /** Clear local state only (server already rejected the session). */
+  clearLocal: () => void;
   setUser: (user: SessionUserDTO) => void;
   setOwnerView: (v: OwnerView) => void;
   setWalkerView: (v: WalkerView) => void;
@@ -76,7 +80,17 @@ export const useFiruSession = create<FiruState>()(
           walkerView: "home",
           adminView: "dashboard",
         }),
-      logout: () =>
+      logout: () => {
+        void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+        set({
+          user: null,
+          activeWalkId: null,
+          selectedWalkerUserId: null,
+          selectedBookingId: null,
+          bookingFlowSeed: null,
+        });
+      },
+      clearLocal: () =>
         set({
           user: null,
           activeWalkId: null,

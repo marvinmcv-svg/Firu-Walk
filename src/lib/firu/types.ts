@@ -33,8 +33,10 @@ export interface AppConfig {
     trialWalks: number;
     noShowCreditCents: number; // owner credit if walker no-shows
   };
+  /** True when the server runs with DEMO_MODE (one-click demo accounts). */
+  demoMode?: boolean;
   demo: {
-    otpCode: string; // demo OTP (no real SMS provider in sandbox)
+    otpCode: string; // demo login code — empty unless demo mode is on
     acceptTimeoutSeconds: number; // demo-fast fallback window
   };
   payouts: {
@@ -141,7 +143,6 @@ export interface WalkerCardDTO {
 }
 
 export interface WalkerDetailDTO extends WalkerCardDTO {
-  phone: string; // masked sharing rules are P1; MVP demo shows via chat/WhatsApp link
   experienceYears: number;
   availability: { dayOfWeek: number; startMinute: number; endMinute: number }[];
   reviews: {
@@ -351,6 +352,12 @@ export interface AdminMetricsDTO {
 // ---------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------
+
+export interface OtpRequestResponse {
+  channel: "whatsapp" | "sms" | "console" | "demo";
+  resendInSeconds: number;
+  demo: boolean;
+}
 
 export interface LoginResponse {
   user: SessionUserDTO;

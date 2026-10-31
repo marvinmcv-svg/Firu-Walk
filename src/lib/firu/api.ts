@@ -1,7 +1,9 @@
 "use client";
 
 // Typed fetch helpers for the FiruWalk API.
-// Session travels via X-User-Id (demo auth — swap for NextAuth/JWT in prod).
+// Auth rides on the httpOnly session cookie (same-origin fetch sends it).
+// A 401 while the UI thinks it is logged in means the session expired or was
+// revoked → drop the local session so the landing/login screen shows.
 
 import type {} from "./types"; // side-effect: keep types import path stable
 import { useFiruSession } from "./session";
@@ -19,17 +21,19 @@ async function request<T>(
   init?: RequestInit & { json?: unknown }
 ): Promise<T> {
   const { json, ...rest } = init ?? {};
-  const userId = useFiruSession.getState().user?.id;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(userId ? { "X-User-Id": userId } : {}),
     ...(rest.headers as Record<string, string> | undefined),
   };
   const res = await fetch(path, {
     ...rest,
     headers,
+    credentials: "same-origin",
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
+  if (res.status === 401 && !path.startsWith("/api/auth/") && useFiruSession.getState().user) {
+    useFiruSession.getState().clearLocal();
+  }
   if (!res.ok) {
     let message = `Error ${res.status}`;
     try {

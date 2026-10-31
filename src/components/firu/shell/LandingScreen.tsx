@@ -54,6 +54,7 @@ import type {
   AppConfig,
   DemoAccountDTO,
   LoginResponse,
+  OtpRequestResponse,
   ZoneDTO,
 } from "@/lib/firu/types";
 import {
@@ -964,38 +965,78 @@ function LoginDialog({
   const login = useFiruSession((s) => s.login);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
+  // Set once a code was sent: switches the form to the "enter code" step.
+  const [sent, setSent] = useState<OtpRequestResponse | null>(null);
+  const [resendAt, setResendAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  const { data: config } = useQuery({
+    queryKey: qk.config,
+    queryFn: () => api.get<AppConfig>("/api/config"),
+    enabled: open,
+  });
+  const demoMode = !!config?.demoMode;
   const { data: accounts } = useQuery({
     queryKey: qk.demoAccounts,
     queryFn: () => api.get<DemoAccountDTO[]>("/api/auth/demo-accounts"),
-    enabled: open,
+    enabled: open && demoMode,
+  });
+
+  // Tick once a second while the resend cooldown runs.
+  useEffect(() => {
+    if (!sent || now >= resendAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [sent, now, resendAt]);
+
+  const welcome = (res: LoginResponse) => {
+    login(res.user);
+    onOpenChange(false);
+    setSent(null);
+    setCode("");
+    toast({
+      title: res.isNew
+        ? t("land.login.welcomeNew", { name: res.user.name })
+        : t("land.login.welcomeBack", { name: res.user.name.split(" ")[0] }),
+      description: res.isNew
+        ? t("land.login.descNew")
+        : res.user.role === "OWNER"
+          ? t("land.login.descOwner")
+          : res.user.role === "WALKER"
+            ? t("land.login.descWalker")
+            : t("land.login.descAdmin"),
+    });
+  };
+  const fail = (e: Error) =>
+    toast({ title: t("land.login.errorTitle"), description: srvErr(e.message), variant: "destructive" });
+
+  const demoLoginMut = useMutation({
+    mutationFn: (userId: string) => api.post<LoginResponse>("/api/auth/demo-login", { userId }),
+    onSuccess: welcome,
+    onError: fail,
+  });
+
+  const sendCodeMut = useMutation({
+    mutationFn: () => api.post<OtpRequestResponse>("/api/auth/otp", { phone }),
+    onSuccess: (res) => {
+      setSent(res);
+      setNow(Date.now());
+      setResendAt(Date.now() + res.resendInSeconds * 1000);
+    },
+    onError: fail,
   });
 
   const loginMut = useMutation({
-    mutationFn: () =>
-      api.post<LoginResponse>("/api/auth/login", { phone, code }),
-    onSuccess: (res) => {
-      login(res.user);
-      onOpenChange(false);
-      toast({
-        title: res.isNew
-          ? t("land.login.welcomeNew", { name: res.user.name })
-          : t("land.login.welcomeBack", { name: res.user.name.split(" ")[0] }),
-        description: res.isNew
-          ? t("land.login.descNew")
-          : res.user.role === "OWNER"
-            ? t("land.login.descOwner")
-            : res.user.role === "WALKER"
-              ? t("land.login.descWalker")
-              : t("land.login.descAdmin"),
-      });
-    },
-    onError: (e: Error) =>
-      toast({ title: t("land.login.errorTitle"), description: srvErr(e.message), variant: "destructive" }),
+    mutationFn: () => api.post<LoginResponse>("/api/auth/login", { phone, code }),
+    onSuccess: welcome,
+    onError: fail,
   });
 
   const owners = (accounts ?? []).filter((a) => a.role === "OWNER");
   const walkers = (accounts ?? []).filter((a) => a.role === "WALKER");
   const admins = (accounts ?? []).filter((a) => a.role === "ADMIN");
+  const resendIn = Math.max(0, Math.ceil((resendAt - now) / 1000));
+  const busy = demoLoginMut.isPending || sendCodeMut.isPending || loginMut.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1010,54 +1051,60 @@ function LoginDialog({
             {t("land.login.title")}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {t("land.login.desc")} {t("land.login.demoCode")}{" "}
-            <code className="font-bold text-foreground">123456</code>
+            {demoMode ? (
+              <>
+                {t("land.login.descDemo")} {t("land.login.demoCode")}{" "}
+                <code className="font-bold text-foreground">{config?.demo.otpCode}</code>
+              </>
+            ) : (
+              t("land.login.desc")
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {[
-            [t("land.login.groupOwners"), owners],
-            [t("land.login.groupWalkers"), walkers],
-            [t("land.login.groupAdmins"), admins],
-          ].map(([label, list]) =>
-            (list as DemoAccountDTO[]).length ? (
-              <div key={label as string}>
-                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">
-                  {label as string}
-                </p>
-                <div className="grid gap-2">
-                  {(list as DemoAccountDTO[]).map((a) => (
-                    <button
-                      key={a.id}
-                      className="flex items-center gap-3 rounded-2xl border p-2.5 text-left hover:border-primary/50 hover:bg-brand-soft/50 transition-colors"
-                      onClick={() => {
-                        setPhone(a.phone);
-                        setCode("123456");
-                        loginMut.mutate();
-                      }}
-                    >
-                      <img
-                        src={a.avatarUrl ?? "/images/brand/logo-mark-mint.png"}
-                        alt=""
-                        className="size-10 rounded-full object-cover border"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm leading-tight truncate">{a.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{a.subtitle}</p>
-                      </div>
-                      <ChevronRight className="size-4 ml-auto text-muted-foreground" />
-                    </button>
-                  ))}
+          {demoMode &&
+            [
+              [t("land.login.groupOwners"), owners],
+              [t("land.login.groupWalkers"), walkers],
+              [t("land.login.groupAdmins"), admins],
+            ].map(([label, list]) =>
+              (list as DemoAccountDTO[]).length ? (
+                <div key={label as string}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">
+                    {label as string}
+                  </p>
+                  <div className="grid gap-2">
+                    {(list as DemoAccountDTO[]).map((a) => (
+                      <button
+                        key={a.id}
+                        disabled={busy}
+                        className="flex items-center gap-3 rounded-2xl border p-2.5 text-left hover:border-primary/50 hover:bg-brand-soft/50 transition-colors disabled:opacity-60"
+                        onClick={() => demoLoginMut.mutate(a.id)}
+                      >
+                        <img
+                          src={a.avatarUrl ?? "/images/brand/logo-mark-mint.png"}
+                          alt=""
+                          className="size-10 rounded-full object-cover border"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm leading-tight truncate">{a.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{a.subtitle}</p>
+                        </div>
+                        <ChevronRight className="size-4 ml-auto text-muted-foreground" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null
-          )}
+              ) : null
+            )}
 
-          <div className="border-t pt-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">
-              {t("land.login.phoneSection")}
-            </p>
+          <div className={demoMode ? "border-t pt-4" : ""}>
+            {demoMode && (
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">
+                {t("land.login.phoneSection")}
+              </p>
+            )}
             <div className="grid gap-3">
               <div>
                 <Label htmlFor="login-phone" className="text-sm">{t("land.login.phoneLabel")}</Label>
@@ -1067,26 +1114,69 @@ function LoginDialog({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   inputMode="tel"
+                  autoComplete="tel"
+                  disabled={!!sent}
                 />
               </div>
-              <div>
-                <Label htmlFor="login-code" className="text-sm">{t("land.login.codeLabel")}</Label>
-                <Input
-                  id="login-code"
-                  placeholder="123456"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  inputMode="numeric"
-                />
-              </div>
-              <Button
-                className="rounded-full font-bold"
-                disabled={loginMut.isPending || !phone || !code}
-                onClick={() => loginMut.mutate()}
-              >
-                {loginMut.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t("land.cta.login")}
-              </Button>
+              {!sent ? (
+                <Button
+                  className="rounded-full font-bold"
+                  disabled={busy || !phone}
+                  onClick={() => sendCodeMut.mutate()}
+                >
+                  {sendCodeMut.isPending && <Loader2 className="size-4 animate-spin" />}
+                  {t("land.login.sendCode")}
+                </Button>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {sent.demo
+                      ? t("land.login.codeSentDemo", { code: config?.demo.otpCode ?? "" })
+                      : t("land.login.codeSent", {
+                          channel: sent.channel === "whatsapp" ? "WhatsApp" : "SMS",
+                          phone,
+                        })}
+                  </p>
+                  <div>
+                    <Label htmlFor="login-code" className="text-sm">{t("land.login.codeLabel")}</Label>
+                    <Input
+                      id="login-code"
+                      placeholder="••••••"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      autoFocus
+                    />
+                  </div>
+                  <Button
+                    className="rounded-full font-bold"
+                    disabled={busy || code.length !== 6}
+                    onClick={() => loginMut.mutate()}
+                  >
+                    {loginMut.isPending && <Loader2 className="size-4 animate-spin" />}
+                    {t("land.cta.login")}
+                  </Button>
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      className="font-semibold text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setSent(null);
+                        setCode("");
+                      }}
+                    >
+                      {t("land.login.changePhone")}
+                    </button>
+                    <button
+                      className="font-semibold text-primary disabled:text-muted-foreground"
+                      disabled={busy || resendIn > 0}
+                      onClick={() => sendCodeMut.mutate()}
+                    >
+                      {resendIn > 0 ? t("land.login.resendIn", { s: resendIn }) : t("land.login.resend")}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
