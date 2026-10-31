@@ -126,9 +126,24 @@ export function zoneOf(z: { id: string; key: string; name: string; city: string;
   };
 }
 
-export function partyOf(u: { id: string; name: string; avatarUrl: string | null; phone: string } | null): PartyDTO | null {
+/**
+ * The other party of a booking/walk/dispute. No phone number: owners and
+ * walkers talk through the in-app chat (anti-disintermediation). Admin views
+ * add phones explicitly (withPhones).
+ */
+export function partyOf(u: { id: string; name: string; avatarUrl: string | null } | null): PartyDTO | null {
   if (!u) return null;
-  return { id: u.id, name: u.name, avatarUrl: u.avatarUrl, phone: u.phone };
+  return { id: u.id, name: u.name, avatarUrl: u.avatarUrl };
+}
+
+/** Admin only: add both parties' phone numbers to serialized bookings. */
+export function withPhones<T extends { owner?: PartyDTO | null; walker?: PartyDTO | null }>(
+  dtos: T[],
+  users: { id: string; phone: string }[]
+): T[] {
+  const phones = new Map(users.map((u) => [u.id, u.phone]));
+  const add = (p: PartyDTO | null | undefined) => (p ? { ...p, phone: phones.get(p.id) } : p);
+  return dtos.map((d) => ({ ...d, owner: add(d.owner), walker: add(d.walker) }));
 }
 
 export function dogOf(d: {
@@ -227,6 +242,7 @@ export function walkOf(
     scheduledStart: w.scheduledStart.toISOString(),
     durationMin: w.durationMin,
     startedAt: iso(w.startedAt),
+    onTheWayAt: iso(w.onTheWayAt),
     endedAt: iso(w.endedAt),
     distanceMeters: Math.round(w.distanceMeters),
     hasTrack: track.length > 0,

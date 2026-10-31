@@ -1,6 +1,7 @@
 // GET   /api/walks/[id] → full detail (parsed track, report, booking context,
 //        pickup point, last stored GPS seq)
-// PATCH /api/walks/[id] {action:"start"|"finish"|"no_show", lat?, lng?, acc?, mock?}
+// PATCH /api/walks/[id] {action:"on_the_way"|"start"|"finish"|"no_show", lat?, lng?, acc?, mock?}
+//   on_the_way: SCHEDULED, within the start window → tells the owner once
 //   start:  SCHEDULED→IN_PROGRESS (within 60min window), walker within the
 //           geofence of the owner's address (or an admin override)
 //   finish: IN_PROGRESS→COMPLETED, same geofence + report + money settlement.
@@ -12,10 +13,9 @@ import { z } from "zod";
 import { ApiError, ok, optStr, readJson, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
-import { notify } from "@/lib/server/notify";
+import { notify, notifyEvent } from "@/lib/server/notify";
 import { publishRealtime } from "@/lib/server/realtime";
 import { settleCompletedWalk } from "@/lib/server/payments/settle";
-import { formatBOB } from "@/lib/firu/money";
 import { ensurePendingPayment } from "@/lib/server/bookingEngine";
 import { geofenceDistance } from "@/lib/server/tracking";
 import type { AppConfig } from "@/lib/firu/types";
@@ -137,13 +137,37 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const cfg = await getAppConfig();
     const body = await readJson(req);
     const action = optStr(body, "action");
-    if (!action) throw new ApiError(400, "Indica una acción: start, finish o no_show.");
+    if (!action) throw new ApiError(400, "Indica una acción: on_the_way, start, finish o no_show.");
 
     const walk = await loadWalk(id);
     if (walk.walkerId !== user.id) {
       throw new ApiError(403, "Solo el paseador asignado puede actualizar este paseo.");
     }
     const dogName = walk.dog?.name ?? "el perrito";
+
+    // -----------------------------------------------------------
+    // ON THE WAY (owner gets one "walker on the way" message)
+    // -----------------------------------------------------------
+    if (action === "on_the_way") {
+      if (walk.status !== "SCHEDULED") {
+        throw new ApiError(400, "El paseo no está en estado programado.");
+      }
+      if (walk.scheduledStart.getTime() - Date.now() > START_WINDOW_MS) {
+        throw new ApiError(400, "Avísale al dueño cuando falte menos de una hora para el paseo.");
+      }
+      const marked = await db.walk.updateMany({
+        where: { id: walk.id, status: "SCHEDULED", onTheWayAt: null },
+        data: { onTheWayAt: new Date() },
+      });
+      if (marked.count > 0) {
+        await notifyEvent(walk.ownerId, "walker_on_the_way", {
+          walkerName: user.name,
+          dogName,
+          walkId: walk.id,
+        });
+      }
+      return ok(await withContext(await loadWalk(walk.id)));
+    }
 
     // -----------------------------------------------------------
     // START
@@ -175,13 +199,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
       if (started.count === 0) throw new ApiError(400, "El paseo no está en estado programado.");
       if (fence.override) await auditOverride(user.id, walk.id, "start", fence.override);
-      await notify(
-        walk.ownerId,
-        "WALK",
-        "¡El paseo empezó! 🐾",
-        `${user.name} inició el paseo de ${dogName}. Sigue el recorrido en vivo en el mapa.`,
-        "walk-live"
-      );
+      await notifyEvent(walk.ownerId, "walk_started", {
+        walkerName: user.name,
+        dogName,
+        walkId: walk.id,
+      });
       return ok(await withContext(await loadWalk(walk.id)));
     }
 
@@ -286,13 +308,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
 
       const cashAmount = payment?.amountCents ?? walk.booking?.pricePerWalkCents ?? 0;
-      await notify(
-        walk.ownerId,
-        "WALK",
-        "Reporte listo 🎉",
-        `${user.name} terminó el paseo de ${dogName}${hasTrack ? " con mapa del recorrido" : ""}. Mira las fotos y el reporte completo.${payment?.method === "CASH" ? ` Ten listo ${formatBOB(cashAmount)} en efectivo.` : ""}`,
-        "bookings"
-      );
+      await notifyEvent(walk.ownerId, "walk_finished", {
+        walkerName: user.name,
+        dogName,
+        walkId: walk.id,
+        hasTrack,
+        cashCents: payment?.method === "CASH" ? cashAmount : null,
+      });
       await publishRealtime(`walk:${walk.id}`, "walk:ended", { walkId: walk.id });
       return ok(await withContext(await loadWalk(walk.id)));
     }

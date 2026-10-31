@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { BookingStatus } from "@prisma/client";
 import { ok, oneOf, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
-import { bookingInclude, bookingList } from "@/lib/server/serialize";
+import { bookingInclude, bookingList, withPhones } from "@/lib/server/serialize";
 import { sweepExpiredRequests } from "@/lib/server/bookingEngine";
 
 export async function GET(req: Request) {
@@ -22,6 +22,7 @@ export async function GET(req: Request) {
       include: bookingInclude,
       orderBy: { requestedAt: "desc" },
     });
-    return ok(await bookingList(bookings));
+    const phones = bookings.flatMap((b) => [b.owner, b.walker].filter((u) => u !== null));
+    return ok(withPhones(await bookingList(bookings), phones));
   });
 }

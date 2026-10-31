@@ -14,7 +14,7 @@ import { getAppConfig } from "../config";
 import { ApiError } from "../http";
 import { postTxn, type DbClient } from "../ledger";
 import { log } from "../log";
-import { notify, notifyAdmins } from "../notify";
+import { notify, notifyAdmins, notifyEvent } from "../notify";
 import { getPaymentProvider, paymentProviderName } from "./index";
 import { ProviderUnavailable, WebhookRejected } from "./provider";
 
@@ -160,22 +160,13 @@ export async function markPaid(
     }
     const bs = formatBOB(p.amountCents);
     if (p.purpose === "PLAN") {
-      await notify(
-        p.ownerId,
-        "PAYMENT",
-        "¡Plan activado! 🎉",
-        `Recibimos tu pago de ${bs}. Tu ${("planName" in result && result.planName) || "plan"} ya está activo: reserva tus paseos cuando quieras.`,
-        "home"
-      );
+      await notifyEvent(p.ownerId, "payment_received", {
+        amountCents: p.amountCents,
+        planName: ("planName" in result && result.planName) || "plan",
+      });
     } else {
       const dogName = ("dogName" in result && result.dogName) || "tu perrito";
-      await notify(
-        p.ownerId,
-        "PAYMENT",
-        "Pago recibido 🔒",
-        `Recibimos tu pago de ${bs}. Queda retenido por FiruWalk y se libera al paseador cuando el paseo se complete.`,
-        "bookings"
-      );
+      await notifyEvent(p.ownerId, "payment_received", { amountCents: p.amountCents, dogName });
       if (p.walkerId) {
         await notify(
           p.walkerId,

@@ -33,7 +33,7 @@ export const CONFIG_WHITELIST: Record<ConfigSection, string[]> = {
   demo: ["otpCode", "acceptTimeoutSeconds"],
   payouts: ["cycle", "minPayoutCents", "maxCashDebtCents"],
   tracking: ["geofenceMeters", "maxSpeedKmh", "maxJumpMeters", "maxAccuracyMeters"],
-  plans: ["unusedWalkPolicy"],
+  plans: ["unusedWalkPolicy", "expiryReminderDays"],
   payments: ["qrExpiryMinutes"],
 };
 
@@ -62,7 +62,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   demo: { otpCode: "123456", acceptTimeoutSeconds: 90 },
   payouts: { cycle: "weekly", minPayoutCents: 2000, maxCashDebtCents: 10000 },
   tracking: { geofenceMeters: 150, maxSpeedKmh: 25, maxJumpMeters: 1000, maxAccuracyMeters: 100 },
-  plans: { unusedWalkPolicy: "forfeit" },
+  plans: { unusedWalkPolicy: "forfeit", expiryReminderDays: 3 },
   payments: { qrExpiryMinutes: 30 },
 };
 

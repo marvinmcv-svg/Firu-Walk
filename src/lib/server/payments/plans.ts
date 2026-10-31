@@ -10,7 +10,7 @@ import type { AppConfig, PlanDTO, SubscriptionDTO } from "@/lib/firu/types";
 import { getAppConfig } from "../config";
 import { ApiError } from "../http";
 import { accountBalance, postTxn, type DbClient } from "../ledger";
-import { notify } from "../notify";
+import { notify, notifyEvent } from "../notify";
 import { paymentOf } from "../serialize";
 
 export function planOf(p: Plan, cfg: AppConfig): PlanDTO {
@@ -205,4 +205,41 @@ export async function expireSubscriptions(now: Date = new Date()): Promise<numbe
     );
   }
   return closed;
+}
+
+/**
+ * "Plan expiring" reminder: ACTIVE plans whose period ends within
+ * `plans.expiryReminderDays` and still have walks left get one notification
+ * per period (Subscription.expiryRemindedAt). Run daily by /api/cron/daily.
+ */
+export async function remindExpiringSubscriptions(now: Date = new Date()): Promise<number> {
+  const cfg = await getAppConfig();
+  const days = cfg.plans.expiryReminderDays;
+  if (!days || days <= 0) return 0;
+  const due = await db.subscription.findMany({
+    where: {
+      status: "ACTIVE",
+      expiryRemindedAt: null,
+      periodEnd: { gt: now, lte: new Date(now.getTime() + days * 86_400_000) },
+    },
+    include: { plan: true },
+  });
+  let sent = 0;
+  for (const sub of due) {
+    const walksLeft = sub.walksTotal - sub.walksUsed;
+    if (walksLeft <= 0 || !sub.periodEnd) continue;
+    // Claim first so two concurrent runs cannot both send it.
+    const claimed = await db.subscription.updateMany({
+      where: { id: sub.id, expiryRemindedAt: null },
+      data: { expiryRemindedAt: now },
+    });
+    if (claimed.count === 0) continue;
+    await notifyEvent(sub.ownerId, "plan_expiring", {
+      planName: sub.plan.name,
+      periodEnd: sub.periodEnd,
+      walksLeft,
+    });
+    sent++;
+  }
+  return sent;
 }

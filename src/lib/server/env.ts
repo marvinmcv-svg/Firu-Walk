@@ -59,6 +59,10 @@ const EnvSchema = z.object({
   TWILIO_ACCOUNT_SID: optionalStr,
   TWILIO_AUTH_TOKEN: optionalStr,
   TWILIO_FROM: optionalStr,
+  // Web push (Milestone 6). Generate once: `bunx web-push generate-vapid-keys`.
+  VAPID_PUBLIC_KEY: optionalStr,
+  VAPID_PRIVATE_KEY: optionalStr,
+  VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/)/, "VAPID_SUBJECT must be a mailto: or https:// URL").optional(),
   // Payments (Milestone 5). "mock" is refused in production; "bankqr" is the
   // adapter skeleton for the provider the business picks.
   PAYMENT_PROVIDER: z.enum(["mock", "bankqr"]).optional(),
@@ -97,6 +101,13 @@ const EnvSchema = z.object({
       code: "custom",
       path: ["PAYMENT_WEBHOOK_SECRET"],
       message: "PAYMENT_WEBHOOK_SECRET is required with a real payment provider",
+    });
+  }
+  if (!!env.VAPID_PUBLIC_KEY !== !!env.VAPID_PRIVATE_KEY) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["VAPID_PRIVATE_KEY"],
+      message: "Set both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (or neither)",
     });
   }
   if (env.VERCEL_ENV === "production" && env.DEMO_MODE === "true") {

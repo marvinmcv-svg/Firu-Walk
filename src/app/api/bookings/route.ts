@@ -15,7 +15,7 @@ import {
 } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
-import { notify } from "@/lib/server/notify";
+import { notifyEvent } from "@/lib/server/notify";
 import { bookingInclude, bookingList, bookingOf } from "@/lib/server/serialize";
 import {
   matchWalkers,
@@ -172,14 +172,15 @@ export async function POST(req: Request) {
     }
 
     // Notify the first candidate (one-at-a-time request)
-    const summary = scheduleSummary(schedule, type);
-    await notify(
-      candidates[0],
-      "BOOKING",
-      "Nueva solicitud de reserva ⏳",
-      `${user.name} solicita paseos para ${dog.name} en ${zone.name} (${summary}, ${durationMin} min). Tienes ${cfg.demo.acceptTimeoutSeconds} segundos para aceptar.`,
-      "home"
-    );
+    await notifyEvent(candidates[0], "booking_request", {
+      ownerName: user.name,
+      dogName: dog.name,
+      zoneName: zone.name,
+      schedule,
+      bookingType: type,
+      durationMin,
+      acceptSeconds: cfg.demo.acceptTimeoutSeconds,
+    });
 
     const full = await db.booking.findUnique({ where: { id: booking.id }, include: bookingInclude });
     if (!full) throw new ApiError(500, "No se pudo crear la reserva.");

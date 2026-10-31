@@ -2,6 +2,8 @@
 // The DB stores UTC Dates; "local" wall-clock semantics are computed here.
 // Same conventions as prisma/seed.ts.
 
+import type { ScheduleItem } from "@/lib/firu/types";
+
 export const BO_OFFSET_MS = 4 * 60 * 60 * 1000;
 
 /** Current time shifted so getUTC* reflect Bolivia wall clock. */
@@ -71,3 +73,42 @@ export function dateAtLocalMinute(dateStr: string, minute: number): Date | null 
 
 /** Spanish weekday abbreviations for summaries/notifications. */
 export const DAY_ES = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
+export const DAY_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/**
+ * Human summary for notifications: "lun/mié/vie 07:30" or "25/10 17:00"
+ * (English: "Mon/Wed/Fri 07:30" or "10/25 17:00").
+ */
+export function scheduleSummary(
+  schedule: ScheduleItem[],
+  type: "ONE_OFF" | "RECURRING",
+  locale: "es" | "en" = "es"
+): string {
+  const dayNames = locale === "en" ? DAY_EN : DAY_ES;
+  if (type === "RECURRING") {
+    const byMinute = new Map<number, number[]>();
+    for (const s of schedule) {
+      if (typeof s.day !== "number") continue;
+      const arr = byMinute.get(s.minute) ?? [];
+      arr.push(s.day);
+      byMinute.set(s.minute, arr);
+    }
+    return [...byMinute.entries()]
+      .map(([minute, days]) => {
+        const hh = `${Math.floor(minute / 60)}`.padStart(2, "0");
+        const mm = `${minute % 60}`.padStart(2, "0");
+        const dayStr = [...days].sort((a, b) => a - b).map((d) => dayNames[d]).join("/");
+        return `${dayStr} ${hh}:${mm}`;
+      })
+      .join(" · ");
+  }
+  return schedule
+    .map((s) => {
+      const hh = `${Math.floor(s.minute / 60)}`.padStart(2, "0");
+      const mm = `${s.minute % 60}`.padStart(2, "0");
+      const [, mo = "", da = ""] = (s.date ?? "").split("-");
+      return `${locale === "en" ? `${mo}/${da}` : `${da}/${mo}`} ${hh}:${mm}`;
+    })
+    .join(" · ");
+}
+

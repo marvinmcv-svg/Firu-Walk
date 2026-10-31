@@ -48,6 +48,7 @@ export interface AppConfig {
   };
   plans: {
     unusedWalkPolicy: "forfeit" | "credit"; // at period end: platform keeps it / owner credit
+    expiryReminderDays: number; // "plan expiring" reminder this many days before the end (0 = off)
   };
   payments: {
     qrExpiryMinutes: number; // lifetime of a generated QR
@@ -204,6 +205,7 @@ export interface WalkDTO {
   scheduledStart: string;
   durationMin: number;
   startedAt?: string | null;
+  onTheWayAt?: string | null;
   endedAt?: string | null;
   distanceMeters: number;
   hasTrack: boolean;
@@ -278,7 +280,20 @@ export interface PartyDTO {
   id: string;
   name: string;
   avatarUrl?: string | null;
-  phone: string;
+  /** Only in admin views — owners and walkers never see each other's number. */
+  phone?: string;
+}
+
+export interface NotificationPrefsDTO {
+  whatsapp: boolean;
+  push: boolean;
+  locale: "es" | "en";
+  /** WhatsApp delivery is configured on the server. */
+  whatsappAvailable: boolean;
+  /** VAPID key to subscribe this browser (null = web push unavailable). */
+  pushPublicKey: string | null;
+  /** Browsers/devices subscribed to push. */
+  pushDevices: number;
 }
 
 export interface BookingDTO {

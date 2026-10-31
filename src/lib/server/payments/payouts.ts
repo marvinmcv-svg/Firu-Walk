@@ -15,7 +15,7 @@ import type { AppConfig, PayoutBatchDTO } from "@/lib/firu/types";
 import { getAppConfig } from "../config";
 import { ApiError } from "../http";
 import { postTxn, walletBalance } from "../ledger";
-import { notify } from "../notify";
+import { notify, notifyEvent } from "../notify";
 import { payoutOf } from "../serialize";
 
 export const batchInclude = { payouts: { orderBy: { amountCents: "desc" } } } satisfies Prisma.PayoutBatchInclude;
@@ -192,13 +192,11 @@ export async function markPayoutPaid(payoutId: string, reference: string, adminI
       detail: `${formatBOB(payout.amountCents)} vía ${payout.method} — ref. ${reference}`,
     },
   });
-  await notify(
-    payout.walkerId,
-    "PAYOUT",
-    "¡Pago enviado! 💸",
-    `Te enviamos ${formatBOB(payout.amountCents)} por ${payout.method === "BANK" ? "transferencia bancaria" : "QR"} (ref. ${reference}). ¡Buen trabajo! 🐾`,
-    "earnings"
-  );
+  await notifyEvent(payout.walkerId, "payout_sent", {
+    amountCents: payout.amountCents,
+    method: payout.method,
+    reference,
+  });
   return updated;
 }
 

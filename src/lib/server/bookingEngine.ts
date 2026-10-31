@@ -5,8 +5,8 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getAppConfig } from "./config";
 import { ApiError } from "./http";
-import { notify } from "./notify";
-import { DAY_ES, dateAtLocalMinute, nextOccurrences } from "./botime";
+import { notify, notifyEvent } from "./notify";
+import { dateAtLocalMinute, nextOccurrences } from "./botime";
 import { parseJson, walkerCardOf } from "./serialize";
 import { formatBOB, priceBreakdown } from "@/lib/firu/money";
 import { debtBlockedWalkers } from "./payments/debt";
@@ -86,33 +86,8 @@ export function scheduleDays(schedule: ScheduleItem[]): { day: number; minute: n
   });
 }
 
-/** Human summary for notifications: "lun/mié/vie 07:30" or "25/10 17:00". */
-export function scheduleSummary(schedule: ScheduleItem[], type: BookingType): string {
-  if (type === "RECURRING") {
-    const byMinute = new Map<number, number[]>();
-    for (const s of schedule) {
-      if (typeof s.day !== "number") continue;
-      const arr = byMinute.get(s.minute) ?? [];
-      arr.push(s.day);
-      byMinute.set(s.minute, arr);
-    }
-    return [...byMinute.entries()]
-      .map(([minute, days]) => {
-        const hh = `${Math.floor(minute / 60)}`.padStart(2, "0");
-        const mm = `${minute % 60}`.padStart(2, "0");
-        const dayStr = [...days].sort((a, b) => a - b).map((d) => DAY_ES[d]).join("/");
-        return `${dayStr} ${hh}:${mm}`;
-      })
-      .join(" · ");
-  }
-  return schedule
-    .map((s) => {
-      const hh = `${Math.floor(s.minute / 60)}`.padStart(2, "0");
-      const mm = `${s.minute % 60}`.padStart(2, "0");
-      return `${(s.date ?? "").slice(5).replace("-", "/")} ${hh}:${mm}`;
-    })
-    .join(" · ");
-}
+import { scheduleSummary } from "./botime";
+export { scheduleSummary };
 
 // ---------------------------------------------------------------------
 // Matching
@@ -423,17 +398,15 @@ export async function advanceCandidate(bookingId: string): Promise<Prisma.Bookin
     data: { walkerId: candidates[nextIdx] },
   });
 
-  const summary = scheduleSummary(
-    parseJson<ScheduleItem[]>(booking.scheduleJson, []),
-    booking.type as BookingType
-  );
-  await notify(
-    candidates[nextIdx],
-    "BOOKING",
-    "Nueva solicitud de reserva ⏳",
-    `${booking.owner?.name ?? "Un dueño"} solicita paseos para ${booking.dog?.name ?? "su perrito"} (${summary}, ${booking.durationMin} min). Tienes ${cfg.demo.acceptTimeoutSeconds} segundos para aceptar.`,
-    "home"
-  );
+  await notifyEvent(candidates[nextIdx], "booking_request", {
+    ownerName: booking.owner?.name ?? "Un dueño",
+    dogName: booking.dog?.name ?? "su perrito",
+    zoneName: zone?.name ?? "",
+    schedule: parseJson<ScheduleItem[]>(booking.scheduleJson, []),
+    bookingType: booking.type as BookingType,
+    durationMin: booking.durationMin,
+    acceptSeconds: cfg.demo.acceptTimeoutSeconds,
+  });
   return updated;
 }
 

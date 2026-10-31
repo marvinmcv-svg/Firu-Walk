@@ -12,7 +12,7 @@ function expectedType(section: ConfigSection, key: string): "string" | "number" 
   if (section === "platform") return "string";
   if (section === "demo") return key === "otpCode" ? "string" : "number";
   if (section === "payouts") return key === "cycle" ? "string" : "number";
-  if (section === "plans") return "string";
+  if (section === "plans") return key === "unusedWalkPolicy" ? "string" : "number";
   return "number"; // fees, pricing, policy, tracking, payments
 }
 

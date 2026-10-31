@@ -12,7 +12,7 @@ import { db } from "@/lib/db";
 import { ApiError, ok, optStr, readJson, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
-import { notify } from "@/lib/server/notify";
+import { notify, notifyEvent } from "@/lib/server/notify";
 import { postTxn } from "@/lib/server/ledger";
 import { settleCancellation } from "@/lib/server/payments/settle";
 import { assertNotDebtBlocked } from "@/lib/server/payments/debt";
@@ -98,19 +98,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const fresh = await db.booking.findUnique({ where: { id: booking.id } });
       if (fresh) await materializeWalks(fresh);
 
-      const paymentHint =
-        booking.payments.some((p) => p.method === "CASH")
-          ? "El pago será en efectivo al finalizar el paseo."
+      await notifyEvent(booking.ownerId, "booking_confirmed", {
+        walkerName: user.name,
+        dogName,
+        schedule: parseJson<ScheduleItem[]>(booking.scheduleJson, []),
+        bookingType: booking.type as BookingType,
+        payment: booking.payments.some((p) => p.method === "CASH")
+          ? "CASH"
           : booking.payments.some((p) => p.method === "PLAN")
-            ? "Los paseos se descuentan de tu plan."
-            : "Paga con QR (o transferencia) para asegurar el primer paseo.";
-      await notify(
-        booking.ownerId,
-        "BOOKING",
-        "¡Reserva confirmada! ✅",
-        `${user.name} confirmó los paseos de ${dogName} (${summary}). ${paymentHint}`,
-        "bookings"
-      );
+            ? "PLAN"
+            : "QR",
+      });
       return await serializeCurrent(booking.id);
     }
 
