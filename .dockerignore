@@ -9,3 +9,5 @@ db/
 tests/e2e/screenshots
 intro-video/.hyperframes
 mini-services/*/node_modules
+android
+capacitor

@@ -21,7 +21,7 @@ FiruWalk connects dog owners with trusted, vetted walkers across Santa Cruz de l
 | 🤖 **FirulAI** | Dog-branded AI receptionist (powered by LLM) — answers questions, quotes prices, hands off to WhatsApp. The logo dog is the mascot. |
 | 🎬 **Cinematic intro** | Animated splash (rendered from the `intro-video/` composition) plays on load, with a skip button and smart "play once per session" behavior. |
 | 💎 **Premium animated cards** | "How it works" and "Product trust" sections with 3D tilt, gloss sweeps, animated counters, and scroll-draw strokes. |
-| 🗺️ **Live walk tracking** | Real-time GPS path on an interactive map, powered by a socket.io live-service. |
+| 🗺️ **Live walk tracking** | Real GPS from the walker's phone (Android app, works with the screen locked), validated server-side and pushed live to the owner's map. |
 | 📅 **Smart match wizard** | Zone, duration and pace matching to find the perfect walker. |
 | 💳 **Wallet & ledger** | In-app balance, payments, walker payouts and platform fees with a double-entry ledger. |
 | 🌐 **ENG / SPA toggle** | Full bilingual experience — landing, app, admin, and FirulAI included. |
@@ -104,8 +104,16 @@ To go live you need a WhatsApp Business **authentication** template with a copy-
 - The browser connects to the live-service with a 10-minute token from `POST /api/realtime/token`; identity (user id, name, role) comes from that token, never from event payloads.
 - Joining `walk:{id}` or `chat:{bookingId}` needs a 2-minute room ticket from the same endpoint (`{ room }`), issued only to the dog's owner, the assigned walker, booking participants or admins. Only the walker/admin may stop a walk.
 - Chat messages are saved by `POST /api/messages`, which then publishes them to the room through the service's internal port (`:3004`, signed with `REALTIME_SECRET`). Sockets cannot send messages.
-- The GPS simulator runs only with `LIVE_SIM=true` (set by `bun run dev` in the service; refused in production). Real tracking arrives in Milestone 4.
+- GPS points reach `walk:{id}` only through the tracking API (below); sockets cannot inject them.
 - Tests: `tests/api/realtime.test.ts` (forged/expired tokens, foreign tickets, wrong rooms, spoofed senders).
+
+## 📍 GPS tracking (walker app)
+
+- Walkers use the **Android app** in `android/` (Capacitor, loads the deployed site; see [docs/WALKER_APP.md](docs/WALKER_APP.md)). It records a fix every ~10 s / 15 m with the screen locked, buffers offline and uploads in batches to `POST /api/walks/[id]/track` (idempotent by `seq`, retried with backoff). In a browser the same code uses `navigator.geolocation` (foreground only).
+- The server rejects fixes faster than 25 km/h, jumps over 1 km, out-of-order or out-of-window timestamps, inaccurate fixes and **mock locations** (walk flagged + audit log), computes the distance itself and pushes accepted points to the owner as `walk:points`.
+- Start/finish require being within **150 m** of the owner's address. Admins can allow one start or end without it (Admin → Reservas → paseo, reason required, audit-logged). All limits live in Admin → Configuración → *GPS y geocerca*.
+- Local dev / e2e: `NEXT_PUBLIC_GPS_SIM=true` makes the walker cockpit simulate a walk around the owner's address through the real API (refused in production builds).
+- Tests: `tests/api/tracking.test.ts`.
 
 ## ☁️ Deployment (Vercel)
 
@@ -135,6 +143,7 @@ src/
     └── server/             # bookingEngine, ledger, notify, config
 
 mini-services/live-service/ # authenticated socket.io rooms: live walks + chat (:3003)
+android/ capacitor.config.ts # walker Android app (Capacitor shell + background GPS)
 intro-video/                # Source composition used to render the intro MP4
 prisma/                     # schema.prisma + seed.ts
 tests/e2e/                  # Playwright (Python) end-to-end suite

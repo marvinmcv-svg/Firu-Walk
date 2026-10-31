@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FiruWalk Paseador</string>
+    <string name="title_activity_main">FiruWalk Paseador</string>
+    <string name="package_name">bo.firuwalk.walker</string>
+    <string name="custom_url_scheme">bo.firuwalk.walker</string>
+    <!-- background-geolocation foreground-service notification -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Paseo en curso</string>
+    <string name="capacitor_background_geolocation_notification_color">#16a34a</string>
+</resources>

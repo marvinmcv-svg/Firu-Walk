@@ -18,9 +18,14 @@
     "db:reset": "prisma migrate reset --skip-seed && bun prisma/seed.ts",
     "db:studio": "prisma studio",
     "admin:create": "bun scripts/create-admin.ts",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "1.3.1",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -94,6 +99,7 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.6.0",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.22",
     "@types/react": "^19",
