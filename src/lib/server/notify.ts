@@ -1,11 +1,12 @@
 // Notification service — every state change notifies the affected party
 // (Spanish, friendly, emojis like the seeded style).
 
+import type { NotificationType } from "@prisma/client";
 import { db } from "@/lib/db";
 
 export async function notify(
   userId: string,
-  type: string,
+  type: NotificationType,
   title: string,
   body: string,
   link?: string | null
@@ -17,7 +18,7 @@ export async function notify(
 
 /** Notify every ADMIN user (used for applications, payout requests, disputes). */
 export async function notifyAdmins(
-  type: string,
+  type: NotificationType,
   title: string,
   body: string,
   link?: string | null

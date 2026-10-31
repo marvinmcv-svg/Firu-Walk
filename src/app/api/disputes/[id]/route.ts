@@ -5,6 +5,7 @@
 //   dismiss → no money
 // All paths: audit log + notify both parties.
 
+import type { DisputeStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
@@ -36,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const now = new Date();
     const dogName = dispute.booking?.dog?.name ?? "la mascota";
 
-    let status: string;
+    let status: DisputeStatus;
     let refundCents = 0;
     let creditCents = 0;
 

@@ -4,7 +4,7 @@
 //   posts payout.request txn (walker → payout:{id}), notifies admin.
 
 import { db } from "@/lib/db";
-import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
+import { ApiError, ok, oneOf, optNum, readJson, run } from "@/lib/server/http";
 import { requireUser, requireWalker } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { postTxn, walletBalance } from "@/lib/server/ledger";
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       throw new ApiError(400, "El monto a retirar es inválido.");
     }
     const amount = requested ?? balance;
-    const method = optStr(body, "method", { max: 10 }) ?? "QR";
+    const method = oneOf(body.method ?? "QR", ["QR", "BANK"] as const, "El método de pago");
 
     if (balance <= 0) {
       throw new ApiError(400, "No tienes saldo disponible para retirar todavía.");

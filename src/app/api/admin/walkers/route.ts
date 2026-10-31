@@ -2,7 +2,8 @@
 // (ALL statuses; PENDING first). Extras: name/phone/avatar for the queue UI.
 
 import { db } from "@/lib/db";
-import { ok, run } from "@/lib/server/http";
+import { WalkerStatus } from "@prisma/client";
+import { ok, oneOf, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { walkerProfileOf } from "@/lib/server/serialize";
 
@@ -14,7 +15,9 @@ export async function GET(req: Request) {
     const status = new URL(req.url).searchParams.get("status");
 
     const profiles = await db.walkerProfile.findMany({
-      where: status ? { status } : {},
+      where: status
+        ? { status: oneOf(status, Object.values(WalkerStatus), "El estado") }
+        : {},
       include: { user: true, zone: true },
     });
 

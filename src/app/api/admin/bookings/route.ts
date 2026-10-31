@@ -1,7 +1,8 @@
 // GET /api/admin/bookings?status= → BookingDTO[] (all, newest first)
 
 import { db } from "@/lib/db";
-import { ok, run } from "@/lib/server/http";
+import { BookingStatus } from "@prisma/client";
+import { ok, oneOf, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { bookingInclude, bookingList } from "@/lib/server/serialize";
 import { sweepExpiredRequests } from "@/lib/server/bookingEngine";
@@ -15,7 +16,9 @@ export async function GET(req: Request) {
     await sweepExpiredRequests();
 
     const bookings = await db.booking.findMany({
-      where: status ? { status } : {},
+      where: status
+        ? { status: oneOf(status, Object.values(BookingStatus), "El estado") }
+        : {},
       include: bookingInclude,
       orderBy: { requestedAt: "desc" },
     });

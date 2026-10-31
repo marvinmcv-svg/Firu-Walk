@@ -9,7 +9,7 @@
  *    platform:cash, payout:{id}.
  *  - Bolivia = UTC-4 year-round. Helper boDate() builds local timestamps.
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type NotificationType } from "@prisma/client";
 
 const db = new PrismaClient();
 
@@ -144,6 +144,14 @@ function nextWeekdayAt(dow: number, hour: number, minute: number): Date {
 }
 
 async function main() {
+  // The seed WIPES every table. Never let it touch a production database by
+  // accident: it only runs in production when ALLOW_SEED=true is set explicitly.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+    throw new Error(
+      "Refusing to seed: NODE_ENV=production. Set ALLOW_SEED=true only for a disposable demo/staging DB."
+    );
+  }
+
   console.log("🌱 Seeding FiruWalk…");
 
   // Wipe (idempotent re-seed)
@@ -1053,7 +1061,7 @@ async function main() {
   // ----------------------------------------------------------------
   // Notifications
   // ----------------------------------------------------------------
-  const notifs: [string, string, string, string, string, Date, boolean][] = [
+  const notifs: [string, NotificationType, string, string, string, Date, boolean][] = [
     [ana, "WALK", "Paseo en curso 🐾", "Luis está paseando a Max ahora mismo. Sigue el recorrido en vivo.", "walk-live", todayWalkStart, false],
     [ana, "WALK", "Reporte listo", "El reporte del paseo del viernes de Max ya está disponible con fotos y mapa.", "bookings", b1Dates[2], false],
     [ana, "PAYMENT", "Pago confirmado", "Tu pago QR de Bs 18,00 por el paseo de hoy fue recibido.", "bookings", todayWalkStart, true],
