@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "FiruWalk live-service — socket.io GPS walk simulation + stateless chat relay on port 3003 (Caddy gateway path '/').",
+  "description": "FiruWalk live-service — authenticated socket.io rooms for live walks and chat (port 3003, internal publish API on 3004).",
   "scripts": {
-    "dev": "bun --hot index.ts",
+    "dev": "LIVE_SIM=true bun --hot index.ts",
     "start": "bun index.ts"
   },
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "ioredis": "^6.0.0",
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
