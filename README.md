@@ -23,7 +23,7 @@ FiruWalk connects dog owners with trusted, vetted walkers across Santa Cruz de l
 | 💎 **Premium animated cards** | "How it works" and "Product trust" sections with 3D tilt, gloss sweeps, animated counters, and scroll-draw strokes. |
 | 🗺️ **Live walk tracking** | Real GPS from the walker's phone (Android app, works with the screen locked), validated server-side and pushed live to the owner's map. |
 | 📅 **Smart match wizard** | Zone, duration and pace matching to find the perfect walker. |
-| 💳 **Wallet & ledger** | In-app balance, payments, walker payouts and platform fees with a double-entry ledger. |
+| 💳 **Payments & ledger** | Bank QR confirmed by the provider's webhook, monthly plans, weekly walker payout batches, daily reconciliation — all on a double-entry ledger. |
 | 🌐 **ENG / SPA toggle** | Full bilingual experience — landing, app, admin, and FirulAI included. |
 | 🌙 **Dark mode** | System-aware with a beautiful dark palette. |
 | 📱 **PWA** | Manifest + icons + maskable assets — install it like a native app. |
@@ -114,6 +114,18 @@ To go live you need a WhatsApp Business **authentication** template with a copy-
 - Start/finish require being within **150 m** of the owner's address. Admins can allow one start or end without it (Admin → Reservas → paseo, reason required, audit-logged). All limits live in Admin → Configuración → *GPS y geocerca*.
 - Local dev / e2e: `NEXT_PUBLIC_GPS_SIM=true` makes the walker cockpit simulate a walk around the owner's address through the real API (refused in production builds).
 - Tests: `tests/api/tracking.test.ts`.
+
+## 💳 Payments, plans & payouts
+
+- **Bank QR via a `PaymentProvider`** (`src/lib/server/payments/`): `createQr`, `verifyWebhook`, `getStatus`, `listSettlements`, `refund`. `PAYMENT_PROVIDER=mock` (default; refused in production) is a fake bank with real, meaningless QR codes and a **"Simular pago"** button; `bankqr` is the adapter skeleton for the provider the business picks.
+- A payment becomes **HELD only** through a signed webhook (`POST /api/payments/webhook/<provider>`, idempotent by event id), the provider status poll (`GET /api/payments/[id]`, polled by the payment sheet), or an **admin manual confirmation** with a required reason (audit-logged). Owners cannot confirm their own payments.
+- Owners pay the walk price **+ service fee** (`fees.ownerFeePct`), shown as a breakdown before paying. Completed walks release the held money: walker net of commission, platform commission + fee. Refunds (disputes, cancellations) go back through the provider, or open a *manual refund* task when it has no refund API.
+- **Monthly plans** (`Plan`/`Subscription`): bought with QR, the money sits in ledger account `plan:{id}`, one walk is drawn per completed walk. Unused walks at period end follow `plans.unusedWalkPolicy` (`forfeit` or `credit`).
+- **Daily reconciliation** compares provider settlements with the ledger and checks Σdebit = Σcredit; differences show up in **Admin → Pagos**.
+- **Weekly payout batches**: built Monday (or by hand) from every wallet ≥ the minimum, approved by an admin, exported as a bank CSV, then marked paid with the transfer reference. Walkers set their payout account under *Ganancias*.
+- **Cash** walks stay supported: the platform's share becomes walker debt. Above `payouts.maxCashDebtCents` the walker gets no new bookings until an admin records a deposit (Admin → Usuarios).
+- Scheduled jobs: `GET /api/cron/daily` (reconciliation + plan expiry) and `GET /api/cron/payouts` (weekly batch), protected by `CRON_SECRET` and scheduled in `vercel.json`.
+- Tests: `tests/api/payments.test.ts` (full MockProvider flow; the ledger must balance after every step).
 
 ## ☁️ Deployment (Vercel)
 
