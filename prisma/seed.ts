@@ -163,7 +163,12 @@ async function main() {
     "message",
     "notification",
     "dispute",
+    "reconciliationIssue",
+    "reconciliationRun",
+    "paymentWebhookEvent",
+    "mockCharge",
     "payout",
+    "payoutBatch",
     "ledgerEntry",
     "payment",
     "review",
@@ -172,6 +177,8 @@ async function main() {
     "walkTrackPoint",
     "walk",
     "booking",
+    "subscription",
+    "plan",
     "dog",
     "availabilitySlot",
     "walkerProfile",
@@ -217,11 +224,28 @@ async function main() {
       otpCode: "123456", // demo OTP — no SMS provider in the sandbox
       acceptTimeoutSeconds: 90, // demo-fast fallback window
     },
-    payouts: { cycle: "weekly", minPayoutCents: 2000 },
+    payouts: {
+      cycle: "weekly",
+      minPayoutCents: 2000,
+      maxCashDebtCents: 10000, // ASSUMPTION: Bs 100 of cash-walk fees before new bookings stop
+    },
+    plans: { unusedWalkPolicy: "forfeit" }, // ASSUMPTION: unused walks expire with the period
+    payments: { qrExpiryMinutes: 30 },
   };
   for (const [key, value] of Object.entries(configData)) {
     await db.config.create({ data: { key, valueJson: JSON.stringify(value) } });
   }
+
+  // ----------------------------------------------------------------
+  // Monthly plans (ASSUMPTION: launch-plan pricing, docs/LAUNCH_PLAN.md §5)
+  // ----------------------------------------------------------------
+  await db.plan.createMany({
+    data: [
+      { key: "plan-12x30", name: "Plan Mensual 12 paseos", walks: 12, durationMin: 30, priceCents: 21000, sortOrder: 1 },
+      { key: "plan-20x30", name: "Plan Mensual 20 paseos", walks: 20, durationMin: 30, priceCents: 34000, sortOrder: 2 },
+      { key: "plan-20x60", name: "Plan Mensual 20 paseos largos", walks: 20, durationMin: 60, priceCents: 54000, sortOrder: 3 },
+    ],
+  });
 
   // ----------------------------------------------------------------
   // Zones (ASSUMPTION: launch zones, §14 Q1 open for the human)
@@ -339,6 +363,15 @@ async function main() {
         referencesText: status === "PENDING" ? "Vecinos de la zona pueden confirmar mi responsabilidad con animales." : null,
         idDocNumber: status === "PENDING" ? "EN ESPERA DE REVISIÓN" : "VERIFICADO",
         approvedAt: status === "ACTIVE" ? boDate(-60, 9) : null,
+        // Demo payout destinations (fake account numbers)
+        ...(status === "ACTIVE"
+          ? {
+              payoutMethod: "BANK" as const,
+              payoutBank: ["BNB", "BCP", "Banco Ganadero", "Banco Unión"][Number(phone.slice(-1)) % 4],
+              payoutAccount: `100${phone.slice(-6)}`,
+              payoutHolder: name,
+            }
+          : {}),
       },
     });
     walkers[phone] = { userId: u.id, walkerId: w.id, zoneKey, price: { p30, p45 } };

@@ -80,6 +80,12 @@ enum PaymentMethod {
   QR
   TRANSFER
   CASH
+  PLAN // walk covered by a prepaid monthly plan
+}
+
+enum PaymentPurpose {
+  WALK // one walk of a booking
+  PLAN // purchase of a monthly plan (subscription)
 }
 
 enum PaymentStatus {
@@ -97,8 +103,42 @@ enum PayoutMethod {
 
 enum PayoutStatus {
   REQUESTED
+  APPROVED
   PAID
   CANCELLED
+}
+
+enum PayoutBatchStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum SubscriptionStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum WebhookEventStatus {
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum ReconIssueKind {
+  SETTLED_NOT_RECORDED // provider settled it, our ledger has no hold
+  RECORDED_NOT_SETTLED // our ledger holds it, provider has no settlement
+  AMOUNT_MISMATCH
+  UNKNOWN_REFERENCE // webhook/settlement for a reference we never issued
+  LEDGER_UNBALANCED
+  MANUAL_REFUND // provider has no refund API: ops must transfer it back
+}
+
+enum ReconIssueStatus {
+  OPEN
+  RESOLVED
 }
 
 enum DisputeReason {
@@ -166,23 +206,24 @@ model User {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  zone             Zone?     @relation(fields: [zoneId], references: [id])
-  dogs             Dog[]     @relation("DogOwner")
-  bookingsOwned    Booking[] @relation("BookingOwner")
-  bookingsAssigned Booking[] @relation("BookingWalker")
-  walksAsWalker    Walk[]    @relation("WalkWalker")
-  walksAsOwner     Walk[]    @relation("WalkOwner")
-  reviewsGiven     Review[]  @relation("ReviewOwner")
-  reviewsReceived  Review[]  @relation("ReviewWalker")
+  zone             Zone?          @relation(fields: [zoneId], references: [id])
+  dogs             Dog[]          @relation("DogOwner")
+  bookingsOwned    Booking[]      @relation("BookingOwner")
+  bookingsAssigned Booking[]      @relation("BookingWalker")
+  walksAsWalker    Walk[]         @relation("WalkWalker")
+  walksAsOwner     Walk[]         @relation("WalkOwner")
+  reviewsGiven     Review[]       @relation("ReviewOwner")
+  reviewsReceived  Review[]       @relation("ReviewWalker")
   sessions         Session[]
+  subscriptions    Subscription[]
 }
 
 model WalkerProfile {
-  id              String       @id @default(cuid())
-  userId          String       @unique
-  status          WalkerStatus @default(PENDING)
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  status          WalkerStatus  @default(PENDING)
   bio             String
-  experienceYears Float        @default(0)
+  experienceYears Float         @default(0)
   // Application (vetting) data — ASSUMPTION: manual review by admin
   idDocNumber     String? // stored encrypted in production; hook only
   selfieUrl       String?
@@ -190,20 +231,25 @@ model WalkerProfile {
   videoIntroUrl   String?
   referencesText  String?
   // Market data
-  price30Cents    Int          @default(1500)
-  price45Cents    Int          @default(2000)
-  price60Cents    Int          @default(2500)
-  rating          Float        @default(0) // avg 1..5
-  ratingCount     Int          @default(0)
-  totalWalks      Int          @default(0)
-  repeatOwners    Int          @default(0) // owners with 2+ completed walks
-  responseMinutes Int          @default(5)
-  strikes         Int          @default(0)
-  trialDone       Boolean      @default(false) // first N walks reviewed
+  price30Cents    Int           @default(1500)
+  price45Cents    Int           @default(2000)
+  price60Cents    Int           @default(2500)
+  rating          Float         @default(0) // avg 1..5
+  ratingCount     Int           @default(0)
+  totalWalks      Int           @default(0)
+  repeatOwners    Int           @default(0) // owners with 2+ completed walks
+  responseMinutes Int           @default(5)
+  strikes         Int           @default(0)
+  trialDone       Boolean       @default(false) // first N walks reviewed
   suspendedReason String?
-  appliedAt       DateTime     @default(now())
+  // Payout destination (weekly bank transfer / QR)
+  payoutMethod    PayoutMethod?
+  payoutBank      String? // "BNB", "BCP", "Banco Ganadero"…
+  payoutAccount   String? // account number or QR alias
+  payoutHolder    String? // account holder name
+  appliedAt       DateTime      @default(now())
   approvedAt      DateTime?
-  updatedAt       DateTime     @updatedAt
+  updatedAt       DateTime      @updatedAt
 
   user           User               @relation(fields: [userId], references: [id])
   zoneId         String
@@ -274,14 +320,16 @@ model Booking {
   cancelReason      String?
   completedAt       DateTime?
   notes             String? // owner instructions to walker
+  subscriptionId    String? // walks paid from this monthly plan
 
-  owner    User      @relation("BookingOwner", fields: [ownerId], references: [id])
-  walker   User?     @relation("BookingWalker", fields: [walkerId], references: [id])
-  dog      Dog       @relation(fields: [dogId], references: [id])
-  walks    Walk[]
-  payments Payment[]
-  reviews  Review[]
-  disputes Dispute[]
+  owner        User          @relation("BookingOwner", fields: [ownerId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  walker       User?         @relation("BookingWalker", fields: [walkerId], references: [id])
+  dog          Dog           @relation(fields: [dogId], references: [id])
+  walks        Walk[]
+  payments     Payment[]
+  reviews      Review[]
+  disputes     Dispute[]
 
   @@index([ownerId])
   @@index([walkerId])
@@ -406,24 +454,154 @@ model Review {
 // ---------------------------------------------------------------
 
 model Payment {
-  id          String        @id @default(cuid())
-  bookingId   String
-  ownerId     String
-  walkerId    String
-  method      PaymentMethod
-  amountCents Int // price*walks actually paid up front (recurring = per walk at first execution for MVP demo: charge per walk)
-  status      PaymentStatus @default(PENDING)
-  qrRef       String? // QR Simple reference (ASSUMPTION: simulated)
-  confirmedAt DateTime?
-  createdAt   DateTime      @default(now())
+  id             String         @id @default(cuid())
+  purpose        PaymentPurpose @default(WALK)
+  bookingId      String? // WALK payments
+  subscriptionId String? // PLAN purchases, and walks paid from a plan
+  ownerId        String
+  walkerId       String? // WALK payments: walker that gets the settlement
+  method         PaymentMethod
+  amountCents    Int // total the owner pays = walk/plan price + ownerFeeCents
+  ownerFeeCents  Int            @default(0) // owner service fee included in amountCents
+  refundedCents  Int            @default(0) // already returned to the owner
+  status         PaymentStatus  @default(PENDING)
+  qrRef          String? // human reference shown on the receipt
+  // Payment provider (bank QR / aggregator). Status changes only through a
+  // verified webhook, a provider status poll or an audited admin action.
+  provider       String? // "mock" | "bankqr" | …
+  providerRef    String?        @unique // provider's id for the current QR
+  qrImage        String? // data: URI of the QR to scan
+  qrExpiresAt    DateTime?
+  confirmSource  String? // "webhook" | "poll" | "admin"
+  confirmedAt    DateTime?
+  createdAt      DateTime       @default(now())
 
-  booking Booking @relation(fields: [bookingId], references: [id])
+  booking      Booking?      @relation(fields: [bookingId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([ownerId])
   @@index([walkerId])
+  @@index([bookingId])
+  @@index([status])
 }
 
-// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}"
+// Every provider webhook we accepted (signature verified). The unique
+// (provider, eventId) makes redelivered webhooks no-ops.
+model PaymentWebhookEvent {
+  id          String             @id @default(cuid())
+  provider    String
+  eventId     String
+  providerRef String?
+  paymentId   String?
+  payload     Json
+  status      WebhookEventStatus
+  error       String?
+  receivedAt  DateTime           @default(now())
+
+  @@unique([provider, eventId])
+  @@index([providerRef])
+}
+
+// The mock provider's "bank" (development / tests only): the charges it
+// issued and which ones were paid, so status polls and settlement reports
+// behave like a real provider.
+model MockCharge {
+  providerRef   String    @id
+  reference     String
+  amountCents   Int
+  expiresAt     DateTime
+  status        String    @default("PENDING") // PENDING | PAID | REFUNDED
+  paidCents     Int       @default(0)
+  refundedCents Int       @default(0)
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// Daily comparison of provider settlements against the ledger.
+model ReconciliationRun {
+  id            String   @id @default(cuid())
+  provider      String
+  periodStart   DateTime
+  periodEnd     DateTime
+  settledCount  Int      @default(0)
+  settledCents  Int      @default(0)
+  recordedCount Int      @default(0)
+  recordedCents Int      @default(0)
+  issuesFound   Int      @default(0)
+  triggeredBy   String // "cron" | admin user id
+  createdAt     DateTime @default(now())
+
+  issues ReconciliationIssue[]
+}
+
+model ReconciliationIssue {
+  id            String           @id @default(cuid())
+  runId         String?
+  kind          ReconIssueKind
+  status        ReconIssueStatus @default(OPEN)
+  paymentId     String?
+  providerRef   String?
+  expectedCents Int?
+  actualCents   Int?
+  detail        String
+  resolution    String?
+  resolvedById  String?
+  resolvedAt    DateTime?
+  createdAt     DateTime         @default(now())
+
+  run ReconciliationRun? @relation(fields: [runId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([paymentId])
+}
+
+// ---------------------------------------------------------------
+// Monthly plans (prepaid walk bundles)
+// ---------------------------------------------------------------
+
+model Plan {
+  id          String   @id @default(cuid())
+  key         String   @unique // "plan-20x30"
+  name        String // "Plan Mensual 20 paseos"
+  walks       Int // walks included per period
+  durationMin Int      @default(30)
+  priceCents  Int // whole bundle, before the owner service fee
+  periodDays  Int      @default(30)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// One purchased plan period. Funds sit in ledger account `plan:{id}` and are
+// released to the walker one completed walk at a time.
+model Subscription {
+  id          String             @id @default(cuid())
+  ownerId     String
+  planId      String
+  status      SubscriptionStatus @default(PENDING_PAYMENT)
+  walksTotal  Int
+  walksUsed   Int                @default(0)
+  durationMin Int
+  priceCents  Int
+  periodStart DateTime?
+  periodEnd   DateTime?
+  closedAt    DateTime?
+  closeNote   String?
+  createdAt   DateTime           @default(now())
+
+  owner    User      @relation(fields: [ownerId], references: [id])
+  plan     Plan      @relation(fields: [planId], references: [id])
+  payments Payment[]
+  bookings Booking[]
+
+  @@index([ownerId, status])
+  @@index([status, periodEnd])
+}
+
+// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}" | "plan:{subscriptionId}"
 model LedgerEntry {
   id          String   @id @default(cuid())
   txnId       String // group id — entries of one transaction share txnId
@@ -445,13 +623,37 @@ model Payout {
   amountCents Int
   method      PayoutMethod @default(QR)
   status      PayoutStatus @default(REQUESTED)
-  destRef     String? // QR/cuenta destino
+  destRef     String? // QR/cuenta destino (snapshot when batched)
+  batchId     String?
+  reference   String? // bank transfer reference once PAID
   periodStart DateTime?
   periodEnd   DateTime?
   requestedAt DateTime     @default(now())
   paidAt      DateTime?
 
+  batch PayoutBatch? @relation(fields: [batchId], references: [id])
+
   @@index([walkerId])
+  @@index([batchId])
+}
+
+// Weekly payout run: DRAFT (built) → APPROVED (admin) → PAID (bank reference).
+model PayoutBatch {
+  id           String            @id @default(cuid())
+  status       PayoutBatchStatus @default(DRAFT)
+  periodStart  DateTime
+  periodEnd    DateTime
+  totalCents   Int               @default(0)
+  reference    String?
+  createdById  String? // null = scheduled job
+  approvedById String?
+  approvedAt   DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime          @default(now())
+
+  payouts Payout[]
+
+  @@index([status])
 }
 
 model Dispute {
@@ -548,7 +750,7 @@ model RateLimit {
 }
 
 model Config {
-  key       String   @id // "fees" | "pricing" | "policy" | "platform" | "demo" | "payouts"
+  key       String   @id // "fees" | "pricing" | "policy" | "platform" | "demo" | "payouts" | "tracking" | "plans" | "payments"
   valueJson String
   updatedAt DateTime @updatedAt
 }
