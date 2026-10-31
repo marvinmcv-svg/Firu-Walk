@@ -1,21 +1,12 @@
 // GET  /api/messages?threadId= → Message[] (booking participants only)
 //      (no threadId → latest messages across the user's threads, for the inbox)
-// POST /api/messages {threadId, body} → Message (persisted; live relay is the
-//      socket service's job — the frontend broadcasts via chat:join rooms)
+// POST /api/messages {threadId, body} → Message (persisted, then published to
+//      the `chat:{threadId}` room with the sender's identity from the session)
 
 import { db } from "@/lib/db";
 import { ApiError, ok, optStr, readJson, reqStr, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
-
-/** threadId === bookingId. Participants: booking owner, assigned walker, admin. */
-async function assertParticipant(threadId: string, userId: string, role: string) {
-  const booking = await db.booking.findUnique({ where: { id: threadId } });
-  if (!booking) throw new ApiError(404, "La conversación no existe.");
-  const isParticipant =
-    role === "ADMIN" || booking.ownerId === userId || booking.walkerId === userId;
-  if (!isParticipant) throw new ApiError(403, "No tienes acceso a esta conversación.");
-  return booking;
-}
+import { assertThreadParticipant as assertParticipant, publishRealtime } from "@/lib/server/realtime";
 
 export async function GET(req: Request) {
   return run(async () => {
@@ -67,6 +58,15 @@ export async function POST(req: Request) {
         senderName: user.name,
         body: text,
       },
+    });
+    await publishRealtime(`chat:${threadId}`, "chat:message", {
+      id: message.id,
+      threadId,
+      fromId: user.id,
+      fromName: user.name,
+      role: user.role,
+      body: message.body,
+      ts: message.createdAt.getTime(),
     });
     return ok(message, { status: 201 });
   });

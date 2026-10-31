@@ -106,7 +106,6 @@ export function LiveWalkView() {
     const socket = getSocket();
     joinLiveWalk({
       walkId: walk.id,
-      status: walk.status,
       startLat: walk.startLat ?? undefined,
       startLng: walk.startLng ?? undefined,
     });

@@ -9,6 +9,7 @@ import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { notify } from "@/lib/server/notify";
+import { publishRealtime } from "@/lib/server/realtime";
 import { payerShare, postTxn } from "@/lib/server/ledger";
 import { formatBOB } from "@/lib/firu/money";
 import { ensurePendingPayment, polylineDistanceMeters } from "@/lib/server/bookingEngine";
@@ -272,6 +273,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         `${user.name} terminó el paseo de ${dogName}${track && track.length > 1 ? " con mapa del recorrido" : ""}. Mira las fotos y el reporte completo.${payment?.method === "CASH" ? ` Ten listo ${formatBOB(cashAmount)} en efectivo.` : ""}`,
         "bookings"
       );
+      await publishRealtime(`walk:${walk.id}`, "walk:ended", { walkId: walk.id });
       return ok(await withContext(await loadWalk(walk.id)));
     }
 

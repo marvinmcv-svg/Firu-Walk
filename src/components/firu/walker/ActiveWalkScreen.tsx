@@ -221,7 +221,7 @@ export function ActiveWalkScreen() {
     if (joinedRef.current === walkId) return;
     joinedRef.current = walkId;
     setPoints([]);
-    joinLiveWalk({ walkId, status: "IN_PROGRESS", startLat, startLng });
+    joinLiveWalk({ walkId, startLat, startLng });
     return () => {
       leaveLiveWalk(walkId);
     };

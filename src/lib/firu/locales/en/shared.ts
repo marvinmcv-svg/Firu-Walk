@@ -40,6 +40,7 @@ const shared: Record<string, string> = {
   "sh.chat.waGreeting": "Hi, I'm contacting you through FiruWalk 🐾",
   "sh.chat.waOpen": "Open chat in WhatsApp",
   "sh.chat.noSession": "Not signed in",
+  "sh.chat.sendErr": "Couldn't send the message",
   // PaymentDialog
   "sh.pay.qrSimulated": "Simulated QR code",
   "sh.pay.method.qr.label": "QR Simple",

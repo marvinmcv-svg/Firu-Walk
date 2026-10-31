@@ -1,7 +1,8 @@
 "use client";
 
 // In-app chat for a booking thread (owner ↔ walker).
-// History via REST /api/messages, realtime relay via the live-service socket,
+// History and sending via REST /api/messages (the API publishes each saved
+// message to the live-service room), live delivery via the socket,
 // WhatsApp deep-link fallback always available.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,11 +15,12 @@ import {
   getSocket,
   joinChat,
   leaveChat,
-  sendChat,
+  sendTyping,
   type ChatMessage,
 } from "@/lib/firu/socket";
 import { useFiruSession } from "@/lib/firu/session";
 import { useT } from "@/lib/firu/i18n";
+import { useToast } from "@/hooks/use-toast";
 import { Avatar, whatsappHref } from "./bits";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +62,7 @@ export function ChatDialog({
 }) {
   const user = useFiruSession((s) => s.user);
   const { t } = useT();
+  const { toast } = useToast();
   const qc = useQueryClient();
   const [draft, setDraft] = useState("");
   const [live, setLive] = useState<ChatMessage[]>([]);
@@ -77,20 +80,14 @@ export function ChatDialog({
   useEffect(() => {
     if (!open || !user || !threadId) return;
     const socket = getSocket();
-    joinChat({ threadId, userId: user.id, userName: user.name, role: user.role });
+    joinChat(threadId);
 
     const onMessage = (msg: ChatMessage) => {
       if (msg.threadId !== threadId) return;
+      // Already persisted by the API; dedupe against history by id.
       setLive((prev) =>
         prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
       );
-      // persist ownership: if I'm the sender, the REST layer already saved it;
-      // if I'm the receiver, save via REST so history stays durable.
-      if (msg.fromId !== user.id && !msg.id.startsWith("db-")) {
-        api
-          .post("/api/messages", { threadId, body: msg.body, clientId: msg.id })
-          .catch(() => undefined);
-      }
       setTyping(null);
     };
     const onTyping = (p: { threadId: string; userName: string }) => {
@@ -134,23 +131,15 @@ export function ChatDialog({
   const sendMut = useMutation({
     mutationFn: async (body: string) => {
       if (!user) throw new Error(t("sh.chat.noSession"));
-      // persist via REST, then relay live
-      const saved = await api
-        .post<DbMessage>("/api/messages", { threadId, body })
-        .catch(() => null);
-      sendChat({
-        threadId,
-        fromId: user.id,
-        fromName: user.name,
-        role: user.role,
-        body,
-      });
-      return saved;
+      // The API saves it and publishes it to the room (incl. this tab).
+      return api.post<DbMessage>("/api/messages", { threadId, body });
     },
     onSuccess: () => {
       setDraft("");
       qc.invalidateQueries({ queryKey: ["messages", threadId] });
     },
+    onError: (e: Error) =>
+      toast({ title: t("sh.chat.sendErr"), description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -235,12 +224,7 @@ export function ChatDialog({
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value);
-              if (user)
-                getSocket().emit("chat:typing", {
-                  threadId,
-                  userId: user.id,
-                  userName: user.name,
-                });
+              if (user) sendTyping(threadId);
             }}
             placeholder={t("sh.chat.placeholder")}
             className="rounded-full"

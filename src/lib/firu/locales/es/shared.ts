@@ -41,6 +41,7 @@ const shared: Record<string, string> = {
   "sh.chat.waGreeting": "Hola, te contacto por FiruWalk 🐾",
   "sh.chat.waOpen": "Abrir chat en WhatsApp",
   "sh.chat.noSession": "Sin sesión",
+  "sh.chat.sendErr": "No se pudo enviar el mensaje",
   // PaymentDialog
   "sh.pay.qrSimulated": "Código QR simulado",
   "sh.pay.method.qr.label": "QR Simple",

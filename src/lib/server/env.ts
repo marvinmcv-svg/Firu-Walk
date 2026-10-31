@@ -31,6 +31,12 @@ const EnvSchema = z.object({
   DEMO_MODE: z.enum(["true", "false"]).optional(),
   VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
 
+  // Realtime live-service: shared HS256 key (required in production when
+  // LIVE_SERVICE_INTERNAL_URL is set) and the service's internal publish URL.
+  REALTIME_SECRET: z.string().min(32, "REALTIME_SECRET must be at least 32 characters").optional(),
+  LIVE_SERVICE_INTERNAL_URL: optionalUrl,
+  NEXT_PUBLIC_LIVE_URL: optionalUrl,
+
   // Observability
   SENTRY_DSN: optionalUrl,
   NEXT_PUBLIC_SENTRY_DSN: optionalUrl,
@@ -62,6 +68,13 @@ const EnvSchema = z.object({
       code: "custom",
       path: ["SESSION_SECRET"],
       message: "SESSION_SECRET is required in production (openssl rand -base64 48)",
+    });
+  }
+  if (env.NODE_ENV === "production" && env.LIVE_SERVICE_INTERNAL_URL && !env.REALTIME_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REALTIME_SECRET"],
+      message: "REALTIME_SECRET is required in production when the live-service is configured",
     });
   }
   if (env.VERCEL_ENV === "production" && env.DEMO_MODE === "true") {

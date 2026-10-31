@@ -1,22 +1,87 @@
 "use client";
 
-// Socket.io singleton — connects through the Caddy gateway.
-// NEVER hardcode ports: only the XTransformPort query param (per gateway rules).
+// Socket.io singleton for the live-service.
+// Dev: through the gateway (NEVER hardcode ports: only the XTransformPort
+// query param). Production: NEXT_PUBLIC_LIVE_URL when the service has its own host.
+//
+// Auth: the handshake carries a short-lived token from /api/realtime/token
+// (fetched again on every reconnect); each room join carries a room ticket
+// from the same endpoint. Joined rooms are re-joined after a reconnect.
+// Chat messages are sent through the REST API, which publishes them.
 
 import { io, type Socket } from "socket.io-client";
+import { api } from "./api";
+import { useFiruSession } from "./session";
+
+const LIVE_URL = process.env.NEXT_PUBLIC_LIVE_URL;
 
 let socket: Socket | null = null;
+let socketUserId: string | null = null;
+
+type JoinAck = { ok: true } | { ok: false; error: string };
+
+/** Rooms this tab wants to be in → how to (re)join them. */
+const joined = new Map<string, () => void>();
+
+async function fetchToken(room?: string): Promise<string> {
+  const res = await api.post<{ token: string }>("/api/realtime/token", room ? { room } : {});
+  return res.token;
+}
 
 export function getSocket(): Socket {
+  const userId = useFiruSession.getState().user?.id ?? null;
+  if (socket && socketUserId !== userId) resetSocket();
   if (!socket) {
-    socket = io("/?XTransformPort=3003", {
+    socketUserId = userId;
+    socket = io(LIVE_URL || "/?XTransformPort=3003", {
       path: "/",
       transports: ["websocket", "polling"],
       reconnectionAttempts: 10,
       timeout: 8000,
+      auth: (cb) => {
+        fetchToken()
+          .then((token) => cb({ token }))
+          .catch(() => cb({}));
+      },
+    });
+    socket.on("connect", () => {
+      for (const rejoin of joined.values()) rejoin();
     });
   }
   return socket;
+}
+
+/** Drop the connection (logout / user switch); the next getSocket() reconnects. */
+export function resetSocket() {
+  socket?.disconnect();
+  socket = null;
+  socketUserId = null;
+  joined.clear();
+}
+
+// A different user (or none) must never keep the previous user's socket.
+useFiruSession.subscribe((s) => {
+  if (socket && (s.user?.id ?? null) !== socketUserId) resetSocket();
+});
+
+/** Fetch a ticket for `room` and emit `event`; logs (dev) when refused. */
+function joinRoom(room: string, event: string, payload: Record<string, unknown>) {
+  const join = () => {
+    const s = getSocket();
+    fetchToken(room)
+      .then((ticket) => {
+        if (!joined.has(room)) return; // left while fetching
+        s.emit(event, { ...payload, ticket }, (ack: JoinAck) => {
+          if (!ack?.ok && process.env.NODE_ENV !== "production") {
+            console.warn(`[live] ${event} refused`, ack);
+          }
+        });
+      })
+      .catch(() => undefined);
+  };
+  joined.set(room, join);
+  // On a fresh socket the "connect" handler joins; otherwise join now.
+  if (getSocket().connected) join();
 }
 
 export interface LivePoint {
@@ -37,43 +102,30 @@ export interface ChatMessage {
   ts: number;
 }
 
-/** Join a live-walk room; server simulates GPS while the walk is IN_PROGRESS. */
-export function joinLiveWalk(opts: {
-  walkId: string;
-  status: string;
-  startLat?: number;
-  startLng?: number;
-}) {
-  getSocket().emit("walk:join", opts);
+/** Join a live-walk room (owner, assigned walker or admin). */
+export function joinLiveWalk(opts: { walkId: string; startLat?: number; startLng?: number }) {
+  joinRoom(`walk:${opts.walkId}`, "walk:join", opts);
 }
 
 export function leaveLiveWalk(walkId: string) {
-  getSocket().emit("walk:leave", { walkId });
+  joined.delete(`walk:${walkId}`);
+  socket?.emit("walk:leave", { walkId });
 }
 
+/** Dev GPS simulator only: stop it before recording the final track. */
 export function stopLiveWalkSim(walkId: string) {
-  getSocket().emit("walk:stop", { walkId });
+  socket?.emit("walk:stop", { walkId });
 }
 
-export function joinChat(opts: {
-  threadId: string;
-  userId: string;
-  userName: string;
-  role: string;
-}) {
-  getSocket().emit("chat:join", opts);
+export function joinChat(threadId: string) {
+  joinRoom(`chat:${threadId}`, "chat:join", { threadId });
 }
 
 export function leaveChat(threadId: string) {
-  getSocket().emit("chat:leave", { threadId });
+  joined.delete(`chat:${threadId}`);
+  socket?.emit("chat:leave", { threadId });
 }
 
-export function sendChat(opts: {
-  threadId: string;
-  fromId: string;
-  fromName: string;
-  role: string;
-  body: string;
-}) {
-  getSocket().emit("chat:message", opts);
+export function sendTyping(threadId: string) {
+  socket?.emit("chat:typing", { threadId });
 }
