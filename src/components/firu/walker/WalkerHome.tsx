@@ -50,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { VerificationCard } from "@/components/firu/walker/VerificationCard";
 
 /** WalkDTO + compact booking context (shape of GET /api/walks?scope=…). */
 export interface WalkWithContext extends WalkDTO {
@@ -323,6 +324,9 @@ export function WalkerHome() {
           </div>
         </motion.div>
       )}
+
+      {/* Milestone 7: identity documents while the application is pending */}
+      {isPending && <VerificationCard />}
 
       {/* Paseo en curso */}
       {loadingActive ? (

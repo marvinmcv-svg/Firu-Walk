@@ -224,7 +224,7 @@ const landing: Record<string, string> = {
   "land.phoneFormat": "+591 70000000",
   // walker application dialog
   "land.apply.title": "Apply as a walker",
-  "land.apply.desc": "We review every application by hand (ID + references). Once approved, you start receiving bookings in your area.",
+  "land.apply.desc": "We review every application by hand. After sending it, sign in with your phone to upload your ID, a selfie and your background certificate.",
   "land.apply.name": "Full name",
   "land.apply.namePh": "e.g. Luis Quisbert",
   "land.apply.phone": "WhatsApp / mobile",
@@ -235,7 +235,7 @@ const landing: Record<string, string> = {
   "land.apply.bioPh": "e.g. shelter volunteer, big dogs, dog-handling experience…",
   "land.apply.submit": "Send application",
   "land.apply.successTitle": "Application sent! 🎉",
-  "land.apply.successDesc": "Our team will review your ID and references. Then sign in with your phone and code 123456 to check your status.",
+  "land.apply.successDesc": "Now sign in with your phone number to upload your ID, selfie and background certificate. That's what we need to review your application.",
   "land.apply.errorTitle": "Couldn't send application",
   // intro splash
   "intro.skip": "Skip",

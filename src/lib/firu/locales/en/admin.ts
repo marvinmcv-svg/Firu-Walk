@@ -356,6 +356,27 @@ const admin: Record<string, string> = {
   "adm.cfg.f.expiryReminder": "Expiry reminder",
   "adm.cfg.f.expiryReminderHint": "Days before the plan ends (WhatsApp + app). 0 = off",
   "adm.cfg.f.qrExpiry": "QR validity",
+  // Milestone 7 — walker vetting
+  "adm.vet.open": "Review verification",
+  "adm.vet.title": "{name}'s verification",
+  "adm.vet.desc": "Document links expire in 5 minutes and every view is logged.",
+  "adm.vet.docs": "Documents",
+  "adm.vet.missing": "Missing: {list}",
+  "adm.vet.open1": "Open",
+  "adm.vet.ci": "ID",
+  "adm.vet.ciNone": "No ID on file",
+  "adm.vet.checklist": "Checklist",
+  "adm.vet.c.identityOk": "Identity matches (ID ↔ selfie)",
+  "adm.vet.c.backgroundOk": "Background certificate checked",
+  "adm.vet.c.interviewDone": "Interview done",
+  "adm.vet.c.trialWalkDone": "Trial walk done",
+  "adm.vet.notes": "Internal notes",
+  "adm.vet.saveNotes": "Save notes",
+  "adm.vet.ready": "Ready to approve",
+  "adm.vet.notReady": "Complete documents and checklist to approve",
+  "adm.vet.progress": "Checklist {done}/4",
+  "adm.vet.storageOff": "Document storage isn't configured yet.",
+  "adm.vet.loadErr": "Couldn't load the verification",
 };
 
 export default admin;

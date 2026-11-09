@@ -226,7 +226,7 @@ const landing: Record<string, string> = {
   "land.phoneFormat": "+591 70000000",
   // walker application dialog
   "land.apply.title": "Aplica como paseador",
-  "land.apply.desc": "Revisamos cada aplicación a mano (documento + referencias). Al ser aprobado, empiezas a recibir reservas de tu zona.",
+  "land.apply.desc": "Revisamos cada solicitud a mano. Después de enviarla, ingresa con tu celular para subir tu CI, una selfie y tu certificado de antecedentes.",
   "land.apply.name": "Nombre completo",
   "land.apply.namePh": "Ej: Luis Quisbert",
   "land.apply.phone": "WhatsApp / celular",
@@ -237,7 +237,7 @@ const landing: Record<string, string> = {
   "land.apply.bioPh": "Ej: voluntario en refugio, perros grandes, primeras ropas caninas…",
   "land.apply.submit": "Enviar aplicación",
   "land.apply.successTitle": "¡Aplicación enviada! 🎉",
-  "land.apply.successDesc": "Nuestro equipo revisará tu documento y referencias. Ingresa luego con tu número y código 123456 para ver tu estado.",
+  "land.apply.successDesc": "Ahora ingresa con tu número de celular para subir tu CI, selfie y certificado de antecedentes. Con eso revisamos tu solicitud.",
   "land.apply.errorTitle": "No se pudo enviar",
   // intro splash
   "intro.skip": "Saltar",

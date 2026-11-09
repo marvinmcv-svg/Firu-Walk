@@ -356,6 +356,27 @@ const admin: Record<string, string> = {
   "adm.cfg.f.expiryReminder": "Aviso de vencimiento",
   "adm.cfg.f.expiryReminderHint": "Días antes de que termine el plan (WhatsApp + app). 0 = apagado",
   "adm.cfg.f.qrExpiry": "Vigencia del QR",
+  // Milestone 7 — walker vetting
+  "adm.vet.open": "Revisar verificación",
+  "adm.vet.title": "Verificación de {name}",
+  "adm.vet.desc": "Los enlaces a documentos caducan en 5 minutos y cada apertura queda registrada.",
+  "adm.vet.docs": "Documentos",
+  "adm.vet.missing": "Falta: {list}",
+  "adm.vet.open1": "Abrir",
+  "adm.vet.ci": "CI",
+  "adm.vet.ciNone": "Sin CI registrado",
+  "adm.vet.checklist": "Checklist",
+  "adm.vet.c.identityOk": "La identidad coincide (CI ↔ selfie)",
+  "adm.vet.c.backgroundOk": "Certificado de antecedentes revisado",
+  "adm.vet.c.interviewDone": "Entrevista realizada",
+  "adm.vet.c.trialWalkDone": "Paseo de prueba realizado",
+  "adm.vet.notes": "Notas internas",
+  "adm.vet.saveNotes": "Guardar notas",
+  "adm.vet.ready": "Todo listo para aprobar",
+  "adm.vet.notReady": "Completa documentos y checklist para aprobar",
+  "adm.vet.progress": "Checklist {done}/4",
+  "adm.vet.storageOff": "El almacenamiento de documentos aún no está configurado.",
+  "adm.vet.loadErr": "No se pudo cargar la verificación",
 };
 
 export default admin;

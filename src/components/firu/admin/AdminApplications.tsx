@@ -15,10 +15,12 @@ import {
   MapPin,
   Phone,
   RefreshCw,
+  ShieldCheck,
   ShieldOff,
   Star,
 } from "lucide-react";
 import { useState } from "react";
+import { VettingDialog } from "@/components/firu/admin/VettingDialog";
 import { api, qk } from "@/lib/firu/api";
 import type { WalkerProfileDTO } from "@/lib/firu/types";
 import { fmtRating } from "@/lib/firu/money";
@@ -90,12 +92,14 @@ function WalkerCard({
   w,
   busy,
   onApprove,
+  onReview,
   onReason,
   onReactivate,
 }: {
   w: AdminWalkerDTO;
   busy: boolean;
   onApprove: (w: AdminWalkerDTO) => void;
+  onReview: (w: AdminWalkerDTO) => void;
   onReason: (w: AdminWalkerDTO, action: "reject" | "suspend") => void;
   onReactivate: (w: AdminWalkerDTO) => void;
 }) {
@@ -120,7 +124,7 @@ function WalkerCard({
       >
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start gap-3">
-            <Avatar src={w.selfieUrl ?? w.avatarUrl} name={w.name} size="lg" />
+            <Avatar src={w.avatarUrl} name={w.name} size="lg" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="text-base">{w.name}</CardTitle>
@@ -154,7 +158,12 @@ function WalkerCard({
             </div>
             <div className="rounded-xl bg-secondary px-3 py-2 flex items-center gap-1.5 min-w-0">
               <IdCard className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="font-bold truncate">{w.idDocNumber ?? t("adm.apps.noId")}</span>
+              <span className="font-bold truncate">
+                {w.idDocLast4 ? `•••• ${w.idDocLast4}` : t("adm.apps.noId")}
+              </span>
+              <span className="ml-auto shrink-0 font-semibold text-muted-foreground">
+                {t("adm.vet.progress", { done: reviewDone(w) })}
+              </span>
             </div>
           </div>
 
@@ -184,9 +193,9 @@ function WalkerCard({
                     size="sm"
                     className="rounded-full"
                     disabled={busy}
-                    onClick={() => onApprove(w)}
+                    onClick={() => onReview(w)}
                   >
-                    <BadgeCheck className="size-4" /> {t("adm.apps.approve")}
+                    <ShieldCheck className="size-4" /> {t("adm.vet.open")}
                   </Button>
                   <Button
                     size="sm"
@@ -233,6 +242,11 @@ function WalkerCard({
       </Card>
     </motion.div>
   );
+}
+
+function reviewDone(w: AdminWalkerDTO): number {
+  const r = w.review;
+  return [r.identityOk, r.backgroundOk, r.interviewDone, r.trialWalkDone].filter(Boolean).length;
 }
 
 /** Local short money ("15" from 1500 cents) — prices read compactly here. */
@@ -293,6 +307,7 @@ export function AdminApplications() {
 
   // Dialogs state
   const [approveTarget, setApproveTarget] = useState<AdminWalkerDTO | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<AdminWalkerDTO | null>(null);
   const [reasonTarget, setReasonTarget] = useState<{
     walker: AdminWalkerDTO;
     action: "reject" | "suspend";
@@ -381,6 +396,7 @@ export function AdminApplications() {
               w={w}
               busy={pendingId === w.id || act.isPending}
               onApprove={setApproveTarget}
+              onReview={setReviewTarget}
               onReason={openReason}
               onReactivate={(walker) =>
                 act.mutate({ id: walker.id, action: "reactivate", name: walker.name })
@@ -389,6 +405,16 @@ export function AdminApplications() {
           ))}
         </div>
       )}
+
+      {/* Milestone 7: documents + checklist; approve from inside once ready */}
+      <VettingDialog
+        walker={reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        onApprove={() => {
+          setApproveTarget(reviewTarget);
+          setReviewTarget(null);
+        }}
+      />
 
       {/* Approve confirmation */}
       <AlertDialog
