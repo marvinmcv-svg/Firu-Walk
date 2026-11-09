@@ -119,6 +119,12 @@ describe("templates", () => {
     payment_received: { amountCents: 1575, dogName: "Max" },
     payout_sent: { amountCents: 12000, method: "BANK", reference: "TRX-1" },
     plan_expiring: { planName: "Plan 20", periodEnd: new Date("2026-11-30T15:00:00Z"), walksLeft: 4 },
+    walk_reminder: { dogName: "Max", zoneName: "Equipetrol", startsAt: new Date("2026-11-30T15:00:00Z"), walkId: "w1" },
+    walk_sos: { walkerName: "Luis", dogName: "Max", walkId: "w1" },
+    walk_late: { walkerName: "Luis", dogName: "Max", walkId: "w1", minutesLate: 12 },
+    backup_offer: { dogName: "Max", zoneName: "Equipetrol", startsAt: new Date("2026-11-30T15:00:00Z"), durationMin: 30, minutesToAccept: 10 },
+    walk_reassigned: { walkerName: "Gabriela", dogName: "Max", walkId: "w1" },
+    backup_none: { dogName: "Max", walkId: "w1" },
   };
   const docs = readFileSync("docs/WHATSAPP_TEMPLATES.md", "utf8");
 
