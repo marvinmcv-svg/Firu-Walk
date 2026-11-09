@@ -9,6 +9,7 @@ const shell = {
   "shell.nav.earnings": "Earnings",
   "shell.nav.panel": "Dashboard",
   "shell.nav.applications": "Applications",
+  "shell.nav.ops": "Ops",
   "shell.nav.cases": "Cases",
   "shell.nav.payments": "Payments",
   "shell.nav.users": "Users",

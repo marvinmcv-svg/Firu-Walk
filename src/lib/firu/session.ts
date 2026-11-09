@@ -31,7 +31,8 @@ export type AdminView =
   | "disputes"
   | "users"
   | "payments"
-  | "config";
+  | "config"
+  | "ops";
 
 interface FiruState {
   user: SessionUserDTO | null;

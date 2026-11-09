@@ -82,6 +82,18 @@ const srv = {
   "Indica la fase (start o end) y un motivo de al menos 5 caracteres.": "Give the phase (start or end) and a reason of at least 5 characters.",
   "Solo se puede autorizar el inicio de un paseo programado.": "Only a scheduled walk's start can be authorized.",
   "Solo se puede autorizar el fin de un paseo en curso.": "Only a running walk's end can be authorized.",
+  "Solo el paseador asignado puede activar el SOS.": "Only the assigned walker can trigger SOS.",
+  "El SOS está disponible durante un paseo en curso. Si es urgente, escríbenos por WhatsApp.": "SOS is available during a walk in progress. If it's urgent, message us on WhatsApp.",
+  "Los datos del SOS son inválidos.": "The SOS data is invalid.",
+  "Este paseo de respaldo no está ofrecido a ti.": "This backup walk isn't offered to you.",
+  "La oferta de respaldo ya expiró.": "The backup offer has expired.",
+  "No puedes tomar este paseo ahora (tienes otro paseo cerca de esa hora o tu cuenta no está activa).": "You can't take this walk now (you have another walk around that time or your account isn't active).",
+  "Indica una acción: accept o decline.": "Choose an action: accept or decline.",
+  "Describe cómo se resolvió (mínimo 3 caracteres).": "Describe how it was resolved (at least 3 characters).",
+  "El incidente ya estaba resuelto.": "The incident was already resolved.",
+  "Incidente no encontrado.": "Incident not found.",
+  "Veterinaria no encontrada.": "Vet not found.",
+  "Los números de operaciones deben tener formato +591XXXXXXXX, separados por coma.": "Ops numbers must look like +591XXXXXXXX, separated by commas.",
 } as const;
 
 export default srv;

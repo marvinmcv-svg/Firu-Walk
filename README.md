@@ -136,6 +136,15 @@ To go live you need a WhatsApp Business **authentication** template with a copy-
 - **Anti-disintermediation:** owners and walkers never receive each other's phone number (only admins do). Chat messages with a phone number or a `wa.me` / WhatsApp link are delivered but flagged (`Message.contactFlag`), and the chat shows a gentle *"Mantenlo en FiruWalk"* reminder — also while typing.
 - Tests: `tests/api/notifications.test.ts` (each event → its template with the mock sender; preferences; push; phone privacy; chat flag).
 
+## 🚨 Safety & ops
+
+- **SOS** (walker, during a walk): `POST /api/walks/[id]/sos` logs an `IncidentLog` with the walker's position (or the last GPS fix), sends the owner the `walk_sos` WhatsApp template with the live-map link, alerts every admin (in-app + push) and the **ops phones** (Admin → Configuración → *Seguridad*, `safety.opsWhatsApp`) with a map link, and shows the walker the **nearest vets** (admin-managed in Admin → Operaciones → *Veterinarias*). Pressing it again within 10 min doesn't re-alert. The WhatsApp-to-support button always stays available.
+- **Late start**: a walk not started `safety.lateStartMinutes` (10) after its time → `LATE` incident, owner gets `walk_late`, ops get an alert, and the walk is offered to **backup walkers one at a time** (the booking's candidate chain, then fresh same-zone matches; ACTIVE, not over the cash-debt limit, no walk around that time), each with `safety.backupOfferMinutes` to take it from their home screen. Accepting reassigns that walk (`originalWalkerId` keeps who was late); the original walker starting the walk cancels the offer; an exhausted chain tells the owner (`backup_none`) and ops.
+- **Reminders**: walkers get `walk_reminder` `safety.reminderMinutesBefore` (60) before each walk.
+- **Admin → Operaciones**: live map of walks in progress (open SOS in red), late walks with their backup state, incident queue (resolve with a note, audit-logged), walker leaderboard (on-time %, rating, no-shows, SOS) and job health.
+- **Scheduled jobs**: `GET /api/cron/minute` (accept timeouts, late starts, backup offers, reminders), `/api/cron/daily`, `/api/cron/payouts` — all `CRON_SECRET`-protected, single-flight (`JobLock`) with history (`JobRun`). The minute job is driven by the **worker** (`mini-services/live-service/worker.ts`): it runs inside the live-service when `WORKER_APP_URL` + `CRON_SECRET` are set, or standalone with `bun run worker`. Vercel Cron still runs daily/payouts. Until a worker is deployed, API traffic kicks the minute job in the background when its heartbeat is >3 min old (Operaciones shows this as *fallback*).
+- Tests: `tests/api/safety.test.ts`.
+
 ## ☁️ Deployment (Vercel)
 
 Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).

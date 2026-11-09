@@ -293,6 +293,10 @@
 .leaflet-container {
   background: oklch(0.93 0.02 150);
   font-family: var(--font-app-sans), sans-serif;
+  /* Own stacking context: Leaflet panes/controls (z-index 400–1000) must not
+     paint over dialogs and sheets (z-50). */
+  isolation: isolate;
+  z-index: 0;
 }
 .dark .leaflet-container {
   background: oklch(0.25 0.02 155);

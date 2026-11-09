@@ -86,6 +86,21 @@ def test_admin_operations(page, shot, errors):
     expect(page.get_by_text("Plan Mensual 20 paseos", exact=False).first).to_be_visible()
     shot("09-payments")
 
+    # ---------- operations (Milestone 8): live map, incidents, ranking, vets ----------
+    switch_view(page, "Operaciones")
+    expect(page.get_by_test_id("worker-status")).to_be_visible()
+    expect(page.get_by_text("Paseos en curso", exact=False).first).to_be_visible()
+    shot("09-ops-live")
+    page.get_by_role("tab", name="Incidentes").click()
+    page.wait_for_timeout(600)
+    shot("09-ops-incidents")
+    page.get_by_role("tab", name="Ranking").click()
+    expect(page.get_by_test_id("leaderboard")).to_be_visible()
+    expect(page.get_by_test_id("leaderboard")).to_contain_text("Luis Quisbert")
+    page.get_by_role("tab", name="Veterinarias").click()
+    expect(page.get_by_text("Veterinaria Demo Equipetrol", exact=False).first).to_be_visible()
+    shot("09-ops-vets")
+
     # ---------- users ----------
     switch_view(page, "Usuarios")
     expect(page.get_by_text("Billetera", exact=False).first).to_be_visible()

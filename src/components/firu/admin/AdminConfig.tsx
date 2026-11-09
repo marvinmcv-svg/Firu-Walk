@@ -14,6 +14,7 @@ import {
   Percent,
   PiggyBank,
   ScrollText,
+  Siren,
   Settings2,
   Navigation,
   Sparkles,
@@ -51,6 +52,8 @@ interface FieldDef {
   kind: FieldKind;
   unit?: string; // suffix hint, e.g. "%" / "min" / "Bs"
   hint?: string;
+  /** Text field that may be saved empty (turns the feature off). */
+  optional?: boolean;
 }
 
 /** Config value → editable string for the input. */
@@ -64,7 +67,7 @@ function valueToString(f: FieldDef, v: number | string | undefined): string {
 /** Edited string → typed value for the PATCH body. Returns null if invalid. */
 function stringToValue(f: FieldDef, s: string): number | string | null {
   const t = s.trim();
-  if (f.kind === "text" || f.kind === "textarea") return t.length ? t : null;
+  if (f.kind === "text" || f.kind === "textarea") return t.length || f.optional ? t : null;
   if (f.kind === "bs") {
     if (!/^[0-9]+([.,][0-9]{1,2})?$/.test(t)) return null;
     const cents = parseBOB(t);
@@ -409,6 +412,20 @@ export function AdminConfig() {
             { key: "qrExpiryMinutes", label: t("adm.cfg.f.qrExpiry"), kind: "num", unit: "min" },
           ]}
           value={cfg.payments}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.safety)}
+          section="safety"
+          icon={Siren}
+          title={t("adm.cfg.safetyTitle")}
+          description={t("adm.cfg.safetyDesc")}
+          fields={[
+            { key: "lateStartMinutes", label: t("adm.cfg.f.lateStart"), kind: "num", unit: "min", hint: t("adm.cfg.f.lateStartHint") },
+            { key: "backupOfferMinutes", label: t("adm.cfg.f.backupOffer"), kind: "num", unit: "min", hint: t("adm.cfg.f.backupOfferHint") },
+            { key: "reminderMinutesBefore", label: t("adm.cfg.f.reminder"), kind: "num", unit: "min", hint: t("adm.cfg.f.reminderHint") },
+            { key: "opsWhatsApp", label: t("adm.cfg.f.opsWhatsApp"), kind: "textarea", optional: true, hint: t("adm.cfg.f.opsWhatsAppHint") },
+          ]}
+          value={cfg.safety}
         />
         <DemoCard demo={cfg.demo} />
       </div>

@@ -50,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { BackupOffers } from "@/components/firu/walker/BackupOffers";
 import { VerificationCard } from "@/components/firu/walker/VerificationCard";
 
 /** WalkDTO + compact booking context (shape of GET /api/walks?scope=…). */
@@ -379,6 +380,9 @@ export function WalkerHome() {
           </div>
         </motion.section>
       ) : null}
+
+      {/* Milestone 8: urgent backup walks offered to me */}
+      {actionsAllowed && <BackupOffers />}
 
       {/* Solicitudes pendientes */}
       <motion.section

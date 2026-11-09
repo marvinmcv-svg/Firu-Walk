@@ -119,12 +119,33 @@ const walker: Record<string, string> = {
 
   // SOS dialog
   "wlk.sos.title": "¿Emergencia en el paseo?",
-  "wlk.sos.desc": "Abriremos WhatsApp con nuestro equipo de soporte para ayudarte ya mismo. El paseo sigue corriendo mientras tanto.",
+  "wlk.sos.desc": "Avisaremos de inmediato al dueño y a nuestro equipo con tu ubicación. El paseo sigue corriendo mientras tanto.",
+  "wlk.sos.notePh": "¿Qué pasó? (opcional) — ej. se cortó una pata, se escapó, me siento mal",
+  "wlk.sos.send": "Enviar SOS",
+  "wlk.sos.sending": "Enviando alerta…",
+  "wlk.sos.errSend": "No pudimos enviar la alerta ({msg}). Escríbenos por WhatsApp ahora.",
+  "wlk.sos.noWalk": "No hay un paseo en curso.",
+  "wlk.sos.sentTitle": "Alerta enviada",
+  "wlk.sos.sentDesc": "El dueño y nuestro equipo ya fueron avisados. Te contactaremos enseguida — mantén el teléfono a mano.",
+  "wlk.sos.sentRepeated": "Ya habías enviado la alerta: nuestro equipo está atendiendo. Actualizamos tu ubicación.",
+  "wlk.sos.locationShared": "Tu ubicación se compartió con el equipo.",
+  "wlk.sos.noLocation": "No pudimos leer tu ubicación: dila por WhatsApp.",
+  "wlk.sos.vetsTitle": "Veterinarias más cercanas",
+  "wlk.sos.vetsEmpty": "Aún no hay veterinarias cargadas. Pide ayuda por WhatsApp.",
+  "wlk.sos.call": "Llamar",
+  "wlk.sos.directions": "Cómo llegar",
   "wlk.sos.waMsg": "🆘 SOS — Emergencia en el paseo de {name} (FiruWalk)",
   "wlk.sos.waFallback": "mi paseo",
-  "wlk.sos.toastTitle": "Soporte notificado 🚨",
-  "wlk.sos.toastDesc": "Te contactaremos de inmediato.",
-  "wlk.sos.contact": "Contactar soporte",
+  "wlk.sos.contact": "WhatsApp a soporte",
+
+  // Backup walk offers (late walker)
+  "wlk.backup.title": "Paseo de respaldo urgente",
+  "wlk.backup.desc": "El paseador asignado no llegó. Si lo tomas, el paseo es tuyo y ves la dirección al aceptar.",
+  "wlk.backup.accept": "Tomar paseo",
+  "wlk.backup.decline": "No puedo",
+  "wlk.backup.acceptedTitle": "¡Paseo tuyo! 🐾",
+  "wlk.backup.acceptedDesc": "Aparece en tus paseos de hoy. Toca \"Voy en camino\" al salir.",
+  "wlk.backup.errTitle": "No se pudo responder",
 
   // leave-while-live dialog
   "wlk.back.title": "¿Salir del paseo?",

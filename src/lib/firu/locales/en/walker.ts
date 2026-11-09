@@ -118,12 +118,33 @@ const walker: Record<string, string> = {
 
   // SOS dialog
   "wlk.sos.title": "Emergency during the walk?",
-  "wlk.sos.desc": "We'll open WhatsApp with our support team to help you right away. The walk keeps running in the meantime.",
+  "wlk.sos.desc": "We'll alert the owner and our team right away with your location. The walk keeps running in the meantime.",
+  "wlk.sos.notePh": "What happened? (optional) — e.g. cut paw, dog ran off, I feel unwell",
+  "wlk.sos.send": "Send SOS",
+  "wlk.sos.sending": "Sending alert…",
+  "wlk.sos.errSend": "We couldn't send the alert ({msg}). Message us on WhatsApp now.",
+  "wlk.sos.noWalk": "There's no walk in progress.",
+  "wlk.sos.sentTitle": "Alert sent",
+  "wlk.sos.sentDesc": "The owner and our team have been alerted. We'll contact you right away — keep your phone at hand.",
+  "wlk.sos.sentRepeated": "You already sent the alert: our team is on it. We updated your location.",
+  "wlk.sos.locationShared": "Your location was shared with the team.",
+  "wlk.sos.noLocation": "We couldn't read your location: tell us on WhatsApp.",
+  "wlk.sos.vetsTitle": "Nearest vets",
+  "wlk.sos.vetsEmpty": "No vets loaded yet. Ask for help on WhatsApp.",
+  "wlk.sos.call": "Call",
+  "wlk.sos.directions": "Directions",
   "wlk.sos.waMsg": "🆘 SOS — Emergency during {name}'s walk (FiruWalk)",
   "wlk.sos.waFallback": "my walk",
-  "wlk.sos.toastTitle": "Support notified 🚨",
-  "wlk.sos.toastDesc": "We'll contact you right away.",
-  "wlk.sos.contact": "Contact support",
+  "wlk.sos.contact": "WhatsApp support",
+
+  // Backup walk offers (late walker)
+  "wlk.backup.title": "Urgent backup walk",
+  "wlk.backup.desc": "The assigned walker didn't show up. If you take it, the walk is yours and you'll see the address once you accept.",
+  "wlk.backup.accept": "Take walk",
+  "wlk.backup.decline": "I can't",
+  "wlk.backup.acceptedTitle": "The walk is yours! 🐾",
+  "wlk.backup.acceptedDesc": "It's in today's walks. Tap \"On my way\" when you leave.",
+  "wlk.backup.errTitle": "Couldn't respond",
 
   // leave-while-live dialog
   "wlk.back.title": "Leave the walk?",

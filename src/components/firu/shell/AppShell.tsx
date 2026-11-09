@@ -23,6 +23,7 @@ import {
   PawPrint,
   Search,
   Settings2,
+  Radar,
   ShieldAlert,
   Sun,
   UserRound,
@@ -72,6 +73,7 @@ import { AdminDisputes } from "@/components/firu/admin/AdminDisputes";
 import { AdminUsers } from "@/components/firu/admin/AdminUsers";
 import { AdminConfig } from "@/components/firu/admin/AdminConfig";
 import { AdminPayments } from "@/components/firu/admin/AdminPayments";
+import { AdminOps } from "@/components/firu/admin/AdminOps";
 
 const NAV = {
   OWNER: [
@@ -90,6 +92,7 @@ const NAV = {
     { view: "dashboard", labelKey: "shell.nav.panel", icon: LayoutDashboard },
     { view: "applications", labelKey: "shell.nav.applications", icon: ClipboardList },
     { view: "bookings", labelKey: "shell.nav.bookings", icon: CalendarDays },
+    { view: "ops", labelKey: "shell.nav.ops", icon: Radar },
     { view: "disputes", labelKey: "shell.nav.cases", icon: ShieldAlert },
     { view: "users", labelKey: "shell.nav.users", icon: Users },
     { view: "payments", labelKey: "shell.nav.payments", icon: Landmark },
@@ -211,6 +214,7 @@ export function AppShell() {
       case "dashboard": return <AdminDashboard />;
       case "applications": return <AdminApplications />;
       case "bookings": return <AdminBookings />;
+      case "ops": return <AdminOps />;
       case "disputes": return <AdminDisputes />;
       case "users": return <AdminUsers />;
       case "payments": return <AdminPayments />;
@@ -296,7 +300,7 @@ export function AppShell() {
 
       {/* Bottom nav (mobile) — iOS tab bar: glass material + spring pill indicator */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 firu-glass border-t border-border/50 pb-safe">
-        {/* ADMIN has 7 destinations → two rows of 4 instead of a clipped single row */}
+        {/* ADMIN has 8 destinations → two rows of 4 instead of a clipped single row */}
         <div
           className={cn(
             "grid max-w-lg mx-auto",

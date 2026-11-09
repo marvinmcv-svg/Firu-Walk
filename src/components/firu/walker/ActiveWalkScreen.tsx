@@ -59,6 +59,7 @@ import {
 } from "@/components/firu/shared/bits";
 import { WalkMap } from "@/components/firu/shared/WalkMap";
 import { ReportCardView } from "@/components/firu/shared/ReportCardView";
+import { SosSheet } from "@/components/firu/walker/SosSheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -686,39 +687,15 @@ export function ActiveWalkScreen() {
         </DialogContent>
       </Dialog>
 
-      {/* SOS confirm */}
-      <AlertDialog open={sosOpen} onOpenChange={setSosOpen}>
-        <AlertDialogContent className="rounded-3xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Siren className="size-5" /> {t("wlk.sos.title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("wlk.sos.desc")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full">{t("c.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                window
-                  .open(
-                    whatsappHref(
-                      config?.platform.supportWhatsApp ?? "",
-                      t("wlk.sos.waMsg", { name: dog?.name ?? t("wlk.sos.waFallback") })
-                    ),
-                    "_blank"
-                  )
-                  ?.focus();
-                toast({ title: t("wlk.sos.toastTitle"), description: t("wlk.sos.toastDesc") });
-              }}
-            >
-              {t("wlk.sos.contact")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* SOS: alerts owner + ops with the position, then nearest vets */}
+      <SosSheet
+        open={sosOpen}
+        onOpenChange={setSosOpen}
+        walkId={phase === "live" ? (detail?.id ?? activeWalk?.id ?? startedWalkId) : null}
+        dogName={dog?.name ?? ""}
+        pickup={pickup}
+        supportWhatsApp={config?.platform.supportWhatsApp ?? ""}
+      />
 
       {/* Back while in progress */}
       <AlertDialog open={backOpen} onOpenChange={setBackOpen}>
