@@ -161,6 +161,9 @@ async function main() {
     "otpChallenge",
     "rateLimit",
     "auditLog",
+    "jobRun",
+    "jobLock",
+    "vet",
     "message",
     "notificationDelivery",
     "pushSubscription",
@@ -236,6 +239,12 @@ async function main() {
     },
     plans: { unusedWalkPolicy: "forfeit" }, // ASSUMPTION: unused walks expire with the period
     payments: { qrExpiryMinutes: 30 },
+    safety: {
+      lateStartMinutes: 10, // walk not started 10 min after its time → owner + ops alert, backup chain
+      backupOfferMinutes: 10, // ASSUMPTION: each backup walker gets 10 min to take it
+      reminderMinutesBefore: 60,
+      opsWhatsApp: "", // ops phones for SOS / late alerts — set in Admin → Configuración
+    },
   };
   for (const [key, value] of Object.entries(configData)) {
     await db.config.create({ data: { key, valueJson: JSON.stringify(value) } });
@@ -1161,6 +1170,17 @@ async function main() {
       data: { actorId, action, entity, entityId, createdAt: at, detail: null },
     });
   }
+
+  // ----------------------------------------------------------------
+  // Vets (DEMO placeholders — admins add the real clinics in Operaciones)
+  // ----------------------------------------------------------------
+  await db.vet.createMany({
+    data: [
+      { name: "Veterinaria Demo Equipetrol (24 h)", phone: "+59170000901", address: "Av. San Martín, Equipetrol (demo)", lat: -17.7665, lng: -63.1952, open24h: true, notes: "Datos de demostración" },
+      { name: "Clínica Demo Las Palmas", phone: "+59170000902", address: "Av. Roca y Coronado, Las Palmas (demo)", lat: -17.7955, lng: -63.2135, open24h: false, notes: "Datos de demostración" },
+      { name: "Veterinaria Demo Norte", phone: "+59170000903", address: "Av. Banzer 4to anillo (demo)", lat: -17.7505, lng: -63.1785, open24h: true, notes: "Datos de demostración" },
+    ],
+  });
 
   // ----------------------------------------------------------------
   console.log("✅ Seed complete:");

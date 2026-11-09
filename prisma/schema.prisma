@@ -392,34 +392,45 @@ model Booking {
 // ---------------------------------------------------------------
 
 model Walk {
-  id             String     @id @default(cuid())
-  bookingId      String
-  walkerId       String
-  ownerId        String
-  dogId          String
-  zoneId         String
-  status         WalkStatus @default(SCHEDULED)
-  scheduledStart DateTime
-  durationMin    Int        @default(30)
-  startedAt      DateTime?
-  endedAt        DateTime?
-  startLat       Float?
-  startLng       Float?
-  endLat         Float?
-  endLng         Float?
-  distanceMeters Float      @default(0) // server-computed from accepted track points
-  trackJson      String     @default("[]") // denormalized polyline of accepted points [[lat,lng],...]
+  id                   String     @id @default(cuid())
+  bookingId            String
+  walkerId             String
+  ownerId              String
+  dogId                String
+  zoneId               String
+  status               WalkStatus @default(SCHEDULED)
+  scheduledStart       DateTime
+  durationMin          Int        @default(30)
+  startedAt            DateTime?
+  endedAt              DateTime?
+  startLat             Float?
+  startLng             Float?
+  endLat               Float?
+  endLng               Float?
+  distanceMeters       Float      @default(0) // server-computed from accepted track points
+  trackJson            String     @default("[]") // denormalized polyline of accepted points [[lat,lng],...]
   // GPS integrity (Milestone 4)
-  startDistanceM Float? // walker → pickup distance when the walk started
-  endDistanceM   Float? // walker → pickup distance when the walk ended
-  rejectedPoints Int        @default(0) // points refused by validation (speed, teleport, …)
-  mockLocation   Boolean    @default(false) // device reported a mock/simulated location
+  startDistanceM       Float? // walker → pickup distance when the walk started
+  endDistanceM         Float? // walker → pickup distance when the walk ended
+  rejectedPoints       Int        @default(0) // points refused by validation (speed, teleport, …)
+  mockLocation         Boolean    @default(false) // device reported a mock/simulated location
   // Admin geofence overrides: the reason, set by an admin, consumed on use.
-  startOverride  String?
-  endOverride    String?
-  cancelReason   String?
-  onTheWayAt     DateTime? // walker tapped "on my way" (owner notified once)
-  createdAt      DateTime   @default(now())
+  startOverride        String?
+  endOverride          String?
+  cancelReason         String?
+  onTheWayAt           DateTime? // walker tapped "on my way" (owner notified once)
+  // Safety & ops (Milestone 8) — set by the scheduled worker.
+  reminderSentAt       DateTime? // walker reminded before the walk
+  lateAlertedAt        DateTime? // not started N min after scheduledStart: owner + ops alerted
+  // Backup walker chain for a late start: ranked walker user ids, the index
+  // currently being offered, and that offer's deadline.
+  backupCandidatesJson String     @default("[]")
+  backupIdx            Int        @default(-1)
+  backupWalkerId       String?
+  backupExpiresAt      DateTime?
+  originalWalkerId     String? // walker who was late when a backup took the walk
+  reassignedAt         DateTime?
+  createdAt            DateTime   @default(now())
 
   booking     Booking          @relation(fields: [bookingId], references: [id])
   walker      User             @relation("WalkWalker", fields: [walkerId], references: [id])
@@ -432,6 +443,8 @@ model Walk {
   @@index([walkerId, status])
   @@index([ownerId, status])
   @@index([bookingId])
+  @@index([status, scheduledStart])
+  @@index([backupWalkerId])
 }
 
 // One GPS fix uploaded by the walker app. `seq` is assigned by the device
@@ -467,16 +480,43 @@ model ReportCard {
   walk Walk @relation(fields: [walkId], references: [id])
 }
 
+// Safety incidents: SOS from a walker, late starts detected by the worker,
+// injuries… Shown in the admin incident queue until resolved.
 model IncidentLog {
-  id         String         @id @default(cuid())
-  walkId     String?
-  reportedBy String // userId
-  type       IncidentType
-  note       String
-  status     IncidentStatus @default(OPEN)
-  createdAt  DateTime       @default(now())
+  id            String         @id @default(cuid())
+  walkId        String?
+  reportedBy    String // userId, or "system" for worker-detected incidents
+  subjectUserId String? // walker on duty when it happened (leaderboard)
+  type          IncidentType
+  note          String
+  status        IncidentStatus @default(OPEN)
+  lat           Float? // reporter position at the time (SOS)
+  lng           Float?
+  resolution    String?
+  resolvedById  String?
+  resolvedAt    DateTime?
+  createdAt     DateTime       @default(now())
 
   walk Walk? @relation(fields: [walkId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([walkId])
+  @@index([subjectUserId, type])
+}
+
+// Admin-managed veterinary clinics, shown nearest-first on SOS.
+model Vet {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  address   String
+  lat       Float
+  lng       Float
+  open24h   Boolean  @default(false)
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------
@@ -854,6 +894,29 @@ model Config {
   key       String   @id // "fees" | "pricing" | "policy" | "platform" | "demo" | "payouts" | "tracking" | "plans" | "payments"
   valueJson String
   updatedAt DateTime @updatedAt
+}
+
+// Scheduled jobs (worker / cron). JobLock makes each job single-flight
+// across instances and doubles as its heartbeat; JobRun is the history ops
+// read in Admin → Operaciones.
+model JobLock {
+  job         String    @id // "minute" | "daily" | "payouts"
+  lockedUntil DateTime
+  lastRunAt   DateTime?
+  lastOkAt    DateTime?
+}
+
+model JobRun {
+  id         String    @id @default(cuid())
+  job        String
+  trigger    String // "worker" | "cron" | "fallback" | admin user id
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Boolean?
+  result     Json?
+  error      String?
+
+  @@index([job, startedAt])
 }
 
 model AuditLog {
