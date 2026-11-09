@@ -7,6 +7,7 @@ import { ApiError, ok, optStr, readJson, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { notify } from "@/lib/server/notify";
 import { walkerProfileOf } from "@/lib/server/serialize";
+import { approvalBlocker, loadVetting, vettingOf } from "@/lib/server/walkerVetting";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return run(async () => {
@@ -35,6 +36,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     switch (action) {
       case "approve":
         if (profile.status === "ACTIVE") throw new ApiError(400, "Este paseador ya está activo.");
+        {
+          // Milestone 7: documents + CI on file and the full checklist done.
+          const v = await loadVetting(profile.id);
+          const blocker = approvalBlocker(vettingOf(v!, v!.documents));
+          if (blocker) throw new ApiError(409, blocker);
+        }
         data = { status: "ACTIVE", approvedAt: new Date(), suspendedReason: null };
         auditAction = "WALKER_APPROVED";
         title = "¡Bienvenido al equipo FiruWalk! 🎉";
