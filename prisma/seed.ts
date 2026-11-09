@@ -10,6 +10,7 @@
  *  - Bolivia = UTC-4 year-round. Helper boDate() builds local timestamps.
  */
 import { PrismaClient, type NotificationType } from "@prisma/client";
+import { encryptField } from "../src/lib/server/crypto/fieldCrypto";
 
 const db = new PrismaClient();
 
@@ -184,6 +185,7 @@ async function main() {
     "plan",
     "dog",
     "availabilitySlot",
+    "walkerDocument",
     "walkerProfile",
     "user",
     "zone",
@@ -361,10 +363,21 @@ async function main() {
         repeatOwners,
         responseMinutes: respMin,
         trialDone: status === "ACTIVE" && totalWalks > 20,
-        selfieUrl: avatar,
-        idPhotoUrl: avatar,
         referencesText: status === "PENDING" ? "Vecinos de la zona pueden confirmar mi responsabilidad con animales." : null,
-        idDocNumber: status === "PENDING" ? "EN ESPERA DE REVISIÓN" : "VERIFICADO",
+        // Demo CI (fake), encrypted like real ones. Pending applicants still
+        // have to submit theirs + documents from the walker app.
+        ...(status === "PENDING"
+          ? {}
+          : {
+              idDocCipher: encryptField(`7${phone.slice(-6)}`),
+              idDocLast4: phone.slice(-4),
+              reviewIdentityOk: true,
+              reviewBackgroundOk: true,
+              reviewInterviewDone: true,
+              reviewTrialWalkDone: true,
+              reviewNotes: "Demo: verificado por el equipo.",
+              reviewedAt: boDate(-61, 9),
+            }),
         approvedAt: status === "ACTIVE" ? boDate(-60, 9) : null,
         // Demo payout destinations (fake account numbers)
         ...(status === "ACTIVE"

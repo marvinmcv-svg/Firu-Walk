@@ -360,11 +360,16 @@ export function walkerProfileOf(
     zoneName: zoneName ?? undefined,
     appliedAt: p.appliedAt.toISOString(),
     approvedAt: iso(p.approvedAt),
-    selfieUrl: p.selfieUrl,
-    idPhotoUrl: p.idPhotoUrl,
-    videoIntroUrl: p.videoIntroUrl,
     referencesText: p.referencesText,
-    idDocNumber: p.idDocNumber,
+    idDocLast4: p.idDocLast4,
+    review: {
+      identityOk: p.reviewIdentityOk,
+      backgroundOk: p.reviewBackgroundOk,
+      interviewDone: p.reviewInterviewDone,
+      trialWalkDone: p.reviewTrialWalkDone,
+      notes: p.reviewNotes,
+      reviewedAt: iso(p.reviewedAt),
+    },
     suspendedReason: p.suspendedReason,
   };
 }

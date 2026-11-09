@@ -218,14 +218,14 @@ model User {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  zone             Zone?          @relation(fields: [zoneId], references: [id])
-  dogs             Dog[]          @relation("DogOwner")
-  bookingsOwned    Booking[]      @relation("BookingOwner")
-  bookingsAssigned Booking[]      @relation("BookingWalker")
-  walksAsWalker    Walk[]         @relation("WalkWalker")
-  walksAsOwner     Walk[]         @relation("WalkOwner")
-  reviewsGiven     Review[]       @relation("ReviewOwner")
-  reviewsReceived  Review[]       @relation("ReviewWalker")
+  zone             Zone?                   @relation(fields: [zoneId], references: [id])
+  dogs             Dog[]                   @relation("DogOwner")
+  bookingsOwned    Booking[]               @relation("BookingOwner")
+  bookingsAssigned Booking[]               @relation("BookingWalker")
+  walksAsWalker    Walk[]                  @relation("WalkWalker")
+  walksAsOwner     Walk[]                  @relation("WalkOwner")
+  reviewsGiven     Review[]                @relation("ReviewOwner")
+  reviewsReceived  Review[]                @relation("ReviewWalker")
   sessions         Session[]
   subscriptions    Subscription[]
   notificationPref NotificationPreference?
@@ -233,42 +233,79 @@ model User {
 }
 
 model WalkerProfile {
-  id              String        @id @default(cuid())
-  userId          String        @unique
-  status          WalkerStatus  @default(PENDING)
-  bio             String
-  experienceYears Float         @default(0)
-  // Application (vetting) data — ASSUMPTION: manual review by admin
-  idDocNumber     String? // stored encrypted in production; hook only
-  selfieUrl       String?
-  idPhotoUrl      String?
-  videoIntroUrl   String?
-  referencesText  String?
+  id                  String        @id @default(cuid())
+  userId              String        @unique
+  status              WalkerStatus  @default(PENDING)
+  bio                 String
+  experienceYears     Float         @default(0)
+  // Application (vetting) data — Milestone 7. Documents live in private
+  // object storage (WalkerDocument); the CI number is AES-256-GCM encrypted
+  // (src/lib/server/crypto/fieldCrypto.ts) and only its last 4 digits are
+  // ever shown.
+  idDocCipher         String?
+  idDocLast4          String?
+  referencesText      String?
+  // Admin review checklist — all four required before approval.
+  reviewIdentityOk    Boolean       @default(false) // CI photos match the selfie
+  reviewBackgroundOk  Boolean       @default(false) // certificado de antecedentes checked
+  reviewInterviewDone Boolean       @default(false)
+  reviewTrialWalkDone Boolean       @default(false)
+  reviewNotes         String?
+  reviewedById        String?
+  reviewedAt          DateTime?
   // Market data
-  price30Cents    Int           @default(1500)
-  price45Cents    Int           @default(2000)
-  price60Cents    Int           @default(2500)
-  rating          Float         @default(0) // avg 1..5
-  ratingCount     Int           @default(0)
-  totalWalks      Int           @default(0)
-  repeatOwners    Int           @default(0) // owners with 2+ completed walks
-  responseMinutes Int           @default(5)
-  strikes         Int           @default(0)
-  trialDone       Boolean       @default(false) // first N walks reviewed
-  suspendedReason String?
+  price30Cents        Int           @default(1500)
+  price45Cents        Int           @default(2000)
+  price60Cents        Int           @default(2500)
+  rating              Float         @default(0) // avg 1..5
+  ratingCount         Int           @default(0)
+  totalWalks          Int           @default(0)
+  repeatOwners        Int           @default(0) // owners with 2+ completed walks
+  responseMinutes     Int           @default(5)
+  strikes             Int           @default(0)
+  trialDone           Boolean       @default(false) // first N walks reviewed
+  suspendedReason     String?
   // Payout destination (weekly bank transfer / QR)
-  payoutMethod    PayoutMethod?
-  payoutBank      String? // "BNB", "BCP", "Banco Ganadero"…
-  payoutAccount   String? // account number or QR alias
-  payoutHolder    String? // account holder name
-  appliedAt       DateTime      @default(now())
-  approvedAt      DateTime?
-  updatedAt       DateTime      @updatedAt
+  payoutMethod        PayoutMethod?
+  payoutBank          String? // "BNB", "BCP", "Banco Ganadero"…
+  payoutAccount       String? // account number or QR alias
+  payoutHolder        String? // account holder name
+  appliedAt           DateTime      @default(now())
+  approvedAt          DateTime?
+  updatedAt           DateTime      @updatedAt
 
   user           User               @relation(fields: [userId], references: [id])
   zoneId         String
   zone           Zone               @relation(fields: [zoneId], references: [id])
   availabilities AvailabilitySlot[]
+  documents      WalkerDocument[]
+}
+
+enum WalkerDocKind {
+  CI_FRONT
+  CI_BACK
+  SELFIE
+  BACKGROUND_CERT // certificado de antecedentes (FELCC)
+  VIDEO_INTRO // optional
+}
+
+// A vetting document in PRIVATE object storage. Never served publicly: the
+// walker uploads through a short-lived presigned PUT, admins view through a
+// short-lived presigned GET (audit-logged). uploadedAt stays null until the
+// server has verified the object exists with an allowed type and size.
+model WalkerDocument {
+  id          String        @id @default(cuid())
+  walkerId    String
+  kind        WalkerDocKind
+  storageKey  String        @unique
+  contentType String
+  sizeBytes   Int
+  uploadedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  walker WalkerProfile @relation(fields: [walkerId], references: [id], onDelete: Cascade)
+
+  @@index([walkerId, kind])
 }
 
 model AvailabilitySlot {
@@ -593,20 +630,20 @@ model Plan {
 // One purchased plan period. Funds sit in ledger account `plan:{id}` and are
 // released to the walker one completed walk at a time.
 model Subscription {
-  id          String             @id @default(cuid())
-  ownerId     String
-  planId      String
-  status      SubscriptionStatus @default(PENDING_PAYMENT)
-  walksTotal  Int
-  walksUsed   Int                @default(0)
-  durationMin Int
-  priceCents  Int
-  periodStart DateTime?
-  periodEnd   DateTime?
-  closedAt    DateTime?
-  closeNote   String?
+  id               String             @id @default(cuid())
+  ownerId          String
+  planId           String
+  status           SubscriptionStatus @default(PENDING_PAYMENT)
+  walksTotal       Int
+  walksUsed        Int                @default(0)
+  durationMin      Int
+  priceCents       Int
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  closedAt         DateTime?
+  closeNote        String?
   expiryRemindedAt DateTime? // "plan expiring" reminder sent (once per period)
-  createdAt   DateTime           @default(now())
+  createdAt        DateTime           @default(now())
 
   owner    User      @relation(fields: [ownerId], references: [id])
   plan     Plan      @relation(fields: [planId], references: [id])
@@ -698,15 +735,15 @@ model Dispute {
 // ---------------------------------------------------------------
 
 model Message {
-  id         String   @id @default(cuid())
-  threadId   String // bookingId
-  senderId   String
-  senderName String
-  body       String
+  id          String   @id @default(cuid())
+  threadId    String // bookingId
+  senderId    String
+  senderName  String
+  body        String
   // Looks like an attempt to move off-platform (phone number, wa.me link…).
   // The sender sees a gentle warning; ops can review flagged threads.
-  contactFlag Boolean @default(false)
-  createdAt  DateTime @default(now())
+  contactFlag Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   @@index([threadId, createdAt])
 }

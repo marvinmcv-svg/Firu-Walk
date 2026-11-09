@@ -95,13 +95,57 @@ export interface WalkerProfileDTO {
   zoneName?: string;
   appliedAt: string;
   approvedAt?: string | null;
-  // vetting artifacts (admin queue)
-  selfieUrl?: string | null;
-  idPhotoUrl?: string | null;
-  videoIntroUrl?: string | null;
+  // vetting (Milestone 7) — never the full CI number, never document URLs
   referencesText?: string | null;
-  idDocNumber?: string | null;
+  idDocLast4?: string | null;
+  review: WalkerReviewDTO;
   suspendedReason?: string | null;
+}
+
+export type WalkerDocKind = "CI_FRONT" | "CI_BACK" | "SELFIE" | "BACKGROUND_CERT" | "VIDEO_INTRO";
+
+export interface WalkerReviewDTO {
+  identityOk: boolean;
+  backgroundOk: boolean;
+  interviewDone: boolean;
+  trialWalkDone: boolean;
+  notes?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface WalkerDocumentDTO {
+  id: string;
+  kind: WalkerDocKind;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  /** Admin view only: short-lived signed URL (expires in minutes). */
+  viewUrl?: string;
+}
+
+/** GET /api/walkers/me/vetting and /api/admin/walkers/[id]/vetting */
+export interface WalkerVettingDTO {
+  walkerId: string;
+  status: WalkerProfileDTO["status"];
+  idDocLast4: string | null;
+  documents: WalkerDocumentDTO[];
+  /** Required kinds still missing. */
+  missing: WalkerDocKind[];
+  review: WalkerReviewDTO;
+  /** Documents complete + CI number on file. */
+  documentsComplete: boolean;
+  /** documentsComplete + all four checklist items → approvable. */
+  readyToApprove: boolean;
+  storageReady: boolean;
+}
+
+export interface DocumentUploadTicketDTO {
+  documentId: string;
+  url: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  expiresAt: string;
+  maxBytes: number;
 }
 
 export interface SessionUserDTO {

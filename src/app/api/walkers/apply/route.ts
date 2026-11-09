@@ -1,10 +1,12 @@
 // POST /api/walkers/apply — PUBLIC application form.
 // Creates User(role WALKER) + WalkerProfile(status PENDING) + default availability.
 // The phone becomes the login (the applicant signs in later with a login code).
-// Returns {applied:true}; it never opens a session.
+// Returns {applied:true}; it never opens a session. Identity documents are
+// uploaded afterwards from the walker app (signed in), never through this
+// public form — see /api/walkers/me/documents.
 
 import { db } from "@/lib/db";
-import { ApiError, ok, optStr, readJson, reqNum, reqStr, run } from "@/lib/server/http";
+import { ApiError, ok, readJson, reqNum, reqStr, run } from "@/lib/server/http";
 import { getAppConfig } from "@/lib/server/config";
 import { notify, notifyAdmins } from "@/lib/server/notify";
 import { requirePhone } from "@/lib/server/auth/phone";
@@ -23,8 +25,6 @@ export async function POST(req: Request) {
       min: 0,
       max: 50,
     });
-    const selfieUrl = optStr(body, "selfieUrl", { max: 300 }) ?? null;
-    const idPhotoUrl = optStr(body, "idPhotoUrl", { max: 300 }) ?? null;
 
     const phone = requirePhone(rawPhone);
 
@@ -42,7 +42,6 @@ export async function POST(req: Request) {
         phone,
         name,
         role: "WALKER",
-        avatarUrl: selfieUrl,
         zoneId,
         walker: {
           create: {
@@ -53,8 +52,6 @@ export async function POST(req: Request) {
             price30Cents: cfg.pricing.price30Cents,
             price45Cents: cfg.pricing.price45Cents,
             price60Cents: cfg.pricing.price60Cents,
-            selfieUrl,
-            idPhotoUrl,
           },
         },
       },
