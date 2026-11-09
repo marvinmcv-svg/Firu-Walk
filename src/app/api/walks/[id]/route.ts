@@ -18,6 +18,7 @@ import { publishRealtime } from "@/lib/server/realtime";
 import { settleCompletedWalk } from "@/lib/server/payments/settle";
 import { ensurePendingPayment } from "@/lib/server/bookingEngine";
 import { geofenceDistance } from "@/lib/server/tracking";
+import { clearBackupOffer } from "@/lib/server/safety/backup";
 import type { AppConfig } from "@/lib/firu/types";
 import { bookingContextOf, walkDetailOf, walkInclude, zonesById } from "@/lib/server/serialize";
 import type { FullWalk } from "@/lib/server/serialize";
@@ -199,6 +200,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
       if (started.count === 0) throw new ApiError(400, "El paseo no está en estado programado.");
       if (fence.override) await auditOverride(user.id, walk.id, "start", fence.override);
+      // Started late but started: a pending backup offer is no longer needed.
+      await clearBackupOffer(walk.id);
       await notifyEvent(walk.ownerId, "walk_started", {
         walkerName: user.name,
         dogName,

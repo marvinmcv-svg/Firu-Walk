@@ -40,6 +40,13 @@ export interface TemplateVars {
   payment_received: { amountCents: number; dogName?: string; planName?: string };
   payout_sent: { amountCents: number; method: "BANK" | "QR"; reference: string };
   plan_expiring: { planName: string; periodEnd: Date; walksLeft: number };
+  // Milestone 8 — safety & ops
+  walk_reminder: { dogName: string; zoneName: string; startsAt: Date; walkId: string };
+  walk_sos: { walkerName: string; dogName: string; walkId: string };
+  walk_late: { walkerName: string; dogName: string; walkId: string; minutesLate: number };
+  backup_offer: { dogName: string; zoneName: string; startsAt: Date; durationMin: number; minutesToAccept: number };
+  walk_reassigned: { walkerName: string; dogName: string; walkId: string };
+  backup_none: { dogName: string; walkId: string };
 }
 
 export type TemplateKey = keyof TemplateVars;
@@ -53,6 +60,12 @@ export const TEMPLATE_KEYS = [
   "payment_received",
   "payout_sent",
   "plan_expiring",
+  "walk_reminder",
+  "walk_sos",
+  "walk_late",
+  "backup_offer",
+  "walk_reassigned",
+  "backup_none",
 ] as const satisfies readonly TemplateKey[];
 
 export interface Rendered {
@@ -94,6 +107,12 @@ function boDate(d: Date, locale: Locale): string {
   const dd = `${bo.getUTCDate()}`.padStart(2, "0");
   const mm = `${bo.getUTCMonth() + 1}`.padStart(2, "0");
   return locale === "en" ? `${mm}/${dd}/${bo.getUTCFullYear()}` : `${dd}/${mm}/${bo.getUTCFullYear()}`;
+}
+
+/** "17:30" in Bolivia time (UTC-4). */
+export function boTime(d: Date): string {
+  const bo = new Date(d.getTime() - 4 * 3_600_000);
+  return `${`${bo.getUTCHours()}`.padStart(2, "0")}:${`${bo.getUTCMinutes()}`.padStart(2, "0")}`;
 }
 
 /** Deep link that opens a walk (live map or finished report) in the app. */
@@ -279,6 +298,109 @@ const RENDERERS: { [K in TemplateKey]: Renderer<K> } = {
           }),
     };
   },
+
+  walk_reminder: (v, { locale }) => {
+    const time = boTime(v.startsAt);
+    return {
+      type: "WALK",
+      link: "home",
+      waTemplate: "firuwalk_walk_reminder",
+      waParams: [v.dogName, time, v.zoneName],
+      ...(locale === "en"
+        ? {
+            title: "Walk coming up ⏰",
+            body: `${v.dogName}'s walk starts at ${time} in ${v.zoneName}. Tap "On my way" when you leave.`,
+          }
+        : {
+            title: "Se viene un paseo ⏰",
+            body: `El paseo de ${v.dogName} empieza a las ${time} en ${v.zoneName}. Toca "Voy en camino" cuando salgas.`,
+          }),
+    };
+  },
+
+  walk_sos: (v, { locale, appUrl }) => ({
+    type: "WALK",
+    link: "walk-live",
+    pushUrl: `/?walk=${encodeURIComponent(v.walkId)}`,
+    waTemplate: "firuwalk_walk_sos",
+    waParams: [firstName(v.walkerName), v.dogName, walkLink(appUrl, v.walkId)],
+    ...(locale === "en"
+      ? {
+          title: "Alert during the walk 🚨",
+          body: `${v.walkerName} pressed SOS during ${v.dogName}'s walk. Our ops team is already on it and will contact you. Follow the live location on the map.`,
+        }
+      : {
+          title: "Alerta durante el paseo 🚨",
+          body: `${v.walkerName} activó el SOS durante el paseo de ${v.dogName}. Nuestro equipo ya está atendiendo y te contactará. Sigue la ubicación en vivo en el mapa.`,
+        }),
+  }),
+
+  walk_late: (v, { locale }) => ({
+    type: "WALK",
+    link: "bookings",
+    waTemplate: "firuwalk_walk_late",
+    waParams: [v.dogName, firstName(v.walkerName), String(v.minutesLate)],
+    ...(locale === "en"
+      ? {
+          title: "Your walker is running late ⏱️",
+          body: `${v.dogName}'s walk hasn't started yet (${v.minutesLate} min late). We're contacting ${v.walkerName} and looking for a backup walker. We'll keep you posted.`,
+        }
+      : {
+          title: "Tu paseador viene con retraso ⏱️",
+          body: `El paseo de ${v.dogName} aún no empezó (${v.minutesLate} min de retraso). Estamos contactando a ${v.walkerName} y buscando un paseador de respaldo. Te avisamos enseguida.`,
+        }),
+  }),
+
+  backup_offer: (v, { locale }) => {
+    const time = boTime(v.startsAt);
+    return {
+      type: "WALK",
+      link: "home",
+      waTemplate: "firuwalk_backup_offer",
+      waParams: [v.dogName, v.zoneName, time, String(v.minutesToAccept)],
+      ...(locale === "en"
+        ? {
+            title: "Urgent backup walk 🆘",
+            body: `${v.dogName} needs a walker now in ${v.zoneName} (${time}, ${v.durationMin} min). Take it in the next ${v.minutesToAccept} minutes from your home screen.`,
+          }
+        : {
+            title: "Paseo de respaldo urgente 🆘",
+            body: `${v.dogName} necesita paseador ahora en ${v.zoneName} (${time}, ${v.durationMin} min). Tómalo en los próximos ${v.minutesToAccept} minutos desde tu inicio.`,
+          }),
+    };
+  },
+
+  walk_reassigned: (v, { locale }) => ({
+    type: "WALK",
+    link: "bookings",
+    waTemplate: "firuwalk_walk_reassigned",
+    waParams: [firstName(v.walkerName), v.dogName],
+    ...(locale === "en"
+      ? {
+          title: "Backup walker on the way ✅",
+          body: `${v.walkerName}, a verified FiruWalk walker, is taking ${v.dogName}'s walk today. Same guarantee, same live tracking.`,
+        }
+      : {
+          title: "Paseador de respaldo en camino ✅",
+          body: `${v.walkerName}, paseador verificado de FiruWalk, hará hoy el paseo de ${v.dogName}. Misma garantía y seguimiento en vivo.`,
+        }),
+  }),
+
+  backup_none: (v, { locale }) => ({
+    type: "WALK",
+    link: "bookings",
+    waTemplate: "firuwalk_backup_none",
+    waParams: [v.dogName],
+    ...(locale === "en"
+      ? {
+          title: "We couldn't find a backup 😔",
+          body: `No backup walker was free for ${v.dogName}'s walk. Our team will contact you to reschedule or credit the walk.`,
+        }
+      : {
+          title: "No encontramos respaldo 😔",
+          body: `Ningún paseador de respaldo estaba libre para el paseo de ${v.dogName}. Nuestro equipo te contactará para reprogramar o acreditarte el paseo.`,
+        }),
+  }),
 };
 
 export function renderTemplate<K extends TemplateKey>(

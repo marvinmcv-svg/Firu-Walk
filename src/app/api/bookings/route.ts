@@ -22,9 +22,10 @@ import {
   normalizeSchedule,
   priceBandForDuration,
   scheduleSummary,
-  sweepExpiredRequests,
+  expireRequestIfDue,
   walkerPriceForDuration,
 } from "@/lib/server/bookingEngine";
+import { kickMinuteJobsIfStale } from "@/lib/server/jobs";
 import type { BookingType } from "@/lib/server/bookingEngine";
 import { priceBreakdown } from "@/lib/firu/money";
 import { assertNotDebtBlocked } from "@/lib/server/payments/debt";
@@ -34,8 +35,19 @@ export async function GET(req: Request) {
   return run(async () => {
     const user = await requireUser(req);
 
-    // CRITICAL: advance expired accept windows before returning state.
-    await sweepExpiredRequests();
+    // The minute job sweeps accept windows; this user's own expired requests
+    // are brought up to date here so the list never shows a dead window.
+    kickMinuteJobsIfStale();
+    const due = await db.booking.findMany({
+      where: {
+        status: "REQUESTED",
+        expiresAt: { lt: new Date() },
+        OR: [{ ownerId: user.id }, { walkerId: user.id }],
+      },
+      select: { id: true },
+      take: 20,
+    });
+    for (const b of due) await expireRequestIfDue(b.id);
 
     const where =
       user.role === "OWNER"

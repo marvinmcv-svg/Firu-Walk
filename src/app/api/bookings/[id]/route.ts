@@ -23,7 +23,7 @@ import {
   materializeWalks,
   normalizeSchedule,
   scheduleSummary,
-  sweepExpiredRequests,
+  expireRequestIfDue,
 } from "@/lib/server/bookingEngine";
 import type { ScheduleItem } from "@/lib/firu/types";
 import type { BookingType } from "@/lib/server/bookingEngine";
@@ -46,7 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   return run(async () => {
     const { id } = await params;
     const user = await requireUser(req);
-    await sweepExpiredRequests();
+    await expireRequestIfDue(id);
     const booking = await loadBooking(id);
 
     const candidates = parseJson<string[]>(booking.candidatesJson, []);
@@ -68,7 +68,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const cfg = await getAppConfig();
     const body = await readJson(req);
 
-    await sweepExpiredRequests();
+    await expireRequestIfDue(id);
     const booking = await loadBooking(id);
     const action = optStr(body, "action");
     if (!action) throw new ApiError(400, "Indica una acción: accept, decline, cancel o reschedule.");
@@ -91,10 +91,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         throw new ApiError(403, "Esta solicitud fue enviada a otro paseador.");
       }
       await assertNotDebtBlocked(user.id, cfg, "self");
-      await db.booking.update({
-        where: { id: booking.id },
+      // Conditional: a window that expires between the load and here loses.
+      const accepted = await db.booking.updateMany({
+        where: {
+          id: booking.id,
+          status: "REQUESTED",
+          walkerId: user.id,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
         data: { status: "CONFIRMED", acceptedAt: new Date(), expiresAt: null },
       });
+      if (accepted.count === 0) throw new ApiError(400, "Esta solicitud ya no está disponible.");
       const fresh = await db.booking.findUnique({ where: { id: booking.id } });
       if (fresh) await materializeWalks(fresh);
 

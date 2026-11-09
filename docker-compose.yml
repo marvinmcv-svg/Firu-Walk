@@ -7,6 +7,7 @@
 x-secrets: &secrets
   SESSION_SECRET: ${SESSION_SECRET:-local-compose-session-secret-change-me-000000}
   REALTIME_SECRET: ${REALTIME_SECRET:-local-compose-realtime-secret-change-me-00000}
+  CRON_SECRET: ${CRON_SECRET:-local-compose-cron-secret-change-me}
 services:
   db:
     image: postgres:16-alpine
@@ -68,6 +69,9 @@ services:
       REALTIME_SECRET: ${REALTIME_SECRET:-local-compose-realtime-secret-change-me-00000}
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
+      # Scheduled-job worker: calls the app's /api/cron/minute every minute.
+      WORKER_APP_URL: http://app:3000
+      CRON_SECRET: ${CRON_SECRET:-local-compose-cron-secret-change-me}
     ports: ["3003:3003"]
     depends_on:
       redis: { condition: service_healthy }

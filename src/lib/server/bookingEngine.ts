@@ -411,27 +411,32 @@ export async function advanceCandidate(bookingId: string): Promise<Prisma.Bookin
 }
 
 /**
- * Idempotent sweep: every REQUESTED booking whose accept window expired moves
- * to the next candidate (with a fresh window) or DECLINES when the chain is
- * exhausted. Called from GET /api/bookings, GET/PATCH /api/bookings/[id].
+ * Move one REQUESTED booking past every expired accept window: next candidate
+ * with a fresh window, or DECLINED when the chain is exhausted. Idempotent.
  */
-export async function sweepExpiredRequests(): Promise<void> {
-  const now = new Date();
+export async function expireRequestIfDue(bookingId: string): Promise<void> {
+  for (let guard = 0; guard < 12; guard++) {
+    const cur = await db.booking.findUnique({
+      where: { id: bookingId },
+      select: { status: true, expiresAt: true },
+    });
+    if (!cur || cur.status !== "REQUESTED") return;
+    if (!cur.expiresAt || cur.expiresAt.getTime() > Date.now()) return;
+    await advanceCandidate(bookingId);
+  }
+}
+
+/**
+ * Sweep every REQUESTED booking whose accept window expired. Runs in the
+ * minute job (src/lib/server/jobs.ts); single bookings touched by a request
+ * are brought up to date with expireRequestIfDue().
+ */
+export async function sweepExpiredRequests(): Promise<number> {
   const expired = await db.booking.findMany({
-    where: { status: "REQUESTED", expiresAt: { lt: now } },
+    where: { status: "REQUESTED", expiresAt: { lt: new Date() } },
     select: { id: true },
     take: 50,
   });
-  for (const b of expired) {
-    // advance until the window is in the future again or the chain is done
-    for (let guard = 0; guard < 12; guard++) {
-      const cur = await db.booking.findUnique({
-        where: { id: b.id },
-        select: { status: true, expiresAt: true },
-      });
-      if (!cur || cur.status !== "REQUESTED") break;
-      if (cur.expiresAt && cur.expiresAt.getTime() > Date.now()) break;
-      await advanceCandidate(b.id);
-    }
-  }
+  for (const b of expired) await expireRequestIfDue(b.id);
+  return expired.length;
 }

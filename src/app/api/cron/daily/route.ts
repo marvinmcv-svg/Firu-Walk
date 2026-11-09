@@ -6,14 +6,19 @@
 import { ok, run } from "@/lib/server/http";
 import { expireSubscriptions, remindExpiringSubscriptions } from "@/lib/server/payments/plans";
 import { boDayWindow, runReconciliation } from "@/lib/server/payments/reconcile";
+import { jobBody, runJob } from "@/lib/server/jobs";
 import { requireCron } from "../auth";
 
 export async function GET(req: Request) {
   return run(async () => {
     requireCron(req);
-    const reconciliation = await runReconciliation({ ...boDayWindow(1), triggeredBy: "cron" });
-    const plansClosed = await expireSubscriptions();
-    const plansReminded = await remindExpiringSubscriptions();
-    return ok({ reconciliation, plansClosed, plansReminded });
+    return ok(
+      jobBody(await runJob("daily", "cron", async () => {
+        const reconciliation = await runReconciliation({ ...boDayWindow(1), triggeredBy: "cron" });
+        const plansClosed = await expireSubscriptions();
+        const plansReminded = await remindExpiringSubscriptions();
+        return { reconciliation, plansClosed, plansReminded };
+      }))
+    );
   });
 }

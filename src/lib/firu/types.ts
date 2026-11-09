@@ -53,6 +53,12 @@ export interface AppConfig {
   payments: {
     qrExpiryMinutes: number; // lifetime of a generated QR
   };
+  safety: {
+    lateStartMinutes: number; // walk not started this long after its time → late alert + backup chain
+    backupOfferMinutes: number; // each backup walker has this long to take the walk
+    reminderMinutesBefore: number; // walker reminder before the walk (0 = off)
+    opsWhatsApp: string; // ops phone numbers for SOS / late alerts, comma-separated ("" = none)
+  };
   tracking: {
     geofenceMeters: number; // start/end must be this close to the owner's address
     maxSpeedKmh: number; // faster between two GPS points → rejected
@@ -541,4 +547,129 @@ export interface DemoAccountDTO {
   phone: string;
   avatarUrl?: string | null;
   subtitle: string;
+}
+
+// ---------------------------------------------------------------
+// Safety & ops (Milestone 8)
+// ---------------------------------------------------------------
+
+export interface VetDTO {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  lat: number;
+  lng: number;
+  open24h: boolean;
+  notes: string | null;
+  active: boolean;
+  /** Meters from the position it was searched from (null without one). */
+  distanceM: number | null;
+}
+
+export interface SosResponseDTO {
+  incidentId: string;
+  repeated: boolean;
+  position: { lat: number; lng: number } | null;
+  vets: VetDTO[];
+  supportWhatsApp: string;
+}
+
+export interface IncidentDTO {
+  id: string;
+  type: "SOS" | "LATE" | "INJURY" | "OTHER";
+  status: "OPEN" | "RESOLVED";
+  note: string;
+  lat: number | null;
+  lng: number | null;
+  mapsUrl: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolution: string | null;
+  walk: {
+    id: string;
+    status: string;
+    scheduledStart: string;
+    dogName: string;
+    zoneName: string;
+    walkerName: string;
+    walkerPhone: string;
+    ownerName: string;
+    ownerPhone: string;
+  } | null;
+  reporterName: string;
+}
+
+export interface BackupOfferDTO {
+  walkId: string;
+  dogName: string;
+  dogPhotoUrl: string | null;
+  zoneName: string;
+  scheduledStart: string;
+  durationMin: number;
+  expiresAt: string;
+}
+
+export interface OpsLiveWalkDTO {
+  walkId: string;
+  dogName: string;
+  walkerName: string;
+  walkerPhone: string;
+  ownerName: string;
+  zoneName: string;
+  startedAt: string | null;
+  durationMin: number;
+  /** Last accepted GPS fix. */
+  last: [number, number] | null;
+  lastFixAt: string | null;
+  track: [number, number][];
+  openSos: boolean;
+  mockLocation: boolean;
+}
+
+export interface OpsLateWalkDTO {
+  walkId: string;
+  dogName: string;
+  walkerName: string;
+  walkerPhone: string;
+  ownerName: string;
+  ownerPhone: string;
+  zoneName: string;
+  scheduledStart: string;
+  minutesLate: number;
+  backupWalkerName: string | null;
+  backupExpiresAt: string | null;
+  backupExhausted: boolean;
+}
+
+export interface JobStatusDTO {
+  job: string;
+  lastRunAt: string | null;
+  lastOkAt: string | null;
+  lastError: string | null;
+  lastTrigger: string | null;
+}
+
+export interface OpsLiveDTO {
+  inProgress: OpsLiveWalkDTO[];
+  late: OpsLateWalkDTO[];
+  openIncidents: number;
+  jobs: JobStatusDTO[];
+}
+
+export interface LeaderboardRowDTO {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  zoneName: string;
+  status: string;
+  rating: number;
+  ratingCount: number;
+  /** Walks this walker started in the period. */
+  walksStarted: number;
+  /** % of started walks that began within safety.lateStartMinutes (null with none). */
+  onTimePct: number | null;
+  /** Walks they never started: reassigned to a backup, or left unstarted. */
+  noShows: number;
+  sosCount: number;
 }

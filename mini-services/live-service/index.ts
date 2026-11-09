@@ -6,9 +6,12 @@
 //   REALTIME_SECRET      shared HS256 key with the app (required in production)
 //   REDIS_URL            optional — Redis adapter for multiple instances
 //   LIVE_CORS_ORIGINS    optional comma-separated allowed origins
+//   WORKER_APP_URL + CRON_SECRET  optional — also run the scheduled-job
+//                        worker (worker.ts): the app's minute job every minute
 
 import { createLiveServer } from "./server";
 import { DEV_REALTIME_SECRET } from "./token";
+import { startWorker, type WorkerHandle } from "./worker";
 
 const env = process.env;
 const production = env.NODE_ENV === "production";
@@ -33,8 +36,18 @@ console.log(
     `, redis=${env.REDIS_URL ? "on" : "off"}`,
 );
 
+let worker: WorkerHandle | null = null;
+if (env.WORKER_APP_URL && env.CRON_SECRET) {
+  worker = startWorker({
+    appUrl: env.WORKER_APP_URL,
+    secret: env.CRON_SECRET,
+    intervalMs: Number(env.WORKER_INTERVAL_MS) || undefined,
+  });
+}
+
 async function shutdown(signal: string): Promise<void> {
   console.log(`[live] received ${signal} — shutting down`);
+  worker?.stop();
   await server.close();
   process.exit(0);
 }

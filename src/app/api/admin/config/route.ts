@@ -6,6 +6,7 @@ import { ApiError, ok, readJson, run } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/session";
 import { CONFIG_ENUMS, CONFIG_SECTIONS, CONFIG_WHITELIST, getAppConfig, updateConfigSection } from "@/lib/server/config";
 import type { ConfigSection } from "@/lib/server/config";
+import { parseOpsPhones } from "@/lib/server/safety/opsAlerts";
 
 /** Expected JS type per whitelisted key. */
 function expectedType(section: ConfigSection, key: string): "string" | "number" {
@@ -13,6 +14,7 @@ function expectedType(section: ConfigSection, key: string): "string" | "number" 
   if (section === "demo") return key === "otpCode" ? "string" : "number";
   if (section === "payouts") return key === "cycle" ? "string" : "number";
   if (section === "plans") return key === "unusedWalkPolicy" ? "string" : "number";
+  if (section === "safety") return key === "opsWhatsApp" ? "string" : "number";
   return "number"; // fees, pricing, policy, tracking, payments
 }
 
@@ -50,6 +52,14 @@ export async function PATCH(req: Request) {
         }
         if (n < 0) throw new ApiError(400, `El valor de "${key}" no puede ser negativo.`);
         clean[key] = n;
+      } else if (sec === "safety" && key === "opsWhatsApp") {
+        // Comma-separated phone numbers; empty turns ops WhatsApp alerts off.
+        if (typeof value !== "string") throw new ApiError(400, `El valor de "${key}" debe ser un texto.`);
+        const phones = parseOpsPhones(value);
+        if (phones === null) {
+          throw new ApiError(400, "Los números de operaciones deben tener formato +591XXXXXXXX, separados por coma.");
+        }
+        clean[key] = phones.join(", ");
       } else {
         if (typeof value !== "string" || !value.trim()) {
           throw new ApiError(400, `El valor de "${key}" debe ser un texto.`);

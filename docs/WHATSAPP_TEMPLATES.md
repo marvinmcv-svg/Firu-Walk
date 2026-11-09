@@ -1,4 +1,4 @@
-# WhatsApp templates (Milestone 6)
+# WhatsApp templates (Milestones 6 & 8)
 
 FiruWalk sends these **business-initiated** messages through the WhatsApp Cloud
 API. WhatsApp only delivers them if each template is **approved** in WhatsApp
@@ -19,6 +19,13 @@ see the README.
 | `firuwalk_payment_received` | owner | the bank confirms a walk or plan payment |
 | `firuwalk_payout_sent` | walker | an admin marks their payout as paid |
 | `firuwalk_plan_expiring` | owner | `plans.expiryReminderDays` before a plan ends, if walks are left |
+| `firuwalk_walk_reminder` | walker | `safety.reminderMinutesBefore` before each walk (worker) |
+| `firuwalk_walk_sos` | owner | the walker presses SOS during the walk |
+| `firuwalk_walk_late` | owner | the walk has not started `safety.lateStartMinutes` after its time (worker) |
+| `firuwalk_backup_offer` | backup walker | a late walk is offered to the next walker of the candidate chain |
+| `firuwalk_walk_reassigned` | owner | a backup walker takes the walk |
+| `firuwalk_backup_none` | owner | no backup walker took the walk |
+| `firuwalk_ops_alert` | ops phones | SOS, late start, no backup found (Spanish only) |
 
 Links point to `APP_URL/?walk=<id>`; set `APP_URL` to the public site.
 
@@ -79,3 +86,60 @@ Parameters: `{{1}}` plan name · `{{2}}` end date · `{{3}}` walks left
 
 - **es:** `📅 Tu {{1}} vence el {{2}} y te quedan {{3}} paseos. Úsalos o renueva tu plan en FiruWalk.`
 - **en:** `📅 Your {{1}} ends on {{2}} and you have {{3}} walks left. Use them or renew your plan in FiruWalk.`
+
+## firuwalk_walk_reminder
+
+Sent to the **walker** `safety.reminderMinutesBefore` minutes before a walk.
+Parameters: `{{1}}` dog · `{{2}}` start time ("17:30") · `{{3}}` zone
+
+- **es:** `⏰ Recordatorio: el paseo de {{1}} empieza a las {{2}} en {{3}}. Toca "Voy en camino" en FiruWalk cuando salgas.`
+- **en:** `⏰ Reminder: {{1}}'s walk starts at {{2}} in {{3}}. Tap "On my way" in FiruWalk when you leave.`
+
+## firuwalk_walk_sos
+
+Sent to the **owner** when the walker presses SOS.
+Parameters: `{{1}}` walker's first name · `{{2}}` dog · `{{3}}` live link
+
+- **es:** `🚨 {{1}} activó el SOS durante el paseo de {{2}}. Nuestro equipo ya está atendiendo y te contactará. Ubicación en vivo: {{3}}`
+- **en:** `🚨 {{1}} pressed SOS during {{2}}'s walk. Our team is already on it and will contact you. Live location: {{3}}`
+
+## firuwalk_walk_late
+
+Sent to the **owner** when a walk has not started `safety.lateStartMinutes` after its time.
+Parameters: `{{1}}` dog · `{{2}}` walker's first name · `{{3}}` minutes late
+
+- **es:** `⏱️ El paseo de {{1}} aún no empezó: {{2}} lleva {{3}} min de retraso. Ya lo estamos contactando y buscamos un paseador de respaldo.`
+- **en:** `⏱️ {{1}}'s walk hasn't started: {{2}} is {{3}} min late. We're contacting them and looking for a backup walker.`
+
+## firuwalk_backup_offer
+
+Sent to a **backup walker** from the booking's candidate chain.
+Parameters: `{{1}}` dog · `{{2}}` zone · `{{3}}` time · `{{4}}` minutes to accept
+
+- **es:** `🆘 Paseo de respaldo urgente: {{1}} en {{2}} a las {{3}}. Tómalo en FiruWalk en los próximos {{4}} minutos.`
+- **en:** `🆘 Urgent backup walk: {{1}} in {{2}} at {{3}}. Take it in FiruWalk within the next {{4}} minutes.`
+
+## firuwalk_walk_reassigned
+
+Sent to the **owner** when a backup walker takes the walk.
+Parameters: `{{1}}` new walker's first name · `{{2}}` dog
+
+- **es:** `✅ {{1}}, paseador verificado de FiruWalk, hará hoy el paseo de {{2}}. Misma garantía y seguimiento en vivo.`
+- **en:** `✅ {{1}}, a verified FiruWalk walker, is taking {{2}}'s walk today. Same guarantee, same live tracking.`
+
+## firuwalk_backup_none
+
+Sent to the **owner** when the backup chain is exhausted.
+Parameters: `{{1}}` dog
+
+- **es:** `😔 Ningún paseador de respaldo estaba libre para el paseo de {{1}}. Nuestro equipo te contactará para reprogramar o acreditarte el paseo.`
+- **en:** `😔 No backup walker was free for {{1}}'s walk. Our team will contact you to reschedule or credit the walk.`
+
+## firuwalk_ops_alert
+
+Sent to the **ops phones** in Admin → Configuración → *Seguridad* (`safety.opsWhatsApp`) — not to users, Spanish only.
+WhatsApp Cloud API cannot post into WhatsApp groups: list each ops phone (or one shared ops phone that forwards to the group).
+Parameters: `{{1}}` alert ("SOS", "Retraso", …) · `{{2}}` summary · `{{3}}` map link of the position
+
+- **es:** `🚨 FiruWalk ops — {{1}}: {{2}}. Ubicación: {{3}}`
+- **en:** `🚨 FiruWalk ops — {{1}}: {{2}}. Location: {{3}}`
