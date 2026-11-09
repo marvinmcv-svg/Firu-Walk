@@ -74,6 +74,7 @@ import { AdminUsers } from "@/components/firu/admin/AdminUsers";
 import { AdminConfig } from "@/components/firu/admin/AdminConfig";
 import { AdminPayments } from "@/components/firu/admin/AdminPayments";
 import { AdminOps } from "@/components/firu/admin/AdminOps";
+import { openBookingIntent, parseBookingParams } from "@/lib/firu/bookingIntent";
 
 const NAV = {
   OWNER: [
@@ -104,6 +105,7 @@ const NAV = {
  * Deep links from WhatsApp messages and web push:
  *   /?walk=<id>  owner → that walk (live map, or the report when finished)
  *   /?view=<v>   any nav view of the signed-in role
+ *   /?book=1&zone=<key>&duration=<min>  owner → booking wizard, pre-filled
  * The query string is removed once applied. Signed-out visitors keep it until
  * they log in (the landing page renders meanwhile).
  */
@@ -113,9 +115,12 @@ function useDeepLink(role: SessionUserDTO["role"] | null) {
     const params = new URLSearchParams(window.location.search);
     const walk = params.get("walk");
     const view = params.get("view");
-    if (!walk && !view) return;
+    const book = parseBookingParams(params);
+    if (!walk && !view && !book) return;
     const s = useFiruSession.getState();
-    if (walk && role === "OWNER" && /^[A-Za-z0-9_-]{1,64}$/.test(walk)) {
+    if (book) {
+      if (role === "OWNER") openBookingIntent(book);
+    } else if (walk && role === "OWNER" && /^[A-Za-z0-9_-]{1,64}$/.test(walk)) {
       s.openWalk(walk);
     } else if (view && (NAV[role] as readonly { view: string }[]).some((n) => n.view === view)) {
       if (role === "OWNER") s.setOwnerView(view as OwnerView);

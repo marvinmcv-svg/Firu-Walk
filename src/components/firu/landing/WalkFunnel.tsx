@@ -37,11 +37,14 @@ export function WalkFunnel({
   pricing,
   supportWa,
   onApp,
+  prefill,
 }: {
   zones: string[];
   pricing: { 30: number; 45: number; 60: number } | null;
   supportWa: string;
   onApp: () => void;
+  /** From a FirulAI booking link: zone name / walk length to pre-select. */
+  prefill?: { zoneName?: string; durationMin?: number; nonce: number } | null;
 }) {
   const { t } = useT();
   const reduce = useCalmMotion();
@@ -51,6 +54,15 @@ export function WalkFunnel({
   const [zone, setZone] = useState<string | null>(null);
   const [freq, setFreq] = useState<Freq | null>(null);
   const [duration, setDuration] = useState<Duration>(30);
+  // Apply each new booking-link prefill once (state adjusted during render).
+  const [prefillNonce, setPrefillNonce] = useState<number | null>(null);
+  if (prefill && prefill.nonce !== prefillNonce) {
+    setPrefillNonce(prefill.nonce);
+    if (prefill.zoneName && zones.includes(prefill.zoneName)) setZone(prefill.zoneName);
+    if (prefill.durationMin === 30 || prefill.durationMin === 45 || prefill.durationMin === 60) {
+      setDuration(prefill.durationMin as Duration);
+    }
+  }
   const [slot, setSlot] = useState<Slot | null>(null);
   const [notes, setNotes] = useState("");
   const [nudge, setNudge] = useState(false);

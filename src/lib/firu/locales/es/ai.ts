@@ -19,6 +19,9 @@ const ai: Record<string, string> = {
     "¡Ups! 🐾 Se me cayó el hueso de la conexión. Probá otra vez en un momentito o escribinos por WhatsApp.",
   "ai.placeholder": "Pregúntame lo que quieras…",
   "ai.bubble": "¡Guau! ¿Dudas con los paseos? Te ayudo 🐾",
+  "ai.bookCta": "Reservar ahora",
+  "ai.notice":
+    "Guardamos esta conversación para mejorar el servicio. FirulAI puede equivocarse y no da consejos veterinarios ni recibe pagos.",
   "ai.send": "Enviar",
 };
 

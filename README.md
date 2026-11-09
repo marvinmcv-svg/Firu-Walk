@@ -18,7 +18,7 @@ FiruWalk connects dog owners with trusted, vetted walkers across Santa Cruz de l
 
 | Feature | Description |
 |---|---|
-| 🤖 **FirulAI** | Dog-branded AI receptionist (powered by LLM) — answers questions, quotes prices, hands off to WhatsApp. The logo dog is the mascot. |
+| 🤖 **FirulAI** | Dog-branded AI receptionist (Claude) — quotes live prices, checks zone coverage, opens a pre-filled booking, hands off to WhatsApp. Never diagnoses or takes payments. |
 | 🎬 **Cinematic intro** | Animated splash (rendered from the `intro-video/` composition) plays on load, with a skip button and smart "play once per session" behavior. |
 | 💎 **Premium animated cards** | "How it works" and "Product trust" sections with 3D tilt, gloss sweeps, animated counters, and scroll-draw strokes. |
 | 🗺️ **Live walk tracking** | Real GPS from the walker's phone (Android app, works with the screen locked), validated server-side and pushed live to the owner's map. |
@@ -43,7 +43,7 @@ FiruWalk connects dog owners with trusted, vetted walkers across Santa Cruz de l
 - **Redis** (optional for now — rate limits & sessions from Milestone 2)
 - **Sentry** error tracking + structured JSON logs (`src/lib/server/log.ts`)
 - **socket.io** live-service (mini-service on port `3003`)
-- **z-ai-web-dev-sdk** (server-side only) — the LLM brain behind FirulAI
+- **Claude** (Anthropic API, `@anthropic-ai/sdk`, server-side only) — the LLM behind FirulAI, via the `LlmClient` interface
 - **Playwright** (Python) end-to-end suite — 7 test files covering landing, golden paths for owner/walker/admin, language toggle, and FirulAI
 
 ## 🚀 Getting started
@@ -144,6 +144,14 @@ To go live you need a WhatsApp Business **authentication** template with a copy-
 - **Admin → Operaciones**: live map of walks in progress (open SOS in red), late walks with their backup state, incident queue (resolve with a note, audit-logged), walker leaderboard (on-time %, rating, no-shows, SOS) and job health.
 - **Scheduled jobs**: `GET /api/cron/minute` (accept timeouts, late starts, backup offers, reminders), `/api/cron/daily`, `/api/cron/payouts` — all `CRON_SECRET`-protected, single-flight (`JobLock`) with history (`JobRun`). The minute job is driven by the **worker** (`mini-services/live-service/worker.ts`): it runs inside the live-service when `WORKER_APP_URL` + `CRON_SECRET` are set, or standalone with `bun run worker`. Vercel Cron still runs daily/payouts. Until a worker is deployed, API traffic kicks the minute job in the background when its heartbeat is >3 min old (Operaciones shows this as *fallback*).
 - Tests: `tests/api/safety.test.ts`.
+
+## 🤖 FirulAI (AI receptionist)
+
+- `POST /api/firulai` runs the model behind **`LlmClient`** (`src/lib/server/llm/`): Claude through the Anthropic API in production (`ANTHROPIC_API_KEY`; `LLM_MODEL` default `claude-opus-5-5`, `LLM_EFFORT` default `low`), an offline **mock** in development and tests. Without a key, production FirulAI answers with a canned "write us on WhatsApp" reply. Server-side refusal fallbacks are on; the system prompt (built from the live Config + zones) is cached.
+- **Tools** (read-only, `src/lib/server/firulai/tools.ts`): `check_price` (live prices + plans), `check_zone_coverage`, `start_booking` (a **Reservar ahora** button → `/?book=1&zone=…&duration=…`: owners land in the booking wizard, visitors in the landing funnel, pre-filled; nothing is booked or charged), `contact_human` (WhatsApp button).
+- **Guardrails**: no diagnosis (health questions get an operator note to the model, and vet advice is appended if missing), never takes payments or asks for card/bank data (card numbers are redacted before the model and the log), no promises outside the policy, off-topic and prompt-injection requests declined, any model error → canned reply + WhatsApp.
+- **Logging & caps**: every exchange is saved (`AiConversation`/`AiMessage`, no raw IP — the chat shows a notice), purged after `ai.retentionDays`. Per-IP messages/day, per-IP spend/day and total spend/day caps plus an on/off switch live in Admin → Configuración → *FirulAI*; usage and conversations in Admin → Operaciones → *FirulAI*.
+- Tests: `tests/api/firulai.test.ts`.
 
 ## ☁️ Deployment (Vercel)
 

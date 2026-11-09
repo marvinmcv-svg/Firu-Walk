@@ -19,6 +19,9 @@ const ai: Record<string, string> = {
     "Oops! 🐾 I dropped my connection bone. Give it another try in a moment, or message us on WhatsApp.",
   "ai.placeholder": "Ask me anything…",
   "ai.bubble": "Woof! Questions about walks? I can help 🐾",
+  "ai.bookCta": "Book now",
+  "ai.notice":
+    "We save this chat to improve the service. FirulAI can make mistakes and doesn't give veterinary advice or take payments.",
   "ai.send": "Send",
 };
 

@@ -51,6 +51,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api, qk } from "@/lib/firu/api";
 import { useFiruSession } from "@/lib/firu/session";
+import { openBookingIntent, parseBookingParams } from "@/lib/firu/bookingIntent";
 import { srvErr, useT } from "@/lib/firu/i18n";
 import { formatBOBShort } from "@/lib/firu/money";
 import { LangToggle } from "@/components/firu/shared/LangToggle";
@@ -109,6 +110,24 @@ export function LandingScreen({
     queryKey: qk.zones,
     queryFn: () => api.get<ZoneDTO[]>("/api/zones"),
   });
+
+  // Booking link (/?book=1&zone=…&duration=…, e.g. from FirulAI): pre-fill
+  // the booking funnel and scroll to it.
+  const landingIntent = useFiruSession((s) => s.landingBookingIntent);
+  useEffect(() => {
+    const intent = parseBookingParams(new URLSearchParams(window.location.search));
+    if (!intent) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    openBookingIntent(intent);
+  }, []);
+  const funnelPrefill = landingIntent
+    ? {
+        zoneName: zones?.find((z) => z.key === landingIntent.zoneKey)?.name,
+        durationMin: landingIntent.durationMin,
+        // Re-apply once zones arrive (the name is unknown before).
+        nonce: landingIntent.nonce + (zones ? 1 : 0),
+      }
+    : null;
 
   const supportWa = config?.platform.supportWhatsApp ?? "+59177165787";
   const waLink = `https://wa.me/${supportWa.replace(/\D/g, "")}`;
@@ -458,6 +477,7 @@ export function LandingScreen({
         pricing={pricing}
         supportWa={supportWa}
         onApp={() => setLoginOpen(true)}
+        prefill={funnelPrefill}
       />
 
       <Faq

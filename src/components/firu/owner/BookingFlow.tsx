@@ -120,7 +120,7 @@ export function BookingFlow() {
   const [date, setDate] = useState<string>(todayISO());
   const [hour, setHour] = useState(7);
   const [minute, setMinute] = useState(30);
-  const [durationMin, setDurationMin] = useState<number>(30);
+  const [durationMin, setDurationMin] = useState<number>(seed?.durationMin ?? 30);
   const [walkerUserId, setWalkerUserId] = useState<string | undefined>(
     seed?.walkerUserId
   );
@@ -144,6 +144,13 @@ export function BookingFlow() {
     queryKey: qk.zones,
     queryFn: () => api.get<ZoneDTO[]>("/api/zones"),
   });
+  // Booking link from FirulAI: pre-select its zone once zones are loaded.
+  const seedZoneId = seed?.zoneKey ? zones?.find((z) => z.key === seed.zoneKey)?.id : undefined;
+  const [appliedSeedZone, setAppliedSeedZone] = useState(false);
+  if (seedZoneId && !appliedSeedZone) {
+    setAppliedSeedZone(true);
+    setZoneId(seedZoneId);
+  }
   const { data: subscriptions } = useQuery({
     queryKey: qk.subscriptions,
     queryFn: () => api.get<SubscriptionDTO[]>("/api/subscriptions"),

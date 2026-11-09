@@ -44,10 +44,9 @@ interface FiruState {
   activeWalkId: string | null;
   selectedWalkerUserId: string | null;
   selectedBookingId: string | null;
-  bookingFlowSeed: {
-    walkerUserId?: string;
-    dogId?: string;
-  } | null;
+  bookingFlowSeed: BookingSeed | null;
+  /** Signed-out visitor arrived with a booking link (FirulAI): pre-fill the landing funnel. */
+  landingBookingIntent: (BookingIntent & { nonce: number }) | null;
   // actions
   login: (user: SessionUserDTO) => void;
   /** Revoke the server session, then clear local state. */
@@ -61,7 +60,19 @@ interface FiruState {
   openWalk: (walkId: string) => void;
   openWalker: (userId: string) => void;
   openBooking: (bookingId: string) => void;
-  startBookingFlow: (seed?: { walkerUserId?: string; dogId?: string }) => void;
+  startBookingFlow: (seed?: BookingSeed) => void;
+  setLandingBookingIntent: (intent: (BookingIntent & { nonce: number }) | null) => void;
+}
+
+/** Pre-fill from a booking link (`/?book=1&zone=<key>&duration=<min>`). */
+export interface BookingIntent {
+  zoneKey?: string;
+  durationMin?: number;
+}
+
+export interface BookingSeed extends BookingIntent {
+  walkerUserId?: string;
+  dogId?: string;
 }
 
 export const useFiruSession = create<FiruState>()(
@@ -75,6 +86,7 @@ export const useFiruSession = create<FiruState>()(
       selectedWalkerUserId: null,
       selectedBookingId: null,
       bookingFlowSeed: null,
+      landingBookingIntent: null,
       login: (user) =>
         set({
           user,
@@ -112,6 +124,7 @@ export const useFiruSession = create<FiruState>()(
         set({ selectedBookingId: bookingId, ownerView: "bookings" }),
       startBookingFlow: (seed) =>
         set({ bookingFlowSeed: seed ?? null, ownerView: "booking-flow" }),
+      setLandingBookingIntent: (intent) => set({ landingBookingIntent: intent }),
     }),
     {
       name: "firuwalk-session",

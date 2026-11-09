@@ -680,3 +680,26 @@ export interface LeaderboardRowDTO {
   noShows: number;
   sosCount: number;
 }
+
+// ---------------------------------------------------------------
+// FirulAI admin (Milestone 9)
+// ---------------------------------------------------------------
+
+export interface FirulaiAdminDTO {
+  days: { day: string; requests: number; inputTokens: number; outputTokens: number; costMicroUsd: number }[];
+  conversations: {
+    id: string;
+    userName: string | null;
+    lang: string;
+    messageCount: number;
+    costMicroUsd: number;
+    handoff: boolean;
+    preview: string;
+    updatedAt: string;
+  }[];
+}
+
+export interface FirulaiConversationDTO {
+  id: string;
+  messages: { role: string; content: string; toolCalls: unknown; degraded: string | null; createdAt: string }[];
+}

@@ -456,6 +456,29 @@ const admin: Record<string, string> = {
   "adm.ops.vets.f.notes": "Notas (opcional)",
   "adm.ops.vets.f.open24h": "Atiende 24 horas",
   "adm.ops.vets.f.active": "Visible para los paseadores",
+
+  /* ---- FirulAI (Milestone 9) ---- */
+  "adm.cfg.aiTitle": "FirulAI",
+  "adm.cfg.aiDesc": "La recepcionista con IA: encendido y topes de gasto del modelo.",
+  "adm.cfg.f.aiEnabled": "Encendida (1) / apagada (0)",
+  "adm.cfg.f.aiEnabledHint": "Apagada, FirulAI responde con un mensaje fijo que lleva a WhatsApp, sin usar el modelo.",
+  "adm.cfg.f.aiMsgs": "Mensajes por visitante al día",
+  "adm.cfg.f.aiMsgsHint": "Al llegar al tope, FirulAI invita a seguir por WhatsApp.",
+  "adm.cfg.f.aiCostIp": "Gasto por visitante al día",
+  "adm.cfg.f.aiCostIpHint": "Centavos de dólar de consumo del modelo por IP (50 = US$ 0,50).",
+  "adm.cfg.f.aiCostTotal": "Gasto total al día",
+  "adm.cfg.f.aiCostTotalHint": "Tope diario para todos los visitantes, en centavos de dólar (1000 = US$ 10).",
+  "adm.cfg.f.aiRetention": "Guardar conversaciones",
+  "adm.cfg.f.aiRetentionHint": "Las conversaciones más antiguas se borran en la tarea diaria.",
+  "adm.ai.today": "Mensajes hoy",
+  "adm.ai.todayCost": "Gasto hoy",
+  "adm.ai.week": "Mensajes 7 días",
+  "adm.ai.weekCost": "Gasto 7 días",
+  "adm.ai.hint": "Conversaciones guardadas con FirulAI (sin IP). Los topes y el apagado están en Configuración → FirulAI.",
+  "adm.ai.empty": "Aún no hay conversaciones",
+  "adm.ai.visitor": "Visitante",
+  "adm.ai.messages": "{n} mensajes",
+  "adm.ai.conversation": "Conversación con FirulAI",
 };
 
 export default admin;

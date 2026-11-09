@@ -59,7 +59,7 @@ first**, and harden the tech in parallel.
 | B4 | **Payments are self-confirmed** — owner clicks "I paid" → HELD. No bank/QR provider integration, no webhook. | `api/payments/[id]/confirm` | Fake payments; ledger doesn't match the bank. |
 | B5 | **SQLite file DB**, in-memory rate limit, socket service with no auth. | `prisma/schema.prisma`, `firulai/route.ts`, `live-service` | No horizontal scaling, no backups, anyone can join any `walk:`/`chat:` room and read chats/locations. |
 | B6 | **Walker documents** (CI, selfie, ID photo) have no real upload/storage/encryption. | `walkers/apply` | Can't vet; and if you do store them, you must protect them. |
-| B7 | **LLM via `z-ai-web-dev-sdk`** (sandbox SDK). | `firulai/route.ts` | Not a production provider; swap to a real API with keys, logging and cost caps. |
+| B7 | ~~**LLM via `z-ai-web-dev-sdk`**~~ — done in Milestone 9: Claude behind `LlmClient`, logging and cost caps. | `firulai/route.ts` | Set `ANTHROPIC_API_KEY` in production. |
 | B8 | **City inconsistency**: README says La Paz, code/SEO say Santa Cruz. | README vs `layout.tsx`, `config.ts` | Pick one (recommendation: Santa Cruz). |
 
 ### 3.2 Product / platform weaknesses

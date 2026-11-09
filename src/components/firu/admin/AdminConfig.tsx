@@ -13,6 +13,7 @@ import {
   Info,
   Percent,
   PiggyBank,
+  Bot,
   ScrollText,
   Siren,
   Settings2,
@@ -426,6 +427,21 @@ export function AdminConfig() {
             { key: "opsWhatsApp", label: t("adm.cfg.f.opsWhatsApp"), kind: "textarea", optional: true, hint: t("adm.cfg.f.opsWhatsAppHint") },
           ]}
           value={cfg.safety}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.ai)}
+          section="ai"
+          icon={Bot}
+          title={t("adm.cfg.aiTitle")}
+          description={t("adm.cfg.aiDesc")}
+          fields={[
+            { key: "enabled", label: t("adm.cfg.f.aiEnabled"), kind: "num", hint: t("adm.cfg.f.aiEnabledHint") },
+            { key: "dailyMessagesPerIp", label: t("adm.cfg.f.aiMsgs"), kind: "num", hint: t("adm.cfg.f.aiMsgsHint") },
+            { key: "dailyCostCentsPerIp", label: t("adm.cfg.f.aiCostIp"), kind: "num", unit: "US¢", hint: t("adm.cfg.f.aiCostIpHint") },
+            { key: "dailyCostCentsTotal", label: t("adm.cfg.f.aiCostTotal"), kind: "num", unit: "US¢", hint: t("adm.cfg.f.aiCostTotalHint") },
+            { key: "retentionDays", label: t("adm.cfg.f.aiRetention"), kind: "num", unit: t("adm.cfg.unit.days"), hint: t("adm.cfg.f.aiRetentionHint") },
+          ]}
+          value={cfg.ai}
         />
         <DemoCard demo={cfg.demo} />
       </div>

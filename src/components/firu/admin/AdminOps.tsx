@@ -32,6 +32,7 @@ import type {
 } from "@/lib/firu/types";
 import { Avatar, EmptyState, SectionHeader } from "@/components/firu/shared/bits";
 import { OpsMap } from "@/components/firu/admin/OpsMap";
+import { AdminFirulai } from "@/components/firu/admin/AdminFirulai";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -79,7 +80,7 @@ export function AdminOps() {
       <SectionHeader title={t("adm.ops.title")} subtitle={t("adm.ops.subtitle")} />
       <WorkerStatus data={live.data} />
       <Tabs defaultValue="live">
-        <TabsList className="w-full grid grid-cols-4 rounded-full">
+        <TabsList className="w-full grid grid-cols-5 rounded-full">
           <TabsTrigger value="live" className="rounded-full">{t("adm.ops.tab.live")}</TabsTrigger>
           <TabsTrigger value="incidents" className="rounded-full">
             {t("adm.ops.tab.incidents")}
@@ -91,6 +92,7 @@ export function AdminOps() {
           </TabsTrigger>
           <TabsTrigger value="board" className="rounded-full">{t("adm.ops.tab.board")}</TabsTrigger>
           <TabsTrigger value="vets" className="rounded-full">{t("adm.ops.tab.vets")}</TabsTrigger>
+          <TabsTrigger value="firulai" className="rounded-full">FirulAI</TabsTrigger>
         </TabsList>
         <TabsContent value="live" className="mt-4">
           <LiveTab data={live.data} loading={live.isLoading} />
@@ -103,6 +105,9 @@ export function AdminOps() {
         </TabsContent>
         <TabsContent value="vets" className="mt-4">
           <VetsTab />
+        </TabsContent>
+        <TabsContent value="firulai" className="mt-4">
+          <AdminFirulai />
         </TabsContent>
       </Tabs>
     </div>

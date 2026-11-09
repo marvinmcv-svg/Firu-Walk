@@ -12,6 +12,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { db } from "@/lib/db";
 import * as firulai from "@/app/api/firulai/route";
 import * as adminConfig from "@/app/api/admin/config/route";
+import * as adminFirulai from "@/app/api/admin/firulai/route";
+import * as adminFirulaiConv from "@/app/api/admin/firulai/[id]/route";
 import { setLlmClientForTests } from "@/lib/server/llm";
 import { MockLlmClient } from "@/lib/server/llm/mock";
 import { AnthropicLlmClient } from "@/lib/server/llm/anthropic";
@@ -230,6 +232,24 @@ describe("logging", () => {
     expect(purged).toBeGreaterThanOrEqual(1);
     expect(await db.aiConversation.count({ where: { id: r.json.conversationId } })).toBe(0);
     expect(await db.aiMessage.count({ where: { conversationId: r.json.conversationId } })).toBe(0);
+  });
+});
+
+describe("admin view", () => {
+  test("usage and conversations are admin-only", async () => {
+    const r = await ask("¿Cuánto cuesta?");
+    const owner = await cookieFor(PHONES.ana);
+    expect((await call(adminFirulai.GET as H, { cookie: owner })).status).toBe(403);
+    expect((await call(adminFirulai.GET as H, {})).status).toBe(401);
+    const list = await call(adminFirulai.GET as H, { cookie: admin });
+    expect(list.status).toBe(200);
+    expect(list.json.days[0].requests).toBeGreaterThan(0);
+    const row = list.json.conversations.find((c: { id: string }) => c.id === r.json.conversationId);
+    expect(row.preview).toBe("¿Cuánto cuesta?");
+    expect(JSON.stringify(list.json)).not.toContain("ipHash");
+    const one = await call(adminFirulaiConv.GET as H, { cookie: admin, params: { id: r.json.conversationId } });
+    expect(one.json.messages.map((m: { role: string }) => m.role)).toEqual(["user", "assistant"]);
+    expect((await call(adminFirulaiConv.GET as H, { cookie: owner, params: { id: r.json.conversationId } })).status).toBe(403);
   });
 });
 

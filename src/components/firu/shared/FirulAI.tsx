@@ -13,7 +13,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { MessageCircle, PawPrint, Send, X } from "lucide-react";
+import { CalendarPlus, MessageCircle, PawPrint, Send, X } from "lucide-react";
+import { bookingIntentFromUrl, openBookingIntent } from "@/lib/firu/bookingIntent";
 import { useT } from "@/lib/firu/i18n";
 import { useFiruSession } from "@/lib/firu/session";
 import { springMomentum, springSmooth } from "@/lib/firu/motion";
@@ -24,7 +25,27 @@ import { cn } from "@/lib/utils";
 
 const SUPPORT_WA = "+59177165787";
 
-type Turn = { role: "user" | "assistant"; content: string };
+type Action =
+  | { type: "booking"; url: string; zoneKey: string | null; durationMin: number | null }
+  | { type: "whatsapp"; url: string };
+type Turn = { role: "user" | "assistant"; content: string; actions?: Action[] };
+
+/** Server-side conversation id (chat log), kept for this browser tab. */
+const CONV_KEY = "firu-ai-conversation";
+function readConversationId(): string | null {
+  try {
+    return sessionStorage.getItem(CONV_KEY);
+  } catch {
+    return null;
+  }
+}
+function saveConversationId(id: unknown) {
+  try {
+    if (typeof id === "string") sessionStorage.setItem(CONV_KEY, id);
+  } catch {
+    /* private mode: a new conversation per message is fine */
+  }
+}
 
 /** Quick-reply chips (locale keys); "human" also triggers the WhatsApp handoff. */
 const CHIPS: { key: string; human?: boolean }[] = [
@@ -107,15 +128,24 @@ export function FirulAI() {
       const res = await fetch("/api/firulai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, lang }),
+        body: JSON.stringify({
+          messages: history.map(({ role, content }) => ({ role, content })),
+          lang,
+          conversationId: readConversationId(),
+        }),
       });
-      const data = (await res.json().catch(() => null)) as { reply?: string } | null;
+      const data = (await res.json().catch(() => null)) as
+        | { reply?: string; actions?: Action[]; conversationId?: string }
+        | null;
       const reply = typeof data?.reply === "string" ? data.reply.trim() : "";
       if (!res.ok || !reply) throw new Error("bad response");
-      setTurns((prev) => [...prev, { role: "assistant", content: reply }]);
+      saveConversationId(data?.conversationId);
+      const actions = Array.isArray(data?.actions) ? data.actions : [];
+      setTurns((prev) => [...prev, { role: "assistant", content: reply, actions }]);
       // Handoff surfaces when the reply points at WhatsApp in ANY form:
       // deep link, brand mention, or the support number itself.
       const waMentioned =
+        actions.some((a) => a.type === "whatsapp") ||
         /wa\.me\//i.test(reply) ||
         /whatsapp/i.test(reply) ||
         /\+?59177165787/.test(reply);
@@ -285,7 +315,24 @@ export function FirulAI() {
                         : "rounded-bl-md border bg-card"
                     )}
                   >
-                    <p className="text-sm leading-snug break-words">{m.content}</p>
+                    <p className="text-sm leading-snug break-words whitespace-pre-line">{m.content}</p>
+                    {m.actions
+                      ?.filter((a): a is Extract<Action, { type: "booking" }> => a.type === "booking")
+                      .map((a) => (
+                        <button
+                          key={a.url}
+                          type="button"
+                          onClick={() => {
+                            const intent = bookingIntentFromUrl(a.url);
+                            if (intent && openBookingIntent(intent)) toggle(false);
+                            else window.location.assign(a.url);
+                          }}
+                          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground transition-transform active:scale-[0.97]"
+                          data-testid="firulai-book"
+                        >
+                          <CalendarPlus className="size-3.5" /> {t("ai.bookCta")}
+                        </button>
+                      ))}
                   </div>
                 </motion.div>
               ))}
@@ -347,6 +394,11 @@ export function FirulAI() {
                 ))}
               </div>
             )}
+
+            {/* saved-chat notice (conversations are logged) */}
+            <p className="px-4 pt-2 text-[10.5px] leading-snug text-muted-foreground" data-testid="firulai-notice">
+              {t("ai.notice")}
+            </p>
 
             {/* input row */}
             <form

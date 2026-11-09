@@ -158,6 +158,27 @@ def test_firulai_receptionist_full_chat(page, shot, errors):
     dlg.get_by_role("textbox").press("Enter")
     expect(dlg).to_contain_text(re.compile(r"zona|Zona|zone"), timeout=35_000)
 
+    # Chats are saved: the panel says so (Milestone 9).
+    expect(dlg.get_by_test_id("firulai-notice")).to_contain_text("Guardamos esta conversación")
+
+    # Booking intent → a "Reservar ahora" button that opens the landing
+    # booking funnel pre-filled (never books or charges from the chat).
+    dlg.get_by_role("textbox").fill("Quiero reservar paseos de 45 minutos")
+    dlg.get_by_role("textbox").press("Enter")
+    book = dlg.get_by_test_id("firulai-book")
+    if book.count() == 0:
+        book.wait_for(timeout=35_000)
+    book.first.click()
+    expect(page.get_by_role("dialog", name="FirulAI")).to_have_count(0)
+    page.wait_for_timeout(1_200)
+    funnel_top = page.evaluate("document.getElementById('reservar').getBoundingClientRect().top")
+    assert abs(funnel_top) < 400, f"booking funnel not scrolled into view (top={funnel_top})"
+    shot("03b_firulai_booking_funnel")
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(400)
+    page.get_by_role("button", name="Abrir chat de FirulAI").click()
+    dlg = page.get_by_role("dialog", name="FirulAI")
+
     # Close via the X button; Escape focus-flow intact.
     dlg.get_by_role("button", name="Cerrar chat").click()
     expect(page.get_by_role("dialog", name="FirulAI")).to_have_count(0)

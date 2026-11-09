@@ -456,6 +456,29 @@ const admin: Record<string, string> = {
   "adm.ops.vets.f.notes": "Notes (optional)",
   "adm.ops.vets.f.open24h": "Open 24 hours",
   "adm.ops.vets.f.active": "Visible to walkers",
+
+  /* ---- FirulAI (Milestone 9) ---- */
+  "adm.cfg.aiTitle": "FirulAI",
+  "adm.cfg.aiDesc": "The AI receptionist: on/off switch and model spend caps.",
+  "adm.cfg.f.aiEnabled": "On (1) / off (0)",
+  "adm.cfg.f.aiEnabledHint": "When off, FirulAI answers with a fixed message pointing to WhatsApp, without using the model.",
+  "adm.cfg.f.aiMsgs": "Messages per visitor per day",
+  "adm.cfg.f.aiMsgsHint": "At the cap, FirulAI invites them to continue on WhatsApp.",
+  "adm.cfg.f.aiCostIp": "Spend per visitor per day",
+  "adm.cfg.f.aiCostIpHint": "US cents of model usage per IP (50 = US$0.50).",
+  "adm.cfg.f.aiCostTotal": "Total spend per day",
+  "adm.cfg.f.aiCostTotalHint": "Daily cap for all visitors, in US cents (1000 = US$10).",
+  "adm.cfg.f.aiRetention": "Keep conversations",
+  "adm.cfg.f.aiRetentionHint": "Older conversations are deleted by the daily job.",
+  "adm.ai.today": "Messages today",
+  "adm.ai.todayCost": "Spend today",
+  "adm.ai.week": "Messages 7 days",
+  "adm.ai.weekCost": "Spend 7 days",
+  "adm.ai.hint": "Saved FirulAI conversations (no IPs). Caps and the off switch are in Config → FirulAI.",
+  "adm.ai.empty": "No conversations yet",
+  "adm.ai.visitor": "Visitor",
+  "adm.ai.messages": "{n} messages",
+  "adm.ai.conversation": "FirulAI conversation",
 };
 
 export default admin;
