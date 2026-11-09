@@ -46,11 +46,21 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   LOG_QUERIES: z.enum(["true", "false"]).optional(),
 
-  // Integrations (filled in by later milestones)
+  // Private object storage for walker documents (Milestone 7).
+  // "s3" = any S3-compatible service (Cloudflare R2, AWS S3, Supabase…);
+  // "mock" = local files, development/tests only (refused in production).
+  STORAGE_PROVIDER: z.enum(["mock", "s3"]).optional(),
   STORAGE_BUCKET: optionalStr,
-  STORAGE_ENDPOINT: optionalUrl,
+  STORAGE_ENDPOINT: optionalUrl, // R2: https://<account-id>.r2.cloudflarestorage.com
+  STORAGE_REGION: optionalStr, // R2: "auto"
   STORAGE_ACCESS_KEY_ID: optionalStr,
   STORAGE_SECRET_ACCESS_KEY: optionalStr,
+  // AES-256-GCM key for the walker CI number: 32 random bytes, base64
+  // (`openssl rand -base64 32`). Required in production.
+  ID_ENCRYPTION_KEY: z
+    .string()
+    .refine((v) => Buffer.from(v, "base64").length === 32, "ID_ENCRYPTION_KEY must be 32 bytes, base64-encoded")
+    .optional(),
   LLM_API_KEY: optionalStr,
   WHATSAPP_TOKEN: optionalStr,
   WHATSAPP_PHONE_NUMBER_ID: optionalStr,
@@ -80,6 +90,25 @@ const EnvSchema = z.object({
       code: "custom",
       path: ["SESSION_SECRET"],
       message: "SESSION_SECRET is required in production (openssl rand -base64 48)",
+    });
+  }
+  if (env.NODE_ENV === "production" && !env.ID_ENCRYPTION_KEY) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["ID_ENCRYPTION_KEY"],
+      message: "ID_ENCRYPTION_KEY is required in production (openssl rand -base64 32)",
+    });
+  }
+  if (env.STORAGE_PROVIDER === "s3") {
+    for (const k of ["STORAGE_BUCKET", "STORAGE_ENDPOINT", "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY"] as const) {
+      if (!env[k]) ctx.addIssue({ code: "custom", path: [k], message: `${k} is required when STORAGE_PROVIDER=s3` });
+    }
+  }
+  if (env.VERCEL_ENV === "production" && env.STORAGE_PROVIDER === "mock") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["STORAGE_PROVIDER"],
+      message: "STORAGE_PROVIDER=mock must not be used on the production deployment",
     });
   }
   if (env.NODE_ENV === "production" && env.LIVE_SERVICE_INTERNAL_URL && !env.REALTIME_SECRET) {
