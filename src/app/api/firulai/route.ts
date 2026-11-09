@@ -71,8 +71,14 @@ const CANNED: Record<"llm_error" | "disabled" | CapHit, Record<Lang, string>> = 
   },
 };
 
-function appUrl(): string {
-  return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+/** Public base URL for booking links: APP_URL, else the origin the visitor used. */
+function appUrl(req: Request): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  try {
+    return new URL(req.url).origin;
+  } catch {
+    return "";
+  }
 }
 
 export async function POST(req: Request) {
@@ -149,7 +155,7 @@ export async function POST(req: Request) {
           messages: window,
           note: medical ? medicalNote(lang) : null,
           tools: TOOL_DEFS,
-          runTool: (name, input) => runFirulaiTool(name, input, { cfg, zones, plans, appUrl: appUrl(), lang, actions }),
+          runTool: (name, input) => runFirulaiTool(name, input, { cfg, zones, plans, appUrl: appUrl(req), lang, actions }),
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error("LLM timeout")), LLM_TIMEOUT_MS);
