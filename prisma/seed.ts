@@ -245,6 +245,13 @@ async function main() {
       reminderMinutesBefore: 60,
       opsWhatsApp: "", // ops phones for SOS / late alerts — set in Admin → Configuración
     },
+    ai: {
+      enabled: 1,
+      dailyMessagesPerIp: 40,
+      dailyCostCentsPerIp: 50, // ASSUMPTION: US$0.50 of model spend per visitor per day
+      dailyCostCentsTotal: 1000, // ASSUMPTION: US$10/day for everyone
+      retentionDays: 90,
+    },
   };
   for (const [key, value] of Object.entries(configData)) {
     await db.config.create({ data: { key, valueJson: JSON.stringify(value) } });
