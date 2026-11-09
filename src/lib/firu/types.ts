@@ -59,6 +59,13 @@ export interface AppConfig {
     reminderMinutesBefore: number; // walker reminder before the walk (0 = off)
     opsWhatsApp: string; // ops phone numbers for SOS / late alerts, comma-separated ("" = none)
   };
+  ai: {
+    enabled: number; // 1 = FirulAI answers with the LLM, 0 = canned reply + WhatsApp
+    dailyMessagesPerIp: number; // FirulAI replies per visitor IP per day
+    dailyCostCentsPerIp: number; // model spend cap per IP per day, US cents
+    dailyCostCentsTotal: number; // model spend cap for everyone per day, US cents
+    retentionDays: number; // saved FirulAI chats are deleted after this many days
+  };
   tracking: {
     geofenceMeters: number; // start/end must be this close to the owner's address
     maxSpeedKmh: number; // faster between two GPS points → rejected

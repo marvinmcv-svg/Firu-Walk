@@ -61,7 +61,13 @@ const EnvSchema = z.object({
     .string()
     .refine((v) => Buffer.from(v, "base64").length === 32, "ID_ENCRYPTION_KEY must be 32 bytes, base64-encoded")
     .optional(),
-  LLM_API_KEY: optionalStr,
+  // FirulAI (Milestone 9): Claude via the Anthropic API. Without a key,
+  // production FirulAI answers with the canned WhatsApp reply.
+  LLM_PROVIDER: z.enum(["anthropic", "mock"]).optional(),
+  ANTHROPIC_API_KEY: optionalStr,
+  LLM_API_KEY: optionalStr, // alias of ANTHROPIC_API_KEY
+  LLM_MODEL: optionalStr,
+  LLM_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   WHATSAPP_TOKEN: optionalStr,
   WHATSAPP_PHONE_NUMBER_ID: optionalStr,
   WHATSAPP_OTP_TEMPLATE: optionalStr,

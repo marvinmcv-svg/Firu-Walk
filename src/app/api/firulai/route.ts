@@ -1,179 +1,207 @@
-// POST /api/firulai — FirulAI, the FiruWalk dog receptionist.
-// Body: { messages: {role:"user"|"assistant", content:string}[], lang:"es"|"en" }
-// → 200 { reply: string } · 200 { reply, degraded: true } on LLM failure
-//   (the UI never breaks) · 400/429 { error }.
-// The system prompt is seeded with LIVE business data (Config table + zones),
-// so answers always match the running product. z-ai-web-dev-sdk is backend-only.
+// POST /api/firulai — FirulAI, the FiruWalk dog receptionist (Milestone 9).
+// Body: { messages: {role:"user"|"assistant", content}[], lang:"es"|"en", conversationId? }
+// → 200 { reply, actions, conversationId, degraded? }
+//     actions: buttons for the chat ("booking" deep link, "whatsapp" handoff)
+//     degraded: "llm_error" | "limit" | "disabled" — a canned reply was used
+//   400 invalid body · 429 too many messages per minute
+//
+// The model runs behind LlmClient (src/lib/server/llm). The system prompt is
+// built from live Config + zones. Guardrails: no diagnosis (operator note +
+// vet advice appended), card numbers redacted, read-only tools only (no
+// payments), WhatsApp handoff. Every exchange is logged (visitors see a
+// notice in the chat) and counted against per-IP and daily spend caps.
 
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { getAppConfig } from "@/lib/server/config";
-import { fail, ok } from "@/lib/server/http";
+import { fail, ok, readJson } from "@/lib/server/http";
 import { log } from "@/lib/server/log";
 import { rateLimit } from "@/lib/server/rateLimit";
 import { clientIp } from "@/lib/server/request";
-import ZAI from "z-ai-web-dev-sdk";
+import { getSessionUser } from "@/lib/server/session";
+import { isDemoMode } from "@/lib/server/auth/demo";
+import { getLlmClient } from "@/lib/server/llm";
+import { EMPTY_USAGE, type LlmChatResult, type LlmTurn } from "@/lib/server/llm/types";
+import { buildSystemPrompt, type Lang } from "@/lib/server/firulai/prompt";
+import { runFirulaiTool, TOOL_DEFS, whatsappLink, type FirulaiAction } from "@/lib/server/firulai/tools";
+import { ensureVetAdvice, looksMedical, medicalNote, plainText, redactPaymentData } from "@/lib/server/firulai/guardrails";
+import { checkCaps, ipHashOf, logExchange, recordUsage, resolveConversation, type CapHit } from "@/lib/server/firulai/usage";
 
-type Lang = "es" | "en";
-interface Turn {
-  role: "user" | "assistant";
-  content: string;
-}
-
-const MAX_TURNS = 10; // history window sent to the LLM
+const MAX_TURNS = 10; // history window sent to the model
 const MAX_PER_MSG = 2000; // per-message char cap
 const MAX_TOTAL = 6000; // whole-history char budget
 const LLM_TIMEOUT_MS = 30_000;
-const RATE_LIMIT = 20; // requests per window per IP
+const RATE_LIMIT = 20; // requests per minute per IP
 const RATE_WINDOW_MS = 60_000;
 
-/** Hardcoded graceful fallbacks (both languages) — used when the LLM fails. */
-const FALLBACK: Record<Lang, string> = {
-  es: "¡Guau! 🐾 Mis patitas están ocupadas ahora mismo. Escribinos por WhatsApp y el equipo humano te ayuda al toque: https://wa.me/59177165787",
-  en: "Woof! 🐾 My paws are a bit busy right now. Message us on WhatsApp and the human team will help you out: https://wa.me/59177165787",
+const Body = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().trim().min(1, "Mensaje vacío."),
+      })
+    )
+    .min(1, "Sin mensajes para responder.")
+    .max(60),
+  lang: z.enum(["es", "en"]).optional(),
+  conversationId: z.string().regex(/^[a-z0-9]{10,40}$/).nullish(),
+});
+
+const CANNED: Record<"llm_error" | "disabled" | CapHit, Record<Lang, string>> = {
+  llm_error: {
+    es: "¡Guau! 🐾 Mis patitas están ocupadas ahora mismo. Escribinos por WhatsApp y el equipo te ayuda al toque.",
+    en: "Woof! 🐾 My paws are a bit busy right now. Message us on WhatsApp and the team will help you out.",
+  },
+  disabled: {
+    es: "¡Guau! 🐾 Hoy estoy descansando. Escribinos por WhatsApp y el equipo te ayuda al toque.",
+    en: "Woof! 🐾 I'm resting today. Message us on WhatsApp and the team will help you out.",
+  },
+  ip_messages: {
+    es: "¡Guau! 🐾 Ya charlamos un montón hoy. Para seguir, escribinos por WhatsApp y una persona del equipo te ayuda.",
+    en: "Woof! 🐾 We've chatted a lot today. To keep going, message us on WhatsApp and a person from the team will help.",
+  },
+  ip_cost: {
+    es: "¡Guau! 🐾 Ya charlamos un montón hoy. Para seguir, escribinos por WhatsApp y una persona del equipo te ayuda.",
+    en: "Woof! 🐾 We've chatted a lot today. To keep going, message us on WhatsApp and a person from the team will help.",
+  },
+  global_cost: {
+    es: "¡Guau! 🐾 Hoy tuve muchísimas consultas y necesito una siesta. Escribinos por WhatsApp y el equipo te ayuda al toque.",
+    en: "Woof! 🐾 I've had lots of questions today and need a nap. Message us on WhatsApp and the team will help you out.",
+  },
 };
 
-/* ------------------------------ helpers ------------------------------ */
-
-/** Integer centavos → "Bs 15" / "Bs 15.50" (prompt-friendly money format). */
-function bs(cents: number): string {
-  const v = cents / 100;
-  return `Bs ${Number.isInteger(v) ? v : v.toFixed(2)}`;
+function appUrl(): string {
+  return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
-
-function buildSystemPrompt(
-  cfg: Awaited<ReturnType<typeof getAppConfig>>,
-  zoneNames: string[],
-  lang: Lang
-): string {
-  const p = cfg.platform;
-  const wa = `https://wa.me/${p.supportWhatsApp.replace(/[^\d]/g, "")}`;
-  const zones =
-    zoneNames.length > 0 ? zoneNames.join(", ") : "zona por zona (consultá por la tuya)";
-  return [
-    `You are FirulAI, "la recepcionista perruna de FiruWalk" — you ARE the friendly dog from the FiruWalk logo: a minimalist hand-drawn face, green nose, small red tongue, super friendly. You help families with their dog-walking questions in ${p.city}, Bolivia.`,
-    ``,
-    `PERSONALITY & RULES:`,
-    `- Warm, playful and CONCISE: reply in 2 to 4 short sentences.`,
-    `- At most ONE emoji per reply, only 🐾 or 🧡 (optional, not every message).`,
-    `- NEVER invent facts beyond the business data below. If you are unsure or lack the data, say so honestly and offer the WhatsApp handoff (${wa}).`,
-    `- When the user asks for a human, needs support, or goes off-script, kindly point them to WhatsApp: ${wa}.`,
-    ``,
-    `LIVE BUSINESS DATA (authoritative):`,
-    `- City: ${p.city}, Bolivia.`,
-    `- Prices per walk: 30 min = ${bs(cfg.pricing.price30Cents)} · 45 min = ${bs(cfg.pricing.price45Cents)} · 60 min = ${bs(cfg.pricing.price60Cents)}.`,
-    `- Guarantee: ${p.guaranteeText}`,
-    `- Commission: ${cfg.fees.commissionPct}% charged to the walker (owners pay no extra fee; tips go 100% to the walker).`,
-    `- Cancellation policy: free until ${cfg.policy.cancellationFreeHours} hours before the walk; after that, the walker keeps ${cfg.policy.lateCancelWalkerSharePct}% of the walk price.`,
-    `- Support WhatsApp: ${p.supportWhatsApp} → ${wa}`,
-    `- Covered zones: ${zones}.`,
-    ``,
-    `HOW FIRUWALK WORKS:`,
-    `1. Owners book recurring (or one-off) walks with verified walkers from their zone; matching shows at most 4 candidates.`,
-    `2. During the walk, the owner follows it LIVE with GPS tracking.`,
-    `3. Afterwards they get a photo report with the route map, distance and pee/poo/water notes, then rate the walker and can leave a tip.`,
-    ``,
-    `PAYMENTS: QR Simple, bank transfer or cash. Money is held by the platform and released to the walker only when the walk completes with its report.`,
-    ``,
-    `WALKERS: hand-vetted — ID document + selfie + references reviewed before activation.`,
-    ``,
-    `DEMO (this is a demo product): any phone number logs in with the SMS code 123456; there is also an "apply as walker" form on the landing page.`,
-    ``,
-    `LANGUAGE: Reply ONLY in ${
-      lang === "es"
-        ? "Spanish with a warm Bolivian tone (friendly es-BO, tuteo)"
-        : "natural, friendly English"
-    }.`,
-  ].join("\n");
-}
-
-/** Best-effort reply extraction from an OpenAI-style completion object. */
-function extractReply(completion: unknown): string | null {
-  if (!completion || typeof completion !== "object") return null;
-  const c = completion as { choices?: unknown; message?: { content?: unknown }; content?: unknown };
-  if (Array.isArray(c.choices) && c.choices.length > 0) {
-    const content = (c.choices[0] as { message?: { content?: unknown } })?.message?.content;
-    if (typeof content === "string" && content.trim()) return content.trim();
-  }
-  const alt = c.message?.content ?? c.content;
-  if (typeof alt === "string" && alt.trim()) return alt.trim();
-  return null;
-}
-
-/* -------------------------------- POST -------------------------------- */
 
 export async function POST(req: Request) {
-  // Shared across instances (Redis or Postgres) — see lib/server/rateLimit.ts.
-  const limit = await rateLimit(`firulai:ip:${clientIp(req)}`, RATE_LIMIT, RATE_WINDOW_MS);
-  if (!limit.ok) {
-    return fail(429, "Demasiadas consultas seguidas. Esperá un momentito 🐾");
-  }
+  const ip = clientIp(req);
+  const limit = await rateLimit(`firulai:ip:${ip}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) return fail(429, "Demasiadas consultas seguidas. Esperá un momentito 🐾");
 
-  // ---- parse + validate body ----
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return fail(400, "Cuerpo de la petición inválido.");
-  }
-  const { messages, lang } = (body ?? {}) as { messages?: unknown; lang?: unknown };
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return fail(400, "Sin mensajes para responder.");
-  }
-  const turns: Turn[] = [];
-  for (const m of messages) {
-    if (!m || typeof m !== "object") return fail(400, "Mensaje inválido.");
-    const { role, content } = m as { role?: unknown; content?: unknown };
-    if (role !== "user" && role !== "assistant") return fail(400, "Rol de mensaje inválido.");
-    if (typeof content !== "string" || !content.trim()) return fail(400, "Mensaje vacío.");
-    turns.push({ role, content: content.trim().slice(0, MAX_PER_MSG) });
-  }
-  if (turns[turns.length - 1].role !== "user") {
-    return fail(400, "El último mensaje debe ser del usuario.");
-  }
-  const useLang: Lang = lang === "en" ? "en" : "es";
-
-  // ---- safety window: last 10 turns, oldest dropped until under budget ----
+  const parsed = Body.safeParse(await readJson(req));
+  if (!parsed.success) return fail(400, parsed.error.issues[0]?.message ?? "Cuerpo de la petición inválido.");
+  const lang: Lang = parsed.data.lang === "en" ? "en" : "es";
+  const turns: LlmTurn[] = parsed.data.messages.map((m) => ({
+    role: m.role,
+    content: redactPaymentData(m.content.slice(0, MAX_PER_MSG)),
+  }));
+  if (turns[turns.length - 1].role !== "user") return fail(400, "El último mensaje debe ser del usuario.");
+  // The model expects the conversation to start with the visitor.
+  while (turns.length > 1 && turns[0].role !== "user") turns.shift();
   let window = turns.slice(-MAX_TURNS);
-  while (window.length > 1 && window.reduce((a, t) => a + t.content.length, 0) > MAX_TOTAL) {
-    window = window.slice(1);
-  }
+  while (window.length > 1 && window.reduce((a, t) => a + t.content.length, 0) > MAX_TOTAL) window = window.slice(1);
+  while (window.length > 1 && window[0].role !== "user") window = window.slice(1);
+  const userText = window[window.length - 1].content;
 
-  // ---- live business data ----
-  const [cfg, zones] = await Promise.all([
+  const [cfg, zones, plans, viewer] = await Promise.all([
     getAppConfig(),
-    db.zone.findMany({
+    db.zone.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { key: true, name: true } }),
+    db.plan.findMany({
       where: { active: true },
       orderBy: { sortOrder: "asc" },
-      select: { name: true },
+      select: { name: true, walks: true, durationMin: true, priceCents: true },
     }),
+    getSessionUser(req).catch(() => null),
   ]);
-  const systemPrompt = buildSystemPrompt(cfg, zones.map((z) => z.name), useLang);
+  const ipHash = ipHashOf(ip);
+  const actions: FirulaiAction[] = [];
+  const waHandoff = (): FirulaiAction => ({
+    type: "whatsapp",
+    url: whatsappLink(
+      cfg.platform.supportWhatsApp,
+      lang === "en" ? "Hi FiruWalk 🐾 I'm coming from the FirulAI chat." : "Hola FiruWalk 🐾 Vengo del chat de FirulAI."
+    ),
+  });
 
-  // ---- LLM call with timeout; never break the UI ----
-  const startedAt = Date.now();
+  let conversationId: string | null = null;
   try {
-    const zai = await ZAI.create();
-    const completion = await Promise.race([
-      zai.chat.completions.create({
-        messages: [{ role: "system", content: systemPrompt }, ...window],
-        thinking: { type: "disabled" },
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("LLM timeout")), LLM_TIMEOUT_MS)
-      ),
-    ]);
-    const reply = extractReply(completion);
-    if (!reply) throw new Error("empty completion");
-    // Never log user content — only sizes/timings.
-    log.info("firulai.ok", {
-      turns: window.length,
-      replyChars: reply.length,
-      ms: Date.now() - startedAt,
+    conversationId = await resolveConversation({
+      conversationId: parsed.data.conversationId ?? null,
+      userId: viewer?.id ?? null,
+      ipHash,
+      lang,
     });
-    return ok({ reply });
   } catch (err) {
-    const reason = (err instanceof Error ? err.message : "unknown").slice(0, 200);
-    log.warn("firulai.degraded", { reason, turns: window.length, ms: Date.now() - startedAt });
-    return ok({ reply: FALLBACK[useLang], degraded: true });
+    log.warn("firulai.conversation_failed", { err });
   }
+
+  // ---- canned replies: switched off, or over a cap ----
+  const blocked: "disabled" | CapHit | null = !cfg.ai.enabled ? "disabled" : await checkCaps(cfg, ipHash);
+  let result: LlmChatResult | null = null;
+  let degraded: string | null = null;
+
+  if (blocked) {
+    degraded = blocked === "disabled" ? "disabled" : "limit";
+    actions.push(waHandoff());
+    log.info("firulai.blocked", { reason: blocked });
+  } else {
+    const llm = getLlmClient();
+    const medical = looksMedical(userText);
+    const startedAt = Date.now();
+    try {
+      if (!llm) throw new Error("LLM not configured");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      result = await Promise.race([
+        llm.chat({
+          system: buildSystemPrompt(cfg, zones.map((z) => z.name), lang, { demoMode: isDemoMode() }),
+          messages: window,
+          note: medical ? medicalNote(lang) : null,
+          tools: TOOL_DEFS,
+          runTool: (name, input) => runFirulaiTool(name, input, { cfg, zones, plans, appUrl: appUrl(), lang, actions }),
+        }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("LLM timeout")), LLM_TIMEOUT_MS);
+        }),
+      ]).finally(() => clearTimeout(timer));
+      if (result.stopReason === "refusal" || !result.text) throw new Error(`no answer (${result.stopReason})`);
+      result = { ...result, text: medical ? ensureVetAdvice(plainText(result.text), lang) : plainText(result.text) };
+      // Never log message content to the app logs — only sizes and timings.
+      log.info("firulai.ok", {
+        provider: llm.name,
+        model: result.model,
+        turns: window.length,
+        tools: result.toolCalls.map((c) => c.name),
+        inputTokens: result.usage.inputTokens,
+        cacheReadTokens: result.usage.cacheReadTokens,
+        outputTokens: result.usage.outputTokens,
+        costMicroUsd: result.usage.costMicroUsd,
+        ms: Date.now() - startedAt,
+      });
+    } catch (err) {
+      // A partial run (e.g. refusal after tool calls) still cost tokens: keep its usage.
+      result = result ? { ...result, text: "" } : null;
+      degraded = "llm_error";
+      if (!actions.some((a) => a.type === "whatsapp")) actions.push(waHandoff());
+      log.warn("firulai.degraded", {
+        reason: (err instanceof Error ? err.message : "unknown").slice(0, 200),
+        turns: window.length,
+        ms: Date.now() - startedAt,
+      });
+    }
+  }
+
+  const reply = blocked ? CANNED[blocked][lang] : degraded ? CANNED.llm_error[lang] : result!.text;
+  const usage = result?.usage ?? EMPTY_USAGE;
+
+  // ---- usage + log (never fails the reply) ----
+  try {
+    if (!blocked) await recordUsage(ipHash, usage);
+    if (conversationId) {
+      await logExchange({
+        conversationId,
+        userText,
+        reply,
+        toolCalls: result?.toolCalls ?? [],
+        usage,
+        degraded,
+        handoff: actions.some((a) => a.type === "whatsapp"),
+      });
+    }
+  } catch (err) {
+    log.warn("firulai.log_failed", { err });
+  }
+
+  return ok({ reply, actions, conversationId, ...(degraded ? { degraded } : {}) });
 }
