@@ -23,12 +23,15 @@ def test_admin_operations(page, shot, errors):
     shot("02-applications")
     tabs = page.get_by_role("tab")
     assert tabs.count() >= 2
-    approve_btn = page.get_by_role("button", name="Aprobar", exact=False).first
-    if approve_btn.count():
-        approve_btn.click()
-        dlg = page.get_by_role("alertdialog")
-        expect(dlg).to_be_visible()
-        shot("03-approve-dialog")
+    # Milestone 7: pending applications open the verification review first;
+    # approval stays disabled until documents + checklist are complete.
+    review_btn = page.get_by_role("button", name="Revisar verificación").first
+    if review_btn.count():
+        review_btn.click()
+        dlg = page.get_by_role("dialog")
+        expect(dlg).to_contain_text("Checklist")
+        expect(dlg.get_by_role("button", name="Aprobar")).to_be_disabled()
+        shot("03-review-dialog")
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
 

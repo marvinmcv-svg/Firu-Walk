@@ -44,6 +44,12 @@ import * as walk from "@/app/api/walks/[id]/route";
 import * as walkTrack from "@/app/api/walks/[id]/track/route";
 import * as walks from "@/app/api/walks/route";
 import * as wallet from "@/app/api/wallet/route";
+import * as myVetting from "@/app/api/walkers/me/vetting/route";
+import * as myDocuments from "@/app/api/walkers/me/documents/route";
+import * as myDocComplete from "@/app/api/walkers/me/documents/[id]/complete/route";
+import * as myIdNumber from "@/app/api/walkers/me/id-number/route";
+import * as adminVetting from "@/app/api/admin/walkers/[id]/vetting/route";
+import * as adminReview from "@/app/api/admin/walkers/[id]/review/route";
 import { call, cookieFor, PHONES, userId } from "./helpers";
 
 type H = Parameters<typeof call>[0];
@@ -106,6 +112,12 @@ const PROTECTED: [string, H, string, Record<string, string>?][] = [
   ["POST /walks/[id]/track", walkTrack.POST as H, "POST", P],
   ["GET /walks", walks.GET as H, "GET"],
   ["GET /wallet", wallet.GET as H, "GET"],
+  ["GET /walkers/me/vetting", myVetting.GET as H, "GET"],
+  ["POST /walkers/me/documents", myDocuments.POST as H, "POST"],
+  ["POST /walkers/me/documents/[id]/complete", myDocComplete.POST as H, "POST", P],
+  ["PUT /walkers/me/id-number", myIdNumber.PUT as H, "PUT"],
+  ["GET /admin/walkers/[id]/vetting", adminVetting.GET as H, "GET", P],
+  ["PATCH /admin/walkers/[id]/review", adminReview.PATCH as H, "PATCH", P],
 ];
 
 describe("anonymous callers get 401 everywhere", () => {
@@ -169,6 +181,8 @@ describe("admin routes reject owners and walkers", () => {
     ["PATCH /admin/payout-batches/[id]", adminBatch.PATCH as H, "PATCH", () => ({ id: "x" })],
     ["GET /admin/payout-batches/[id]/csv", adminBatchCsv.GET as H, "GET", () => ({ id: "x" })],
     ["POST /admin/walkers/[id]/deposit", adminWalkerDeposit.POST as H, "POST", () => ({ id: pendingWalkerProfileId })],
+    ["GET /admin/walkers/[id]/vetting", adminVetting.GET as H, "GET", () => ({ id: pendingWalkerProfileId })],
+    ["PATCH /admin/walkers/[id]/review", adminReview.PATCH as H, "PATCH", () => ({ id: pendingWalkerProfileId })],
   ];
   for (const who of ["ana", "luis"] as const) {
     for (const [name, handler, method, params] of ADMIN_ONLY) {
