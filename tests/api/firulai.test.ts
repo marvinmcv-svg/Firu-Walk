@@ -17,6 +17,7 @@ import * as adminFirulaiConv from "@/app/api/admin/firulai/[id]/route";
 import { setLlmClientForTests } from "@/lib/server/llm";
 import { MockLlmClient } from "@/lib/server/llm/mock";
 import { AnthropicLlmClient } from "@/lib/server/llm/anthropic";
+import { OpenAiCompatLlmClient } from "@/lib/server/llm/openaiCompat";
 import type { LlmChatRequest, LlmChatResult, LlmClient } from "@/lib/server/llm/types";
 import { TOOL_DEFS } from "@/lib/server/firulai/tools";
 import { ipHashOf, purgeOldConversations } from "@/lib/server/firulai/usage";
@@ -355,5 +356,89 @@ describe("Anthropic adapter", () => {
     expect(res.usage.costMicroUsd).toBe(3200);
     expect(res.usage.inputTokens).toBe(2300);
     expect(res.usage.cacheReadTokens).toBe(2000);
+  });
+});
+
+describe("OpenAI-compatible adapter (NVIDIA)", () => {
+  test("system + note first, function tools, tool loop, thinking stripped, priced usage", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const urls: string[] = [];
+    const auth: (string | null)[] = [];
+    const model = "nvidia/nemotron-3-ultra-550b-a55b";
+    const responses = [
+      {
+        model,
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [{ id: "call_1", type: "function", function: { name: "check_price", arguments: '{"durationMin":30}' } }],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      },
+      {
+        model,
+        choices: [{ message: { content: "<think>precio</think>Un paseo de 30 min cuesta Bs 15 🐾" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 200, completion_tokens: 30 },
+      },
+    ];
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      urls.push(url);
+      auth.push(new Headers(init.headers).get("authorization"));
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify(responses[bodies.length - 1]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    const client = new OpenAiCompatLlmClient("nvapi-test", model, {}, fakeFetch);
+    const ran: unknown[] = [];
+    const res = await client.chat({
+      system: "SYSTEM",
+      messages: [{ role: "user", content: "¿Precio?" }],
+      note: "operator note",
+      tools: TOOL_DEFS,
+      runTool: async (name, input) => {
+        ran.push([name, input]);
+        return { content: '{"perWalk":{"30":"Bs 15"}}' };
+      },
+    });
+    expect(res.text).toBe("Un paseo de 30 min cuesta Bs 15 🐾");
+    expect(res.stopReason).toBe("end_turn");
+    expect(res.toolCalls).toEqual([{ name: "check_price", input: { durationMin: 30 }, ok: true }]);
+    expect(ran).toEqual([["check_price", { durationMin: 30 }]]);
+    expect(urls[0]).toBe("https://integrate.api.nvidia.com/v1/chat/completions");
+    expect(auth[0]).toBe("Bearer nvapi-test");
+
+    const first = bodies[0] as {
+      model: string;
+      messages: { role: string; content: string }[];
+      tools: { type: string; function: { name: string } }[];
+      chat_template_kwargs: unknown;
+    };
+    expect(first.model).toBe(model);
+    expect(first.messages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(first.messages[0].content).toContain("operator note");
+    expect(first.tools[0].type).toBe("function");
+    expect(first.chat_template_kwargs).toEqual({ enable_thinking: false });
+    const second = bodies[1] as { messages: { role: string; tool_call_id?: string }[] };
+    expect(second.messages.map((m) => m.role)).toEqual(["system", "user", "assistant", "tool"]);
+    expect(second.messages[3].tool_call_id).toBe("call_1");
+
+    expect(res.usage.inputTokens).toBe(300);
+    expect(res.usage.outputTokens).toBe(80);
+    // Unpriced model → charged at the most expensive row: 300 × $5 + 80 × $25 per M tokens.
+    expect(res.usage.costMicroUsd).toBe(3500);
+  });
+
+  test("API errors surface as status only", async () => {
+    const fakeFetch = (async () => new Response('{"error":"echoed prompt"}', { status: 429 })) as unknown as typeof fetch;
+    const client = new OpenAiCompatLlmClient("k", "m", {}, fakeFetch);
+    await expect(
+      client.chat({ system: "S", messages: [{ role: "user", content: "hola" }], tools: [], runTool: async () => ({ content: "" }) })
+    ).rejects.toThrow("LLM API 429");
   });
 });

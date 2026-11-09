@@ -61,11 +61,15 @@ const EnvSchema = z.object({
     .string()
     .refine((v) => Buffer.from(v, "base64").length === 32, "ID_ENCRYPTION_KEY must be 32 bytes, base64-encoded")
     .optional(),
-  // FirulAI (Milestone 9): Claude via the Anthropic API. Without a key,
-  // production FirulAI answers with the canned WhatsApp reply.
-  LLM_PROVIDER: z.enum(["anthropic", "mock"]).optional(),
+  // FirulAI (Milestone 9): Claude via the Anthropic API, or NVIDIA's
+  // OpenAI-compatible API (Nemotron). Without a key, production FirulAI
+  // answers with the canned WhatsApp reply.
+  LLM_PROVIDER: z.enum(["anthropic", "nvidia", "openai", "mock"]).optional(),
+  NVIDIA_API_KEY: optionalStr,
+  LLM_BASE_URL: optionalUrl, // OpenAI-compatible base URL (default NVIDIA)
+  LLM_THINKING: z.enum(["on", "off"]).optional(),
   ANTHROPIC_API_KEY: optionalStr,
-  LLM_API_KEY: optionalStr, // alias of ANTHROPIC_API_KEY
+  LLM_API_KEY: optionalStr, // key for whichever LLM_PROVIDER is selected
   LLM_MODEL: optionalStr,
   LLM_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   WHATSAPP_TOKEN: optionalStr,

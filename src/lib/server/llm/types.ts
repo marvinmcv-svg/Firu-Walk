@@ -1,5 +1,5 @@
 // LlmClient — the one interface FirulAI talks to (Milestone 9). The provider
-// (Anthropic in production, a deterministic mock in development and tests)
+// (Anthropic or an OpenAI-compatible API such as NVIDIA in production, a deterministic mock in development and tests)
 // runs the whole tool-use loop and reports token usage + cost so the caller
 // can enforce per-IP and daily spend caps.
 
@@ -62,7 +62,7 @@ export interface LlmChatResult {
 }
 
 export interface LlmClient {
-  readonly name: "anthropic" | "mock";
+  readonly name: "anthropic" | "openai" | "mock";
   readonly model: string;
   chat(req: LlmChatRequest): Promise<LlmChatResult>;
 }
