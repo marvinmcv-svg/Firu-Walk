@@ -192,7 +192,6 @@ const landing: Record<string, string> = {
   "land.footer.whatsapp": "WhatsApp {phone}",
   "land.footer.demoNote": "Piloto — los pagos QR los confirma el banco; en entornos de prueba usan un banco simulado. Configuración de negocio (comisiones, precios, zonas) se administra desde el panel.",
   "land.footer.company": "Compañía",
-  "land.footer.legal": "Términos y política de privacidad: pendientes de revisión legal (Bolivia). Estado de paseadores: contratistas independientes — definición legal en curso.",
   "land.footer.copyright": "© {year} FiruWalk · Hecho con 🐾 en Santa Cruz",
   // login dialog
   "land.login.title": "Entra a FiruWalk",

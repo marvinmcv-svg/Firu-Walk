@@ -91,6 +91,10 @@ def test_landing_desktop_everything(page, shot, errors):
     expect(page.locator("footer img[alt='FiruWalk']").filter(visible=True).first).to_be_visible()
     expect(page.locator("footer").get_by_text("Empresa familiar", exact=False)).to_be_visible()
     expect(page.locator("footer a[href*='wa.me']")).to_be_visible()
+    legal = page.locator("[data-testid=footer-legal] a")
+    expect(legal).to_have_count(4)
+    for slug in ("terminos", "privacidad", "cancelaciones", "paseadores"):
+        expect(page.locator(f"footer a[href='/legal/{slug}']")).to_be_visible()
     shot("footer")
 
     # --- PWA installability
@@ -123,6 +127,10 @@ def test_landing_desktop_everything(page, shot, errors):
     expect(dlg).to_contain_text("paseador")
     inputs = dlg.locator("input, textarea")
     assert inputs.count() >= 4, f"apply form has {inputs.count()} fields"
+    # sending stays disabled until the Walker Agreement is accepted
+    expect(dlg.get_by_role("checkbox")).to_be_visible()
+    expect(dlg.locator("a[href='/legal/paseadores']")).to_be_visible()
+    expect(dlg.get_by_role("button", name="Enviar aplicación")).to_be_disabled()
     shot("apply-dialog")
     page.keyboard.press("Escape")
 
@@ -179,3 +187,24 @@ def test_landing_mobile_no_overflow(mobile_page, mshot, errors):
     assert 843 <= footer_bottom <= 845, f"footer not flush: {footer_bottom}"
 
     assert_no_errors(errors, "landing mobile")
+
+
+def test_legal_pages(page, errors):  # noqa: ARG001 — collects console errors
+    from conftest import BASE_URL
+    for slug, title in (
+        ("terminos", "Términos y Condiciones"),
+        ("privacidad", "Política de Privacidad"),
+        ("paseadores", "Acuerdo de Paseadores"),
+        ("cancelaciones", "Cancelaciones y Garantía"),
+    ):
+        r = page.goto(f"{BASE_URL}/legal/{slug}", wait_until="domcontentloaded")
+        assert r.status == 200, f"/legal/{slug} → {r.status}"
+        expect(page.get_by_role("heading", level=1)).to_have_text(title)
+    # live config values, and the English courtesy translation
+    page.goto(f"{BASE_URL}/legal/cancelaciones", wait_until="domcontentloaded")
+    expect(page.locator("main")).to_contain_text("Gratis hasta 12 horas antes")
+    page.get_by_role("link", name="English").click()
+    expect(page.get_by_role("heading", level=1)).to_have_text("Cancellation & Guarantee Policy")
+    expect(page.locator("main")).to_contain_text("Spanish version is the legally binding one")
+    assert page.goto(f"{BASE_URL}/legal/nope").status == 404
+    assert not [e for e in errors if "404" not in e], errors

@@ -10,7 +10,7 @@ import { parseOpsPhones } from "@/lib/server/safety/opsAlerts";
 
 /** Expected JS type per whitelisted key. */
 function expectedType(section: ConfigSection, key: string): "string" | "number" {
-  if (section === "platform") return "string";
+  if (section === "platform" || section === "legal") return "string";
   if (section === "demo") return key === "otpCode" ? "string" : "number";
   if (section === "payouts") return key === "cycle" ? "string" : "number";
   if (section === "plans") return key === "unusedWalkPolicy" ? "string" : "number";
@@ -52,6 +52,15 @@ export async function PATCH(req: Request) {
         }
         if (n < 0) throw new ApiError(400, `El valor de "${key}" no puede ser negativo.`);
         clean[key] = n;
+      } else if (sec === "legal") {
+        // Company details for the legal pages; empty is allowed (not registered yet).
+        if (typeof value !== "string") throw new ApiError(400, `El valor de "${key}" debe ser un texto.`);
+        const v = value.trim();
+        if (v.length > 200) throw new ApiError(400, `El valor de "${key}" es demasiado largo.`);
+        if (key === "email" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+          throw new ApiError(400, "El correo de contacto no es válido.");
+        }
+        clean[key] = v;
       } else if (sec === "safety" && key === "opsWhatsApp") {
         // Comma-separated phone numbers; empty turns ops WhatsApp alerts off.
         if (typeof value !== "string") throw new ApiError(400, `El valor de "${key}" debe ser un texto.`);

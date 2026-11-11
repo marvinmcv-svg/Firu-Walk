@@ -66,6 +66,13 @@ export interface AppConfig {
     dailyCostCentsTotal: number; // model spend cap for everyone per day, US cents
     retentionDays: number; // saved FirulAI chats are deleted after this many days
   };
+  /** Company details shown in the legal pages ("" = not set yet; the brand name is used). */
+  legal: {
+    companyName: string; // registered name (SEPREC), e.g. "FiruWalk S.R.L."
+    nit: string; // tax ID
+    address: string;
+    email: string;
+  };
   tracking: {
     geofenceMeters: number; // start/end must be this close to the owner's address
     maxSpeedKmh: number; // faster between two GPS points → rejected

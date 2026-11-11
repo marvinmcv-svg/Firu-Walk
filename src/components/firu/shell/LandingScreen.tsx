@@ -55,6 +55,8 @@ import { openBookingIntent, parseBookingParams } from "@/lib/firu/bookingIntent"
 import { srvErr, useT } from "@/lib/firu/i18n";
 import { formatBOBShort } from "@/lib/firu/money";
 import { LangToggle } from "@/components/firu/shared/LangToggle";
+import { LegalLink, SignInConsent, WalkerConsentText } from "@/components/firu/shared/LegalLinks";
+import { Checkbox } from "@/components/ui/checkbox";
 import type {
   AppConfig,
   DemoAccountDTO,
@@ -568,7 +570,15 @@ export function LandingScreen({
           </div>
           <div>
             <p className="font-bold mb-2">{t("land.footer.company")}</p>
-            <p className="text-muted-foreground text-xs leading-relaxed">{t("land.footer.legal")}</p>
+            <nav aria-label={t("sh.legal.footerTitle")}>
+              <ul className="grid gap-1 text-sm" data-testid="footer-legal">
+                <li><LegalLink slug="terminos">{t("sh.legal.terms")}</LegalLink></li>
+                <li><LegalLink slug="privacidad">{t("sh.legal.privacy")}</LegalLink></li>
+                <li><LegalLink slug="cancelaciones">{t("sh.legal.cancellation")}</LegalLink></li>
+                <li><LegalLink slug="paseadores">{t("sh.legal.walker")}</LegalLink></li>
+              </ul>
+            </nav>
+            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{t("sh.legal.footerNote")}</p>
             <p className="text-muted-foreground mt-3 text-xs">
               {t("land.footer.copyright", { year: new Date().getFullYear() })}
             </p>
@@ -1003,7 +1013,7 @@ function LoginDialog({
   });
 
   const loginMut = useMutation({
-    mutationFn: () => api.post<LoginResponse>("/api/auth/login", { phone, code }),
+    mutationFn: () => api.post<LoginResponse>("/api/auth/login", { phone, code, acceptTerms: true }),
     onSuccess: welcome,
     onError: fail,
   });
@@ -1166,6 +1176,7 @@ function LoginDialog({
                   </div>
                 </>
               )}
+              <SignInConsent />
             </div>
           </div>
 
@@ -1241,6 +1252,7 @@ function ApplyDialog({
   const [zoneId, setZoneId] = useState("");
   const [bio, setBio] = useState("");
   const [experienceYears, setExperienceYears] = useState("1");
+  const [acceptAgreement, setAcceptAgreement] = useState(false);
   const { data: zones } = useQuery({
     queryKey: qk.zones,
     queryFn: () => api.get<ZoneDTO[]>("/api/zones"),
@@ -1255,6 +1267,7 @@ function ApplyDialog({
         zoneId,
         bio,
         experienceYears: Number(experienceYears) || 0,
+        acceptAgreement,
       }),
     onSuccess: () => {
       onOpenChange(false);
@@ -1316,9 +1329,20 @@ function ApplyDialog({
               placeholder={t("land.apply.bioPh")}
             />
           </div>
+          <div className="flex items-start gap-2.5">
+            <Checkbox
+              id="ap-accept"
+              checked={acceptAgreement}
+              onCheckedChange={(v) => setAcceptAgreement(v === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="ap-accept" className="text-xs font-normal leading-relaxed text-muted-foreground block">
+              <WalkerConsentText />
+            </Label>
+          </div>
           <Button
             className="rounded-full font-bold"
-            disabled={applyMut.isPending || !name || !phone || !zoneId || !bio}
+            disabled={applyMut.isPending || !name || !phone || !zoneId || !bio || !acceptAgreement}
             onClick={() => applyMut.mutate()}
           >
             {applyMut.isPending && <Loader2 className="size-4 animate-spin" />}

@@ -17,6 +17,7 @@ export const CONFIG_SECTIONS = [
   "payments",
   "safety",
   "ai",
+  "legal",
 ] as const;
 export type ConfigSection = (typeof CONFIG_SECTIONS)[number];
 
@@ -39,6 +40,7 @@ export const CONFIG_WHITELIST: Record<ConfigSection, string[]> = {
   payments: ["qrExpiryMinutes"],
   safety: ["lateStartMinutes", "backupOfferMinutes", "reminderMinutesBefore", "opsWhatsApp"],
   ai: ["enabled", "dailyMessagesPerIp", "dailyCostCentsPerIp", "dailyCostCentsTotal", "retentionDays"],
+  legal: ["companyName", "nit", "address", "email"],
 };
 
 /** Allowed values for enum-like text settings (admin PATCH validates them). */
@@ -70,6 +72,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   payments: { qrExpiryMinutes: 30 },
   safety: { lateStartMinutes: 10, backupOfferMinutes: 10, reminderMinutesBefore: 60, opsWhatsApp: "" },
   ai: { enabled: 1, dailyMessagesPerIp: 40, dailyCostCentsPerIp: 50, dailyCostCentsTotal: 1000, retentionDays: 90 },
+  legal: { companyName: "", nit: "", address: "", email: "" },
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {

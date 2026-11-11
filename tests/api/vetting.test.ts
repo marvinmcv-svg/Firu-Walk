@@ -319,3 +319,26 @@ describe("approval gate", () => {
     expect(r.status).toBe(409);
   });
 });
+
+describe("walker application", () => {
+  test("needs the Walker Agreement accepted and records the version", async () => {
+    const { POST } = await import("@/app/api/walkers/apply/route");
+    const { LEGAL_VERSION } = await import("@/lib/firu/legal");
+    await db.rateLimit.deleteMany();
+    const zone = await db.zone.findFirstOrThrow({ where: { active: true } });
+    const phone = `+5917${String(Date.now()).slice(-7)}`;
+    const body = { name: "Rocío Test", phone, bio: "Amo los perros.", zoneId: zone.id, experienceYears: 2 };
+
+    const refused = await call(POST, { method: "POST", body });
+    expect(refused.status).toBe(400);
+    expect(refused.json.error).toContain("Acuerdo de Paseadores");
+    expect(await db.user.count({ where: { phone } })).toBe(0);
+
+    const r = await call(POST, { method: "POST", body: { ...body, acceptAgreement: true } });
+    expect(r.status).toBe(200);
+    const u = await db.user.findUniqueOrThrow({ where: { phone }, include: { walker: true } });
+    expect(u.termsVersion).toBe(LEGAL_VERSION);
+    expect(u.walker?.agreementVersion).toBe(LEGAL_VERSION);
+    expect(u.walker?.agreementAcceptedAt).toBeInstanceOf(Date);
+  });
+});

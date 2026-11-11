@@ -123,6 +123,17 @@ const shared: Record<string, string> = {
   // WalkMapCanvas
   "sh.map.start": "Inicio",
   "sh.map.aria": "Mapa del recorrido del paseo",
+  // legal links (Phase 1 step 8)
+  "sh.legal.consentPre": "Al continuar aceptas los",
+  "sh.legal.terms": "Términos y Condiciones",
+  "sh.legal.privacy": "Política de Privacidad",
+  "sh.legal.cancellation": "Política de Cancelaciones y Garantía",
+  "sh.legal.walker": "Acuerdo de Paseadores",
+  "sh.legal.walkerPre": "Leí y acepto el",
+  "sh.legal.sep": ",",
+  "sh.legal.and": "y la",
+  "sh.legal.footerTitle": "Legal",
+  "sh.legal.footerNote": "Los paseadores son proveedores independientes verificados por FiruWalk.",
 };
 
 export default shared;

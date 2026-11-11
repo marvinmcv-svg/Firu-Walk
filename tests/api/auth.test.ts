@@ -7,6 +7,7 @@ import { setOtpSendersForTests, type OtpSender } from "@/lib/server/auth/otpSend
 import { isCrossSiteWrite } from "@/proxy";
 import * as otpRoute from "@/app/api/auth/otp/route";
 import * as loginRoute from "@/app/api/auth/login/route";
+import { LEGAL_VERSION } from "@/lib/firu/legal";
 import * as logoutRoute from "@/app/api/auth/logout/route";
 import * as demoLoginRoute from "@/app/api/auth/demo-login/route";
 import * as demoAccountsRoute from "@/app/api/auth/demo-accounts/route";
@@ -54,7 +55,7 @@ describe("login with a phone code", () => {
     expect(code).toMatch(/^\d{6}$/);
     expect(JSON.stringify(r1.json)).not.toContain(code);
 
-    const r2 = await call(loginRoute.POST, { method: "POST", body: { phone, code } });
+    const r2 = await call(loginRoute.POST, { method: "POST", body: { phone, code, acceptTerms: true } });
     expect(r2.status).toBe(200);
     expect(r2.json.isNew).toBe(true);
     expect(r2.json.user.role).toBe("OWNER");
@@ -65,6 +66,37 @@ describe("login with a phone code", () => {
     const me = await call(meRoute.GET, { cookie: cookieFrom(r2.res) });
     expect(me.status).toBe(200);
     expect(me.json.phone).toBe(phone);
+  });
+
+  test("new accounts need the Terms accepted; the accepted version is recorded", async () => {
+    const phone = freshPhone();
+    await call(otpRoute.POST, { method: "POST", body: { phone } });
+    const refused = await call(loginRoute.POST, { method: "POST", body: { phone, code: sender.codes.get(phone)! } });
+    expect(refused.status).toBe(400);
+    expect(refused.json.error).toContain("Términos");
+    expect(await db.user.count({ where: { phone } })).toBe(0);
+
+    await db.otpChallenge.deleteMany({ where: { phone } });
+    await call(otpRoute.POST, { method: "POST", body: { phone } });
+    const r = await call(loginRoute.POST, {
+      method: "POST",
+      body: { phone, code: sender.codes.get(phone)!, acceptTerms: true },
+    });
+    expect(r.status).toBe(200);
+    const u = await db.user.findUniqueOrThrow({ where: { phone } });
+    expect(u.termsVersion).toBe(LEGAL_VERSION);
+    expect(u.termsAcceptedAt).toBeInstanceOf(Date);
+
+    // Existing users can still sign in without the flag; a newer acceptance updates the record.
+    await db.user.update({ where: { id: u.id }, data: { termsVersion: "2000-01-01" } });
+    await db.otpChallenge.deleteMany({ where: { phone } });
+    await call(otpRoute.POST, { method: "POST", body: { phone } });
+    expect((await call(loginRoute.POST, { method: "POST", body: { phone, code: sender.codes.get(phone)! } })).status).toBe(200);
+    expect((await db.user.findUniqueOrThrow({ where: { phone } })).termsVersion).toBe("2000-01-01");
+    await db.otpChallenge.deleteMany({ where: { phone } });
+    await call(otpRoute.POST, { method: "POST", body: { phone } });
+    await call(loginRoute.POST, { method: "POST", body: { phone, code: sender.codes.get(phone)!, acceptTerms: true } });
+    expect((await db.user.findUniqueOrThrow({ where: { phone } })).termsVersion).toBe(LEGAL_VERSION);
   });
 
   test("codes are stored hashed, never in clear", async () => {
@@ -81,11 +113,11 @@ describe("login with a phone code", () => {
     const code = sender.codes.get(phone)!;
     const wrong = code === "000000" ? "111111" : "000000";
     for (let i = 1; i <= 5; i++) {
-      const r = await call(loginRoute.POST, { method: "POST", body: { phone, code: wrong } });
+      const r = await call(loginRoute.POST, { method: "POST", body: { phone, code: wrong, acceptTerms: true } });
       expect(r.status).toBe(400);
       expect(r.json.error).not.toContain(code);
     }
-    const late = await call(loginRoute.POST, { method: "POST", body: { phone, code } });
+    const late = await call(loginRoute.POST, { method: "POST", body: { phone, code, acceptTerms: true } });
     expect(late.status).toBe(400);
     expect(late.json.error).toContain("expiró");
   });
@@ -94,8 +126,8 @@ describe("login with a phone code", () => {
     const phone = freshPhone();
     await call(otpRoute.POST, { method: "POST", body: { phone } });
     const code = sender.codes.get(phone)!;
-    expect((await call(loginRoute.POST, { method: "POST", body: { phone, code } })).status).toBe(200);
-    expect((await call(loginRoute.POST, { method: "POST", body: { phone, code } })).status).toBe(400);
+    expect((await call(loginRoute.POST, { method: "POST", body: { phone, code, acceptTerms: true } })).status).toBe(200);
+    expect((await call(loginRoute.POST, { method: "POST", body: { phone, code, acceptTerms: true } })).status).toBe(400);
   });
 
   test("expired codes are rejected", async () => {
@@ -104,7 +136,7 @@ describe("login with a phone code", () => {
     await db.otpChallenge.updateMany({ where: { phone }, data: { expiresAt: new Date(Date.now() - 1000) } });
     const r = await call(loginRoute.POST, {
       method: "POST",
-      body: { phone, code: sender.codes.get(phone)! },
+      body: { phone, code: sender.codes.get(phone)!, acceptTerms: true },
     });
     expect(r.status).toBe(400);
   });
@@ -219,7 +251,7 @@ describe("demo mode", () => {
     const r = await call(otpRoute.POST, { method: "POST", body: { phone } });
     expect(r.json.demo).toBe(true);
     expect(sender.codes.size).toBe(0);
-    const login = await call(loginRoute.POST, { method: "POST", body: { phone, code: "123456" } });
+    const login = await call(loginRoute.POST, { method: "POST", body: { phone, code: "123456", acceptTerms: true } });
     expect(login.status).toBe(200);
   });
 

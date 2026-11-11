@@ -1,4 +1,6 @@
 // POST /api/walkers/apply — PUBLIC application form.
+// Requires acceptAgreement: true (Walker Agreement + Terms + Privacy); the
+// accepted LEGAL_VERSION is recorded on the user and the walker profile.
 // Creates User(role WALKER) + WalkerProfile(status PENDING) + default availability.
 // The phone becomes the login (the applicant signs in later with a login code).
 // Returns {applied:true}; it never opens a session. Identity documents are
@@ -6,6 +8,7 @@
 // public form — see /api/walkers/me/documents.
 
 import { db } from "@/lib/db";
+import { LEGAL_VERSION } from "@/lib/firu/legal";
 import { ApiError, ok, readJson, reqNum, reqStr, run } from "@/lib/server/http";
 import { getAppConfig } from "@/lib/server/config";
 import { notify, notifyAdmins } from "@/lib/server/notify";
@@ -27,6 +30,9 @@ export async function POST(req: Request) {
     });
 
     const phone = requirePhone(rawPhone);
+    if (body.acceptAgreement !== true) {
+      throw new ApiError(400, "Debes aceptar el Acuerdo de Paseadores, los Términos y la Política de Privacidad.");
+    }
 
     const zone = await db.zone.findUnique({ where: { id: zoneId } });
     if (!zone || !zone.active) throw new ApiError(400, "La zona seleccionada no existe.");
@@ -37,15 +43,20 @@ export async function POST(req: Request) {
     }
 
     const cfg = await getAppConfig();
+    const now = new Date();
     const user = await db.user.create({
       data: {
         phone,
         name,
         role: "WALKER",
         zoneId,
+        termsVersion: LEGAL_VERSION,
+        termsAcceptedAt: now,
         walker: {
           create: {
             status: "PENDING",
+            agreementVersion: LEGAL_VERSION,
+            agreementAcceptedAt: now,
             bio,
             experienceYears,
             zoneId,

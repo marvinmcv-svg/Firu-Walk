@@ -114,7 +114,7 @@ Order matters (each step unblocks the next):
 5. **Payments:** integrate a Bolivian QR provider (evaluate bank QR APIs and local aggregators — e.g. BNB, BCP, Banco Ganadero, Libélula, PagosNet — compare fees, settlement time, webhook support, onboarding requirements). Webhook-confirmed payments only; reconciliation job against the ledger. Walker payouts: weekly batch transfers to their bank account / QR.
 6. **Notifications:** WhatsApp Business Cloud API templates for booking requests, walker on the way, walk started/ended + report link, payment received.
 7. **FirulAI:** switch to a production LLM API, keep the live-config system prompt, add logging, cost caps, guardrails (no medical diagnoses → "call your vet").
-8. **Legal pages:** Terms, Privacy, Walker Agreement, Cancellation & Guarantee policy (ES first).
+8. **Legal pages:** Terms, Privacy, Walker Agreement, Cancellation & Guarantee policy (ES first). ✅ Live at `/legal` (ES + EN courtesy translation), built from the live config; acceptance recorded on sign-up and walker applications. Pending: review by a Bolivian lawyer and the company details (SEPREC name, NIT) in Admin → Configuración.
 
 ### Phase 2 — Soft launch (weeks 8–12)
 - Move Phase-0 customers onto the app (keep WhatsApp as support).

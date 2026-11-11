@@ -203,20 +203,24 @@ model Zone {
 // ---------------------------------------------------------------
 
 model User {
-  id          String         @id @default(cuid())
-  phone       String         @unique // E.164-ish "+5917xxxxxxx"
-  name        String
-  role        Role
-  avatarUrl   String?
+  id              String         @id @default(cuid())
+  phone           String         @unique // E.164-ish "+5917xxxxxxx"
+  name            String
+  role            Role
+  avatarUrl       String?
   // Owner fields
-  zoneId      String?
-  addressNote String? // landmark text ("Edificio X, frente al parque")
-  addressLat  Float?
-  addressLng  Float?
+  zoneId          String?
+  addressNote     String? // landmark text ("Edificio X, frente al parque")
+  addressLat      Float?
+  addressLng      Float?
+  // Legal acceptance (Terms + Privacy + Cancellation policy): LEGAL_VERSION
+  // in src/lib/firu/legal.ts that the user last accepted, and when.
+  termsVersion    String?
+  termsAcceptedAt DateTime?
   // Walker fields
-  walker      WalkerProfile?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  walker          WalkerProfile?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   zone             Zone?                   @relation(fields: [zoneId], references: [id])
   dogs             Dog[]                   @relation("DogOwner")
@@ -238,6 +242,9 @@ model WalkerProfile {
   status              WalkerStatus  @default(PENDING)
   bio                 String
   experienceYears     Float         @default(0)
+  // Walker Agreement version accepted with the application, and when.
+  agreementVersion    String?
+  agreementAcceptedAt DateTime?
   // Application (vetting) data — Milestone 7. Documents live in private
   // object storage (WalkerDocument); the CI number is AES-256-GCM encrypted
   // (src/lib/server/crypto/fieldCrypto.ts) and only its last 4 digits are

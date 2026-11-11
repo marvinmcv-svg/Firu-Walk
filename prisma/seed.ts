@@ -208,7 +208,7 @@ async function main() {
       city: "Santa Cruz de la Sierra",
       supportWhatsApp: "+59177165787", // real support line (user-provided)
       guaranteeText:
-        "Garantía FiruWalk: si tu paseador cancela, encontramos un respaldo o te acreditamos el paseo. Cobertura y límites: por definir con asesor legal.",
+        "Garantía FiruWalk: si tu paseador cancela, encontramos un respaldo o te acreditamos el paseo.",
     },
     fees: {
       commissionPct: 12, // ASSUMPTION: 10–15% walker-side take, 0% owner

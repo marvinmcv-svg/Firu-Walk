@@ -153,6 +153,13 @@ To go live you need a WhatsApp Business **authentication** template with a copy-
 - **Logging & caps**: every exchange is saved (`AiConversation`/`AiMessage`, no raw IP — the chat shows a notice), purged after `ai.retentionDays`. Per-IP messages/day, per-IP spend/day and total spend/day caps plus an on/off switch live in Admin → Configuración → *FirulAI*; usage and conversations in Admin → Operaciones → *FirulAI*.
 - Tests: `tests/api/firulai.test.ts`.
 
+## ⚖️ Legal pages
+
+- **`/legal`** — Términos y Condiciones, Política de Privacidad, Acuerdo de Paseadores, Cancelaciones y Garantía (`/legal/terminos`, `/privacidad`, `/paseadores`, `/cancelaciones`). Spanish governs; `?lang=en` is a courtesy translation. Text lives in `src/lib/firu/legal.ts` and is built from the live Config, so the numbers (free-cancel window, late-cancel share, commission, payout cycle, chat retention…) always match what the app enforces.
+- **Company details** (razón social, NIT, address, contact email) are set in Admin → Configuración → *Datos legales*; empty fields fall back to the brand name.
+- **Acceptance is recorded**: new accounts must send `acceptTerms: true` to `/api/auth/login` (the sign-in dialog shows the consent line) and walker applications `acceptAgreement: true` (required checkbox). `User.termsVersion/termsAcceptedAt` and `WalkerProfile.agreementVersion/agreementAcceptedAt` store which `LEGAL_VERSION` was accepted — bump it when the wording changes in substance.
+- ⚠️ The texts are a solid starting draft, **not legal advice**: have a Bolivian lawyer review them before launch.
+
 ## ☁️ Deployment (Vercel)
 
 Every push to GitHub deploys automatically (Vercel project `firu-walk`, region `gru1` São Paulo).

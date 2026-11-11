@@ -14,6 +14,7 @@ import {
   Percent,
   PiggyBank,
   Bot,
+  Scale,
   ScrollText,
   Siren,
   Settings2,
@@ -442,6 +443,20 @@ export function AdminConfig() {
             { key: "retentionDays", label: t("adm.cfg.f.aiRetention"), kind: "num", unit: t("adm.cfg.unit.days"), hint: t("adm.cfg.f.aiRetentionHint") },
           ]}
           value={cfg.ai}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.legal)}
+          section="legal"
+          icon={Scale}
+          title={t("adm.cfg.legalTitle")}
+          description={t("adm.cfg.legalDesc")}
+          fields={[
+            { key: "companyName", label: t("adm.cfg.f.legalCompany"), kind: "text", optional: true, hint: t("adm.cfg.f.legalCompanyHint") },
+            { key: "nit", label: t("adm.cfg.f.legalNit"), kind: "text", optional: true },
+            { key: "email", label: t("adm.cfg.f.legalEmail"), kind: "text", optional: true },
+            { key: "address", label: t("adm.cfg.f.legalAddress"), kind: "textarea", optional: true },
+          ]}
+          value={cfg.legal}
         />
         <DemoCard demo={cfg.demo} />
       </div>
