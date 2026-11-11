@@ -5,11 +5,6 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { db } from "@/lib/db";
-import * as otpRoute from "@/app/api/auth/otp/route";
-import * as loginRoute from "@/app/api/auth/login/route";
-import * as bookingsRoute from "@/app/api/bookings/route";
-import * as bookingRoute from "@/app/api/bookings/[id]/route";
-import * as walkRoute from "@/app/api/walks/[id]/route";
 import * as mockPayRoute from "@/app/api/payments/mock/pay/route";
 import * as plansRoute from "@/app/api/plans/route";
 import * as subscriptionsRoute from "@/app/api/subscriptions/route";
@@ -21,105 +16,32 @@ import * as adminReferralRoute from "@/app/api/admin/referrals/[id]/route";
 import * as importRoute from "@/app/api/admin/owners/import/route";
 import * as growthRoute from "@/app/api/admin/metrics/growth/route";
 import * as configRoute from "@/app/api/admin/config/route";
-import { setOtpSendersForTests, type OtpSender } from "@/lib/server/auth/otpSenders";
+import { setOtpSendersForTests } from "@/lib/server/auth/otpSenders";
 import { getAppConfig, updateConfigSection } from "@/lib/server/config";
-import { accountBalance, ledgerTotals, walletBalance } from "@/lib/server/ledger";
+import { accountBalance, walletBalance } from "@/lib/server/ledger";
 import { expireSubscriptions } from "@/lib/server/payments/plans";
 import { setRealtimePublisherForTests } from "@/lib/server/realtime";
 import { boWeekStart } from "@/lib/server/growthMetrics";
 import { boDateKey } from "@/lib/server/botime";
 import { normalizeChannel, normalizeCode } from "@/lib/server/referrals";
 import { call, cookieFor, PHONES, userId } from "./helpers";
+import {
+  book as bookWith,
+  CaptureSender,
+  expectLedgerBalanced,
+  makeBookable,
+  signUp as signUpAs,
+  walkIt as walkWith,
+  type H,
+} from "./flows";
 
-type H = Parameters<typeof call>[0];
 const cookies: Record<string, string> = {};
 const ids: Record<string, string> = {};
 
-class CaptureSender implements OtpSender {
-  readonly channel = "sms" as const;
-  codes = new Map<string, string>();
-  async send(phone: string, code: string) {
-    this.codes.set(phone, code);
-  }
-}
 const sender = new CaptureSender();
-let seq = 0;
-const freshPhone = () => `+5916${String(2_000_000 + (process.pid % 1000) * 100 + seq++).slice(-7)}`;
-
-const cookieFrom = (res: Response) => {
-  const m = /fw_session=([^;]*)/.exec(res.headers.get("set-cookie") ?? "");
-  return m ? `fw_session=${m[1]}` : "";
-};
-
-async function signUp(extra: Record<string, unknown>) {
-  const phone = freshPhone();
-  expect((await call(otpRoute.POST as H, { method: "POST", body: { phone } })).status).toBe(200);
-  const r = await call(loginRoute.POST as H, {
-    method: "POST",
-    body: { phone, code: sender.codes.get(phone)!, acceptTerms: true, ...extra },
-  });
-  expect(r.status).toBe(200);
-  return { ...r, phone, cookie: cookieFrom(r.res), id: r.json.user.id as string };
-}
-
-function dayAhead(days: number): string {
-  return new Date(Date.now() - 4 * 3_600_000 + days * 86_400_000).toISOString().slice(0, 10);
-}
-
-/** Give a new owner Ana's zone/address and a dog so they can book. */
-async function makeBookable(ownerId: string) {
-  const ana = await db.user.findUniqueOrThrow({ where: { phone: PHONES.ana } });
-  await db.user.update({
-    where: { id: ownerId },
-    data: { name: "Bea Prueba", zoneId: ana.zoneId, addressLat: ana.addressLat, addressLng: ana.addressLng },
-  });
-  await db.dog.create({ data: { ownerId, name: "Toby", breed: "Mestizo", size: "M", ageYears: 2, temperament: "CALM" } });
-}
-
-async function book(ownerId: string, cookie: string, body: Record<string, unknown>) {
-  const owner = await db.user.findUniqueOrThrow({ where: { id: ownerId }, include: { dogs: true } });
-  const r = await call(bookingsRoute.POST as H, {
-    method: "POST",
-    cookie,
-    body: {
-      dogId: owner.dogs[0].id,
-      zoneId: owner.zoneId,
-      type: "ONE_OFF",
-      durationMin: 30,
-      schedule: [{ date: dayAhead(2), minute: 600 }],
-      preferredWalkerUserId: ids.luis,
-      ...body,
-    },
-  });
-  expect(r.status).toBe(201);
-  return r.json as { id: string; payment: { id: string; method: string; status: string } };
-}
-
-async function walkIt(bookingId: string) {
-  expect(
-    (await call(bookingRoute.PATCH as H, { method: "PATCH", params: { id: bookingId }, cookie: cookies.luis, body: { action: "accept" } })).status
-  ).toBe(200);
-  const walk = await db.walk.findFirstOrThrow({ where: { bookingId, status: "SCHEDULED" } });
-  await db.walk.update({ where: { id: walk.id }, data: { scheduledStart: new Date() } });
-  const owner = await db.user.findUniqueOrThrow({ where: { id: walk.ownerId } });
-  const pos = { lat: owner.addressLat!, lng: owner.addressLng!, acc: 5 };
-  for (const action of ["start", "finish"]) {
-    const r = await call(walkRoute.PATCH as H, {
-      method: "PATCH",
-      params: { id: walk.id },
-      cookie: cookies.luis,
-      body: { action, ...pos, ...(action === "finish" ? { report: { note: "ok", pee: true } } : {}) },
-    });
-    expect(r.status).toBe(200);
-  }
-  return walk.id;
-}
-
-async function expectLedgerBalanced() {
-  const t = await ledgerTotals();
-  expect(t.debitCents).toBe(t.creditCents);
-  expect(t.unbalancedTxns).toEqual([]);
-}
+const signUp = (extra: Record<string, unknown>) => signUpAs(sender, 2, extra);
+const book = (ownerId: string, cookie: string, body: Record<string, unknown>) => bookWith(ownerId, cookie, ids.luis, body);
+const walkIt = (bookingId: string) => walkWith(bookingId, cookies.luis);
 
 let originalReferrals: Awaited<ReturnType<typeof getAppConfig>>["referrals"];
 

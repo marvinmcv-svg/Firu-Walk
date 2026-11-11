@@ -123,10 +123,11 @@ Order matters (each step unblocks the next):
 - Walker ops: weekly payouts on time, monthly meetup, simple training (leash handling, heat, dog fights, first aid basics). (Payout batches exist since Milestone 5; meetups/training are offline.)
 
 ### Phase 3 — Growth (months 3–9)
-- **Partnerships:** vets (referral fee or free walks for their clients), pet shops, groomers, condominium administrators (building-wide discount), real-estate agencies and relocation services for expats.
+- **Partnerships:** vets (referral fee or free walks for their clients), pet shops, groomers, condominium administrators (building-wide discount), real-estate agencies and relocation services for expats. ✅ Admin → Usuarios → *Aliados*: each partner gets a code (works in the sign-up field and in `/?ref=CODE`) and a printable QR for the counter or lobby. On a client's first paid walk the client gets the welcome walk (optional per partner) and the partner earns its fee, accrued in ledger account `partner:{id}` and paid out by ops with a transfer reference. Sign-ups, activations and walks per partner are tracked.
 - **Content:** TikTok/Instagram Reels of walks (with owner consent), "Firu del mes", walker spotlights. Local micro-influencers with dogs.
 - **Plans & add-ons:** monthly plans, group walks, pet-sitting, vet transport.
-- **Expand zones** only when existing zones have ≥70% walker utilization at peak hours (06:00–09:00, 17:30–20:00 — Santa Cruz heat makes midday walks unsafe).
+- **Expand zones** only when existing zones have ≥70% walker utilization at peak hours (06:00–09:00, 17:30–20:00 — Santa Cruz heat makes midday walks unsafe). ✅ Admin → Panel → *Revisión semanal* → *Ocupación en hora pico por zona* (last 4 weeks, flagged at ≥70%).
+- **Local SEO:** ✅ `/sitemap.xml`, `/robots.txt` (API excluded) and schema.org `LocalBusiness` data for Santa Cruz; canonical URL from `APP_URL`.
 - Then **La Paz / Cochabamba** (different geography/climate; adapt durations and walk routes).
 
 ### Legal & admin checklist (do in Phase 0–1, with a local accountant/lawyer)
