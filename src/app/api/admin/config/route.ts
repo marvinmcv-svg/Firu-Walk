@@ -51,6 +51,12 @@ export async function PATCH(req: Request) {
           throw new ApiError(400, `El valor de "${key}" debe ser un número.`);
         }
         if (n < 0) throw new ApiError(400, `El valor de "${key}" no puede ser negativo.`);
+        if (sec === "referrals" && key === "giftDurationMin" && ![30, 45, 60].includes(n)) {
+          throw new ApiError(400, "La duración del paseo regalado debe ser 30, 45 o 60 minutos.");
+        }
+        if (sec === "referrals" && key === "enabled" && n !== 0 && n !== 1) {
+          throw new ApiError(400, "Usa 1 para activar o 0 para apagar.");
+        }
         clean[key] = n;
       } else if (sec === "legal") {
         // Company details for the legal pages; empty is allowed (not registered yet).

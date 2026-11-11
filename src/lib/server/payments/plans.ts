@@ -13,6 +13,9 @@ import { accountBalance, postTxn, type DbClient } from "../ledger";
 import { notify, notifyEvent } from "../notify";
 import { paymentOf } from "../serialize";
 
+/** Keys of the hidden plans gifted walks hang off ("gift-walk-30"). Never sold. */
+export const GIFT_PLAN_PREFIX = "gift-walk-";
+
 export function planOf(p: Plan, cfg: AppConfig): PlanDTO {
   const b = priceBreakdown(p.priceCents, cfg.fees.ownerFeePct);
   return {
@@ -48,6 +51,7 @@ export function subscriptionOf(s: FullSubscription, cfg: AppConfig): Subscriptio
     walksLeft: s.walksTotal - s.walksUsed,
     durationMin: s.durationMin,
     priceCents: s.priceCents,
+    gift: s.gift,
     periodStart: s.periodStart?.toISOString() ?? null,
     periodEnd: s.periodEnd?.toISOString() ?? null,
     payment: payment ? paymentOf(payment) : null,
@@ -59,7 +63,7 @@ export function subscriptionOf(s: FullSubscription, cfg: AppConfig): Subscriptio
 export async function startPlanPurchase(ownerId: string, planId: string): Promise<FullSubscription> {
   const cfg = await getAppConfig();
   const plan = await db.plan.findUnique({ where: { id: planId } });
-  if (!plan || !plan.active) throw new ApiError(404, "Ese plan no está disponible.");
+  if (!plan || !plan.active || plan.key.startsWith(GIFT_PLAN_PREFIX)) throw new ApiError(404, "Ese plan no está disponible.");
 
   // Re-opening the checkout of the same plan reuses the unpaid purchase.
   const open = await db.subscription.findFirst({
@@ -157,7 +161,8 @@ export async function expireSubscriptions(now: Date = new Date()): Promise<numbe
   });
   let closed = 0;
   for (const sub of due) {
-    const credit = cfg.plans.unusedWalkPolicy === "credit";
+    // Gifted walks ("Regalá un paseo") go back to marketing, never to the owner.
+    const credit = !sub.gift && cfg.plans.unusedWalkPolicy === "credit";
     const left = sub.walksTotal - sub.walksUsed;
     const remaining = await db.$transaction(async (tx) => {
       const moved = await tx.subscription.updateMany({
@@ -174,9 +179,11 @@ export async function expireSubscriptions(now: Date = new Date()): Promise<numbe
         await postTxn(
           [
             { account: `plan:${sub.id}`, debit: balance, memo: `Cierre del plan — ${left} paseos sin usar` },
-            credit
-              ? { account: `owner:${sub.ownerId}`, credit: balance, memo: `Crédito por paseos no usados (${sub.plan.name})` }
-              : { account: "platform:revenue", credit: balance, memo: `Paseos vencidos — ${sub.plan.name}` },
+            sub.gift
+              ? { account: "platform:marketing", credit: balance, memo: "Paseo de regalo vencido sin usar" }
+              : credit
+                ? { account: `owner:${sub.ownerId}`, credit: balance, memo: `Crédito por paseos no usados (${sub.plan.name})` }
+                : { account: "platform:revenue", credit: balance, memo: `Paseos vencidos — ${sub.plan.name}` },
           ],
           "subscription",
           sub.id,
@@ -192,6 +199,12 @@ export async function expireSubscriptions(now: Date = new Date()): Promise<numbe
     });
     if (remaining === null) continue;
     closed++;
+    if (sub.gift) {
+      if (left > 0) {
+        await notify(sub.ownerId, "PAYMENT", "Tu paseo de regalo venció 📅", "Tu paseo de regalo venció sin usarse. ¡Invita a otro amigo para ganar otro!", "home");
+      }
+      continue;
+    }
     await notify(
       sub.ownerId,
       "PAYMENT",

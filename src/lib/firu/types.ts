@@ -53,6 +53,13 @@ export interface AppConfig {
   payments: {
     qrExpiryMinutes: number; // lifetime of a generated QR
   };
+  /** "Regalá un paseo": both sides get a gifted walk after the friend's first paid walk. */
+  referrals: {
+    enabled: number; // 1 = owners can invite and codes are honoured, 0 = off
+    giftDurationMin: number; // length of the gifted walk (30 | 45 | 60), valued at that price band
+    giftValidDays: number; // the gifted walk must be used within this many days
+    maxRewardsPerReferrer: number; // referrer rewards per owner (friends still get theirs)
+  };
   safety: {
     lateStartMinutes: number; // walk not started this long after its time → late alert + backup chain
     backupOfferMinutes: number; // each backup walker has this long to take the walk
@@ -324,6 +331,8 @@ export interface SubscriptionDTO {
   walksLeft: number;
   durationMin: number;
   priceCents: number;
+  /** A gifted walk ("Regalá un paseo"), not a purchase. */
+  gift: boolean;
   periodStart?: string | null;
   periodEnd?: string | null;
   payment?: PaymentDTO | null;
@@ -552,6 +561,27 @@ export interface OtpRequestResponse {
 export interface LoginResponse {
   user: SessionUserDTO;
   isNew: boolean;
+  /** Present when a referral code was sent at sign-up. */
+  referral?: { applied: boolean };
+}
+
+/** GET /api/referrals — the owner's "Regalá un paseo" card. */
+export interface ReferralSummaryDTO {
+  enabled: boolean;
+  code: string;
+  /** Landing link that pre-fills the code: {APP_URL}/?ref=CODE */
+  shareUrl: string;
+  giftDurationMin: number;
+  giftValueCents: number;
+  giftValidDays: number;
+  invited: number; // friends who signed up with the code
+  pending: number; // … still before their first paid walk
+  rewarded: number; // gifted walks this owner earned
+  rewardsLeft: number; // until referrals.maxRewardsPerReferrer
+  /** This owner can still enter a friend's code (new, no walk yet, none entered). */
+  canRedeem: boolean;
+  /** The referral this owner signed up with, if any. */
+  referredBy: { status: "PENDING" | "REWARDED" | "VOID" } | null;
 }
 
 export interface DemoAccountDTO {
@@ -709,4 +739,83 @@ export interface FirulaiAdminDTO {
 export interface FirulaiConversationDTO {
   id: string;
   messages: { role: string; content: string; toolCalls: unknown; degraded: string | null; createdAt: string }[];
+}
+
+/** One line of an admin owner import (Phase-0 customers → app). */
+export interface OwnerImportRowResult {
+  index: number; // position in the submitted rows
+  phone: string;
+  name: string;
+  status: "ready" | "created" | "exists" | "error";
+  reason?: string;
+  dogs: number;
+  /** wa.me link with a prefilled invitation, for ops to send by hand. */
+  inviteUrl?: string;
+}
+
+/** POST /api/admin/owners/import */
+export interface OwnerImportResultDTO {
+  dryRun: boolean;
+  created: number;
+  ready: number;
+  exists: number;
+  errors: number;
+  rows: OwnerImportRowResult[];
+}
+
+/** GET /api/admin/metrics/growth — weekly review (LAUNCH_PLAN §6). */
+export interface GrowthMetricsDTO {
+  generatedAt: string;
+  onTimeMinutes: number;
+  /** Last 8 Bolivia weeks (Monday start), oldest first. */
+  weeks: {
+    weekStart: string; // "YYYY-MM-DD"
+    newOwners: number; // signed up or imported that week
+    activeOwners: number; // owners with ≥1 completed walk that week
+    completedWalks: number;
+    walksPerActiveOwner: number;
+    onTimePct: number; // started within ±onTimeMinutes of the scheduled time
+    noShowPct: number;
+    gmvCents: number; // settled walk payments (net of refunds)
+    revenueCents: number; // platform:revenue
+    giftSpendCents: number; // gifted walks granted (platform:marketing), net of unused returns
+    contributionPerWalkCents: number; // (revenue − gift spend) / completed walks
+    referralSignups: number;
+    referralsRewarded: number;
+  }[];
+  /** Owners by month of their first completed walk; % who walked again in month 2 / 3 (null = not reached yet). */
+  cohorts: { month: string; owners: number; m2Pct: number | null; m3Pct: number | null }[];
+  channels: { channel: string; owners: number; activated: number; activationPct: number }[];
+  referrals: {
+    pending: number;
+    rewarded: number;
+    void: number;
+    giftWalksIssued: number;
+    giftWalksUsed: number;
+    giftCostCents: number;
+  };
+  /** Regulars quiet for leakQuietDays whose usual walker stays busy — possible off-app bookings. */
+  leakage: {
+    ownerId: string;
+    ownerName: string;
+    walks: number;
+    lastWalkAt: string;
+    walkerName: string;
+    walkerRecentWalks: number;
+  }[];
+  leakQuietDays: number;
+}
+
+/** GET /api/admin/referrals */
+export interface AdminReferralDTO {
+  id: string;
+  code: string;
+  status: "PENDING" | "REWARDED" | "VOID";
+  referrerName: string;
+  refereeName: string;
+  rewardCents: number;
+  referrerRewarded: boolean;
+  createdAt: string;
+  rewardedAt: string | null;
+  voidReason: string | null;
 }

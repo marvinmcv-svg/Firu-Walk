@@ -2,11 +2,11 @@
 
 import { ApiError } from "../http";
 
-/** Loose E.164 normalization: spaces/dashes out, default +591 for bare 8-digit mobiles. */
+/** Loose E.164 normalization: spaces/dashes out, default +591 for bare 8-digit mobiles (6x / 7x). */
 export function normalizePhone(raw: string): string {
   const trimmed = raw.replace(/[\s\-().]/g, "");
-  if (/^5917\d{7}$/.test(trimmed)) return `+${trimmed}`;
-  if (/^7\d{7}$/.test(trimmed)) return `+591${trimmed}`;
+  if (/^591[67]\d{7}$/.test(trimmed)) return `+${trimmed}`;
+  if (/^[67]\d{7}$/.test(trimmed)) return `+591${trimmed}`;
   return trimmed;
 }
 

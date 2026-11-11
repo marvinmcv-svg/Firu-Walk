@@ -233,7 +233,9 @@ export async function settleCancellation(input: {
           { account: `plan:${subscriptionId}`, debit: took.value, memo: `Cancelación tardía — paseo del plan (${dogName})` },
           { account: `walker:${walkerId}`, credit: share - commission, memo: `Compensación por cancelación tardía (comisión ${pct}%)` },
           { account: "platform:revenue", credit: commission, memo: `Comisión ${pct}% — cancelación tardía` },
-          { account: `owner:${ownerId}`, credit: took.value - share, memo: `Crédito por cancelación — paseo del plan` },
+          took.sub.gift
+            ? { account: "platform:marketing", credit: took.value - share, memo: "Cancelación tardía — paseo de regalo (resto)" }
+            : { account: `owner:${ownerId}`, credit: took.value - share, memo: `Crédito por cancelación — paseo del plan` },
         ],
         "booking",
         bookingId,

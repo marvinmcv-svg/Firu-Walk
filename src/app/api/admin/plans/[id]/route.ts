@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/server/session";
 import { getAppConfig } from "@/lib/server/config";
 import { planOf } from "@/lib/server/payments/plans";
 import { PlanInput } from "../schema";
+import { GIFT_PLAN_PREFIX } from "@/lib/server/payments/plans";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return run(async () => {
@@ -16,7 +17,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!parsed.success) throw new ApiError(400, parsed.error.issues[0]?.message ?? "Datos del plan inválidos.");
     if (Object.keys(parsed.data).length === 0) throw new ApiError(400, "No hay cambios válidos que aplicar.");
     const existing = await db.plan.findUnique({ where: { id } });
-    if (!existing) throw new ApiError(404, "Plan no encontrado.");
+    if (!existing || existing.key.startsWith(GIFT_PLAN_PREFIX)) throw new ApiError(404, "Plan no encontrado.");
     const plan = await db.plan.update({ where: { id }, data: parsed.data });
     await db.auditLog.create({
       data: { actorId: admin.id, action: "PLAN_UPDATED", entity: "plan", entityId: id, detail: JSON.stringify(parsed.data) },

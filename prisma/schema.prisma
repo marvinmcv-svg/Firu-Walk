@@ -114,6 +114,12 @@ enum PayoutBatchStatus {
   PAID
 }
 
+enum ReferralStatus {
+  PENDING // referee signed up, no paid walk completed yet
+  REWARDED // both sides got their gifted walk
+  VOID // cancelled by an admin (fraud, duplicate person, …)
+}
+
 enum SubscriptionStatus {
   PENDING_PAYMENT
   ACTIVE
@@ -203,24 +209,30 @@ model Zone {
 // ---------------------------------------------------------------
 
 model User {
-  id              String         @id @default(cuid())
-  phone           String         @unique // E.164-ish "+5917xxxxxxx"
-  name            String
-  role            Role
-  avatarUrl       String?
+  id                 String         @id @default(cuid())
+  phone              String         @unique // E.164-ish "+5917xxxxxxx"
+  name               String
+  role               Role
+  avatarUrl          String?
   // Owner fields
-  zoneId          String?
-  addressNote     String? // landmark text ("Edificio X, frente al parque")
-  addressLat      Float?
-  addressLng      Float?
+  zoneId             String?
+  addressNote        String? // landmark text ("Edificio X, frente al parque")
+  addressLat         Float?
+  addressLng         Float?
   // Legal acceptance (Terms + Privacy + Cancellation policy): LEGAL_VERSION
   // in src/lib/firu/legal.ts that the user last accepted, and when.
-  termsVersion    String?
-  termsAcceptedAt DateTime?
+  termsVersion       String?
+  termsAcceptedAt    DateTime?
+  // Growth (Phase 2 soft launch): the owner's own "Regalá un paseo" code,
+  // where they came from ("referral" | "concierge" | "instagram" | …) and,
+  // for Phase-0 customers moved onto the app by ops, when they were imported.
+  referralCode       String?        @unique
+  acquisitionChannel String?
+  importedAt         DateTime?
   // Walker fields
-  walker          WalkerProfile?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  walker             WalkerProfile?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   zone             Zone?                   @relation(fields: [zoneId], references: [id])
   dogs             Dog[]                   @relation("DogOwner")
@@ -234,6 +246,8 @@ model User {
   subscriptions    Subscription[]
   notificationPref NotificationPreference?
   pushSubs         PushSubscription[]
+  referralsMade    Referral[]              @relation("ReferralReferrer")
+  referredBy       Referral?               @relation("ReferralReferee")
 }
 
 model WalkerProfile {
@@ -690,6 +704,9 @@ model Subscription {
   closedAt         DateTime?
   closeNote        String?
   expiryRemindedAt DateTime? // "plan expiring" reminder sent (once per period)
+  // Gifted walks ("Regalá un paseo" referral rewards): funded from
+  // platform:marketing, never paid by the owner; unused balance goes back there.
+  gift             Boolean            @default(false)
   createdAt        DateTime           @default(now())
 
   owner    User      @relation(fields: [ownerId], references: [id])
@@ -701,7 +718,37 @@ model Subscription {
   @@index([status, periodEnd])
 }
 
-// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}" | "plan:{subscriptionId}"
+// ---------------------------------------------------------------
+// Referrals ("Regalá un paseo")
+// ---------------------------------------------------------------
+
+// One invited owner. When the referee completes their first PAID walk both
+// sides get a gifted walk (a 1-walk gift Subscription funded from
+// platform:marketing). The referrer is rewarded only while under the
+// referrals.maxRewardsPerReferrer cap.
+model Referral {
+  id               String         @id @default(cuid())
+  referrerId       String
+  refereeId        String         @unique
+  code             String // the code used (the referrer's code at the time)
+  status           ReferralStatus @default(PENDING)
+  rewardCents      Int            @default(0) // value of each gifted walk
+  referrerRewarded Boolean        @default(false)
+  rewardWalkId     String? // the referee's walk that triggered the reward
+  refereeGiftId    String? // Subscription ids of the gifted walks
+  referrerGiftId   String?
+  rewardedAt       DateTime?
+  voidReason       String?
+  createdAt        DateTime       @default(now())
+
+  referrer User @relation("ReferralReferrer", fields: [referrerId], references: [id])
+  referee  User @relation("ReferralReferee", fields: [refereeId], references: [id])
+
+  @@index([referrerId, status])
+  @@index([status, rewardedAt])
+}
+
+// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}" | "plan:{subscriptionId}" | "platform:marketing" (gifted walks)
 model LedgerEntry {
   id          String   @id @default(cuid())
   txnId       String // group id — entries of one transaction share txnId

@@ -16,6 +16,7 @@ import { getAppConfig } from "@/lib/server/config";
 import { notify, notifyEvent } from "@/lib/server/notify";
 import { publishRealtime } from "@/lib/server/realtime";
 import { settleCompletedWalk } from "@/lib/server/payments/settle";
+import { rewardReferralIfDue } from "@/lib/server/referrals";
 import { ensurePendingPayment } from "@/lib/server/bookingEngine";
 import { geofenceDistance } from "@/lib/server/tracking";
 import { clearBackupOffer } from "@/lib/server/safety/backup";
@@ -282,7 +283,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         orderBy: { createdAt: "desc" },
       });
       if (payment) {
-        await settleCompletedWalk({ payment, walk, dogName, cfg, at: now });
+        const settlement = await settleCompletedWalk({ payment, walk, dogName, cfg, at: now });
+        // "Regalá un paseo": a referred owner's first paid walk rewards both sides.
+        await rewardReferralIfDue({ ownerId: walk.ownerId, walkId: walk.id, settlement, payment, at: now });
       }
 
       // ---- Walker counters ----

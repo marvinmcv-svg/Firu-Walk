@@ -4,6 +4,9 @@
 // and Cancellation policy). The accepted LEGAL_VERSION is recorded; existing
 // users are updated when they accept a newer version. ADMIN accounts are
 // never created here.
+// Optional on sign-up: referralCode ("Regalá un paseo") and channel (where
+// they heard of us, e.g. utm_source) — a bad code never blocks sign-up; the
+// response says whether it was applied (referral: {applied}).
 
 import { db } from "@/lib/db";
 import { LEGAL_VERSION } from "@/lib/firu/legal";
@@ -11,6 +14,7 @@ import { ApiError, ok, readJson, reqStr, run } from "@/lib/server/http";
 import { verifyLoginCode } from "@/lib/server/auth/otp";
 import { requirePhone } from "@/lib/server/auth/phone";
 import { notify } from "@/lib/server/notify";
+import { attachReferral, normalizeChannel } from "@/lib/server/referrals";
 import { clientIp } from "@/lib/server/request";
 import { sessionUserOf } from "@/lib/server/serialize";
 import { createSession, setSessionCookie } from "@/lib/server/session";
@@ -35,7 +39,14 @@ export async function POST(req: Request) {
     const isNew = !user;
     if (!user) {
       user = await db.user.create({
-        data: { phone, name: "Nuevo usuario", role: "OWNER", termsVersion: LEGAL_VERSION, termsAcceptedAt: now },
+        data: {
+          phone,
+          name: "Nuevo usuario",
+          role: "OWNER",
+          termsVersion: LEGAL_VERSION,
+          termsAcceptedAt: now,
+          acquisitionChannel: normalizeChannel(body.channel) ?? "organic",
+        },
         include: { walker: true, zone: true },
       });
       await notify(
@@ -49,7 +60,13 @@ export async function POST(req: Request) {
       await db.user.update({ where: { id: user.id }, data: { termsVersion: LEGAL_VERSION, termsAcceptedAt: now } });
     }
 
-    const res = ok({ user: sessionUserOf(user), isNew });
+    let referral: { applied: boolean } | undefined;
+    if (isNew && typeof body.referralCode === "string" && body.referralCode.trim()) {
+      const r = await attachReferral(user.id, body.referralCode);
+      referral = { applied: r.applied };
+    }
+
+    const res = ok({ user: sessionUserOf(user), isNew, ...(referral ? { referral } : {}) });
     setSessionCookie(res, await createSession(user.id, req), req);
     return res;
   });
