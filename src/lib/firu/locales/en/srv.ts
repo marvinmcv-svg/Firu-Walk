@@ -142,6 +142,23 @@ const srv = {
   "Un paseo grupal admite de 2 a 4 perros.": "A group walk takes 2 to 4 dogs.",
   "La parte del paseador no puede superar el precio por perro.": "The walker's share can't exceed the price per dog.",
   "Completa tus paseos de prueba antes de ofrecer paseos grupales.": "Complete your trial walks before offering group walks.",
+  "Contenido no encontrado.": "Content not found.",
+  "Elige una de las fotos propuestas.": "Pick one of the suggested photos.",
+  "Ya hay un Firu del mes publicado para ese mes.": "There is already a published Firu of the month for that month.",
+  "El dueño no autorizó el uso de fotos de su perro.": "The owner hasn't allowed photos of their dog to be used.",
+  "El paseador no está activo.": "The walker isn't active.",
+  "El paseador no autorizó aparecer como destacado.": "The walker hasn't agreed to be featured.",
+  "Elige el perro.": "Choose the dog.",
+  "Elige el paseador.": "Choose the walker.",
+  "Perro no encontrado.": "Dog not found.",
+  "Paseador no encontrado.": "Walker not found.",
+  "Mes inválido (AAAA-MM).": "Invalid month (YYYY-MM).",
+  "El título es obligatorio.": "The headline is required.",
+  "El título es demasiado largo (máx. 80).": "The headline is too long (max 80).",
+  "Escribe al menos una frase.": "Write at least one sentence.",
+  "El texto es demasiado largo (máx. 400).": "The text is too long (max 400).",
+  "Solo los dueños autorizan el uso de fotos de sus perros.": "Only owners can allow photos of their dogs to be used.",
+  "Solo los paseadores pueden aparecer como destacados.": "Only walkers can be featured.",
 } as const;
 
 export default srv;

@@ -136,6 +136,8 @@ export interface WalkerProfileDTO {
   idDocLast4?: string | null;
   review: WalkerReviewDTO;
   suspendedReason?: string | null;
+  /** Consent to be featured as a walker spotlight (landing + social media). */
+  spotlightConsent?: boolean;
 }
 
 export type WalkerDocKind = "CI_FRONT" | "CI_BACK" | "SELFIE" | "BACKGROUND_CERT" | "VIDEO_INTRO";
@@ -197,6 +199,8 @@ export interface SessionUserDTO {
   addressLng?: number | null;
   /** ISO timestamp — additive; used by the admin users table. */
   createdAt?: string;
+  /** Owner consent to use walk photos / their dog on FiruWalk's social media. */
+  mediaConsent?: boolean;
   walker?: WalkerProfileDTO | null;
 }
 
@@ -901,4 +905,76 @@ export interface GroupSlotDTO {
   }[];
   /** The viewer's own bookings in this slot (owner view). */
   myBookingIds: string[];
+}
+
+// ---------------------------------------------------------------
+// Content (Phase 3): "Firu del mes" and walker spotlights
+// ---------------------------------------------------------------
+
+export type FeatureKind = "FIRU_OF_MONTH" | "WALKER_SPOTLIGHT";
+
+/** GET /api/content/featured — public, only what consenting people allowed. */
+export interface PublicFeaturedDTO {
+  firu: {
+    id: string;
+    month: string; // "2026-11"
+    headline: string;
+    blurb: string;
+    photoUrl: string | null;
+    dogName: string;
+    breed: string;
+    zoneName: string | null;
+  } | null;
+  spotlights: {
+    id: string;
+    month: string;
+    headline: string;
+    blurb: string;
+    photoUrl: string | null;
+    walkerName: string; // first name + last initial
+    zoneName: string | null;
+    rating: number;
+    ratingCount: number;
+    totalWalks: number;
+    experienceYears: number;
+  }[];
+}
+
+/** Admin → Contenido: one curated feature. */
+export interface FeatureDTO {
+  id: string;
+  kind: FeatureKind;
+  month: string;
+  headline: string;
+  blurb: string;
+  photoUrl: string | null;
+  published: boolean;
+  /** Published AND consent still given → on the landing page. */
+  live: boolean;
+  subjectName: string; // dog or walker
+  ownerName: string | null; // dog's owner
+  consent: boolean;
+  createdAt: string;
+}
+
+/** Admin → Contenido: everything ops needs to pick and publish content. */
+export interface ContentOverviewDTO {
+  month: string; // current month, Bolivia time
+  features: FeatureDTO[];
+  /** Recent walks with photos whose owner consents (usable for Reels). */
+  media: {
+    walkId: string;
+    date: string;
+    dogId: string;
+    dogName: string;
+    ownerName: string;
+    walkerName: string;
+    zoneName: string | null;
+    photos: string[];
+  }[];
+  /** Dogs of consenting owners, with the photos ops may use. */
+  dogs: { id: string; name: string; breed: string; ownerName: string; photos: string[] }[];
+  /** Active walkers who consent to a spotlight. */
+  walkers: { id: string; name: string; zoneName: string | null; totalWalks: number; rating: number; photos: string[] }[];
+  consentCounts: { owners: number; ownersTotal: number; walkers: number; walkersTotal: number };
 }

@@ -260,6 +260,7 @@ export function walkDetailOf(w: FullWalk): WalkDTO & {
   endLat: number | null;
   endLng: number | null;
   cancelReason: string | null;
+  ownerMediaConsent: boolean;
 } {
   const track = parseJson<[number, number][]>(w.trackJson, []);
   return {
@@ -270,6 +271,8 @@ export function walkDetailOf(w: FullWalk): WalkDTO & {
     endLat: w.endLat,
     endLng: w.endLng,
     cancelReason: w.cancelReason,
+    // The walker sees whether the owner allows the photos on social media.
+    ownerMediaConsent: w.booking?.owner?.mediaConsent ?? false,
   };
 }
 
@@ -373,6 +376,7 @@ export function walkerProfileOf(
       reviewedAt: iso(p.reviewedAt),
     },
     suspendedReason: p.suspendedReason,
+    spotlightConsent: p.spotlightConsent,
   };
 }
 
@@ -391,6 +395,7 @@ export function sessionUserOf(
     addressLat: u.addressLat,
     addressLng: u.addressLng,
     createdAt: u.createdAt.toISOString(),
+    mediaConsent: u.mediaConsent,
     walker: u.walker ? walkerProfileOf(u.walker, u.zone?.name) : null,
   };
 }

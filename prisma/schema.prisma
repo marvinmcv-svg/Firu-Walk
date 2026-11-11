@@ -242,6 +242,10 @@ model User {
   // owner signed up with, and when that partner's reward was settled.
   partnerId          String?
   partnerRewardedAt  DateTime?
+  // Phase 3 content: express, revocable consent to use this owner's walk
+  // photos and dog on FiruWalk's social media and landing ("Firu del mes").
+  mediaConsent       Boolean        @default(false)
+  mediaConsentAt     DateTime?
   // Walker fields
   walker             WalkerProfile?
   createdAt          DateTime       @default(now())
@@ -262,6 +266,7 @@ model User {
   referralsMade    Referral[]              @relation("ReferralReferrer")
   referredBy       Referral?               @relation("ReferralReferee")
   partner          Partner?                @relation(fields: [partnerId], references: [id])
+  spotlights       Feature[]               @relation("FeatureWalker")
 
   @@index([partnerId])
 }
@@ -302,6 +307,10 @@ model WalkerProfile {
   strikes             Int           @default(0)
   trialDone           Boolean       @default(false) // first N walks reviewed
   suspendedReason     String?
+  // Phase 3 content: consent to be featured as a "walker spotlight" on the
+  // landing page and social media (name, photo, bio, stats). Revocable.
+  spotlightConsent    Boolean       @default(false)
+  spotlightConsentAt  DateTime?
   // Payout destination (weekly bank transfer / QR)
   payoutMethod        PayoutMethod?
   payoutBank          String? // "BNB", "BCP", "Banco Ganadero"…
@@ -377,6 +386,7 @@ model Dog {
   owner    User      @relation("DogOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   walks    Walk[]
   bookings Booking[]
+  features Feature[]
 
   @@index([ownerId])
 }
@@ -835,6 +845,38 @@ model Partner {
 }
 
 // account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}" | "plan:{subscriptionId}" | "platform:marketing" (gifted walks) | "partner:{id}" (fees owed to partners)
+// ---------------------------------------------------------------
+// Content (Phase 3): "Firu del mes" and walker spotlights
+// ---------------------------------------------------------------
+
+enum FeatureKind {
+  FIRU_OF_MONTH
+  WALKER_SPOTLIGHT
+}
+
+// Curated by ops, shown on the landing page. Only shown while the owner
+// (mediaConsent) or walker (spotlightConsent) still consents: revoking hides
+// it at once without ops having to do anything.
+model Feature {
+  id          String      @id @default(cuid())
+  kind        FeatureKind
+  month       String // "2026-11" (Bolivia time)
+  dogId       String? // FIRU_OF_MONTH
+  walkerId    String? // WALKER_SPOTLIGHT (walker's user id)
+  headline    String
+  blurb       String
+  photoUrl    String? // one of the dog's / walker's own photos
+  published   Boolean     @default(true)
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  dog    Dog?  @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  walker User? @relation("FeatureWalker", fields: [walkerId], references: [id], onDelete: Cascade)
+
+  @@index([kind, published, month])
+}
+
 model LedgerEntry {
   id          String   @id @default(cuid())
   txnId       String // group id — entries of one transaction share txnId

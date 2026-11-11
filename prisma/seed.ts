@@ -185,6 +185,7 @@ async function main() {
     "walk",
     "booking",
     "groupSlot",
+    "feature",
     "referral",
     "partner",
     "subscription",
@@ -1189,6 +1190,49 @@ async function main() {
       { name: "Veterinaria Demo Equipetrol (24 h)", phone: "+59170000901", address: "Av. San Martín, Equipetrol (demo)", lat: -17.7665, lng: -63.1952, open24h: true, notes: "Datos de demostración" },
       { name: "Clínica Demo Las Palmas", phone: "+59170000902", address: "Av. Roca y Coronado, Las Palmas (demo)", lat: -17.7955, lng: -63.2135, open24h: false, notes: "Datos de demostración" },
       { name: "Veterinaria Demo Norte", phone: "+59170000903", address: "Av. Banzer 4to anillo (demo)", lat: -17.7505, lng: -63.1785, open24h: true, notes: "Datos de demostración" },
+    ],
+  });
+
+  // ----------------------------------------------------------------
+  // Content (Phase 3): Ana allows her dogs' photos, Luis and Camila agree to
+  // be featured → this month's Firu del mes (Max) and two walker spotlights.
+  // ----------------------------------------------------------------
+  await db.user.update({ where: { id: ana }, data: { mediaConsent: true, mediaConsentAt: boDate(-20, 10) } });
+  const month = new Date(Date.now() - 4 * 3_600_000).toISOString().slice(0, 7);
+  for (const w of [luis, camila]) {
+    await db.walkerProfile.update({ where: { userId: w.userId }, data: { spotlightConsent: true, spotlightConsentAt: boDate(-15, 9) } });
+  }
+  const walkerUsers = await db.user.findMany({ where: { id: { in: [luis.userId, camila.userId] } } });
+  const avatarOf = (id: string) => walkerUsers.find((u) => u.id === id)?.avatarUrl ?? null;
+  await db.feature.createMany({
+    data: [
+      {
+        kind: "FIRU_OF_MONTH",
+        month,
+        dogId: dogs["Max"],
+        headline: "Max, el rey de Equipetrol",
+        blurb: "Saluda a todos los perros del parque y ya camina junto sin jalar. Su parte favorita: el agua al final del paseo.",
+        photoUrl: "/images/walks/walk-1.png",
+        createdById: admin.id,
+      },
+      {
+        kind: "WALKER_SPOTLIGHT",
+        month,
+        walkerId: luis.userId,
+        headline: "El paseador de las 7:30 en punto",
+        blurb: "Estudiante de veterinaria. Nunca llega tarde y manda el mejor reporte de la zona.",
+        photoUrl: avatarOf(luis.userId),
+        createdById: admin.id,
+      },
+      {
+        kind: "WALKER_SPOTLIGHT",
+        month,
+        walkerId: camila.userId,
+        headline: "Juegos, calma y primeros auxilios",
+        blurb: "Voluntaria en un refugio los fines de semana: perfecta para perros tímidos.",
+        photoUrl: avatarOf(camila.userId),
+        createdById: admin.id,
+      },
     ],
   });
 

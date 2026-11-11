@@ -1,5 +1,8 @@
 // GET /api/users/me → SessionUserDTO
-// PATCH /api/users/me {name?, zoneId?, addressNote?, addressLat?, addressLng?}
+// PATCH /api/users/me {name?, zoneId?, addressNote?, addressLat?, addressLng?,
+//   mediaConsent? (owner: walk photos / dog on social media + landing),
+//   spotlightConsent? (walker: be featured as a walker spotlight)}
+// Consent changes are timestamped and written to the audit log.
 
 import { db } from "@/lib/db";
 import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
@@ -44,14 +47,41 @@ export async function PATCH(req: Request) {
       data.addressLng = addressLng;
     }
 
-    if (Object.keys(data).length === 0) {
+    const consents: Record<string, boolean> = {};
+    if (typeof body.mediaConsent === "boolean") {
+      if (user.role !== "OWNER") throw new ApiError(400, "Solo los dueños autorizan el uso de fotos de sus perros.");
+      if (body.mediaConsent !== user.mediaConsent) {
+        data.mediaConsent = body.mediaConsent;
+        data.mediaConsentAt = new Date();
+        consents.mediaConsent = body.mediaConsent;
+      }
+    }
+    let walkerData: Record<string, unknown> | null = null;
+    if (typeof body.spotlightConsent === "boolean") {
+      if (!user.walker) throw new ApiError(400, "Solo los paseadores pueden aparecer como destacados.");
+      if (body.spotlightConsent !== user.walker.spotlightConsent) {
+        walkerData = { spotlightConsent: body.spotlightConsent, spotlightConsentAt: new Date() };
+        consents.spotlightConsent = body.spotlightConsent;
+      }
+    }
+
+    const consentOnly = typeof body.mediaConsent === "boolean" || typeof body.spotlightConsent === "boolean";
+    if (Object.keys(data).length === 0 && !walkerData && !consentOnly) {
       throw new ApiError(400, "Nada que actualizar.");
     }
 
-    const updated = await db.user.update({
-      where: { id: user.id },
-      data,
-      include: { walker: true, zone: true },
+    const updated = await db.$transaction(async (tx) => {
+      if (walkerData) await tx.walkerProfile.update({ where: { userId: user.id }, data: walkerData });
+      if (Object.keys(consents).length > 0) {
+        await tx.auditLog.create({
+          data: { actorId: user.id, action: "CONSENT_CHANGED", entity: "user", entityId: user.id, detail: JSON.stringify(consents) },
+        });
+      }
+      return tx.user.update({
+        where: { id: user.id },
+        data,
+        include: { walker: true, zone: true },
+      });
     });
     return ok(sessionUserOf(updated));
   });
