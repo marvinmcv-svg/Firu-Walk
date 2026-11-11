@@ -289,6 +289,28 @@ describe("QR payment confirmed by the provider", () => {
   });
 });
 
+describe("walker cancels with no backup", () => {
+  test("the booking is declined and the held prepayment goes back to the owner", async () => {
+    const b = await book("carlos", { paymentMethod: "QR" });
+    await call(mockPayRoute.POST as H, { method: "POST", cookie: cookies.carlos, body: { paymentId: b.payment.id } });
+    expect((await db.payment.findUniqueOrThrow({ where: { id: b.payment.id } })).status).toBe("HELD");
+    // Luis is the only candidate left in the chain.
+    await db.booking.update({ where: { id: b.id }, data: { candidatesJson: JSON.stringify([ids.luis]), candidateIdx: 0 } });
+    const accept = await call(bookingRoute.PATCH as H, { method: "PATCH", params: { id: b.id }, cookie: cookies.luis, body: { action: "accept" } });
+    expect(accept.status).toBe(200);
+    const heldBefore = await accountBalance("platform:held");
+
+    const r = await call(bookingRoute.PATCH as H, { method: "PATCH", params: { id: b.id }, cookie: cookies.luis, body: { action: "cancel" } });
+    expect(r.status).toBe(200);
+    expect((await db.booking.findUniqueOrThrow({ where: { id: b.id } })).status).toBe("DECLINED");
+    const p = await db.payment.findUniqueOrThrow({ where: { id: b.payment.id } });
+    expect(p.status).toBe("REFUNDED");
+    expect(p.refundedCents).toBe(p.amountCents);
+    expect(await accountBalance("platform:held")).toBe(heldBefore - p.amountCents);
+    await expectLedgerBalanced();
+  });
+});
+
 describe("settlement and refund via dispute", () => {
   test("completing the walk releases held funds: walker net, platform commission + fee", async () => {
     const p = await db.payment.findUniqueOrThrow({ where: { id: ids.payment1 } });

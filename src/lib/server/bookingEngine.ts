@@ -11,6 +11,8 @@ import { parseJson, walkerCardOf } from "./serialize";
 import { formatBOB, priceBreakdown } from "@/lib/firu/money";
 import { debtBlockedWalkers } from "./payments/debt";
 import { planWalkEstimate } from "./payments/plans";
+import { refundPayment } from "./payments/service";
+import { log } from "./log";
 import type { AppConfig, ScheduleItem, WalkerCardDTO } from "@/lib/firu/types";
 
 export const MAX_CANDIDATES = 4;
@@ -374,6 +376,7 @@ export async function advanceCandidate(bookingId: string): Promise<Prisma.Bookin
       where: { id: booking.id },
       data: { status: "DECLINED", expiresAt: null },
     });
+    await refundHeldPayments(booking.id, booking.dog?.name ?? "paseo");
     await notify(
       booking.ownerId,
       "BOOKING",
@@ -439,4 +442,23 @@ export async function sweepExpiredRequests(): Promise<number> {
   });
   for (const b of expired) await expireRequestIfDue(b.id);
   return expired.length;
+}
+
+/**
+ * Nobody can take the booking (no candidates left, e.g. after the walker
+ * cancelled): give back whatever the owner prepaid and is still held —
+ * the Cancellation & Guarantee policy promises a full refund. Plan walks
+ * go back to the plan. Failures are logged and left to reconciliation.
+ */
+async function refundHeldPayments(bookingId: string, dogName: string): Promise<void> {
+  const held = await db.payment.findMany({ where: { bookingId, status: "HELD" } });
+  for (const p of held) {
+    const available = p.amountCents - p.refundedCents;
+    if (available <= 0) continue;
+    try {
+      await refundPayment(p, available, { refType: "booking", refId: bookingId, dogName });
+    } catch (err) {
+      log.error("booking.declined_refund_failed", { bookingId, paymentId: p.id, error: (err as Error).message });
+    }
+  }
 }
