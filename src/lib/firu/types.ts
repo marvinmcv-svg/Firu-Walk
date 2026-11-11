@@ -581,7 +581,7 @@ export interface ReferralSummaryDTO {
   /** This owner can still enter a friend's code (new, no walk yet, none entered). */
   canRedeem: boolean;
   /** The referral this owner signed up with, if any. */
-  referredBy: { status: "PENDING" | "REWARDED" | "VOID" } | null;
+  referredBy: { status: "PENDING" | "REWARDED" | "VOID"; partnerName?: string } | null;
 }
 
 export interface DemoAccountDTO {
@@ -804,6 +804,17 @@ export interface GrowthMetricsDTO {
     walkerRecentWalks: number;
   }[];
   leakQuietDays: number;
+  /** Peak-hour (06:00–09:00, 17:30–20:00) utilization per active zone, last 4 weeks. */
+  zones: {
+    zoneId: string;
+    zoneName: string;
+    activeWalkers: number;
+    peakCapacityMin: number;
+    peakBookedMin: number;
+    peakUtilizationPct: number;
+    readyToExpand: boolean;
+  }[];
+  expandThresholdPct: number;
 }
 
 /** GET /api/admin/referrals */
@@ -818,4 +829,28 @@ export interface AdminReferralDTO {
   createdAt: string;
   rewardedAt: string | null;
   voidReason: string | null;
+}
+
+export type PartnerKind = "VET" | "PETSHOP" | "GROOMER" | "CONDO" | "RELOCATION" | "OTHER";
+
+/** GET /api/admin/partners — a partner with its funnel and money. */
+export interface PartnerDTO {
+  id: string;
+  name: string;
+  kind: PartnerKind;
+  code: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  zoneId: string | null;
+  notes: string | null;
+  referralFeeCents: number; // earned per owner who completes a first paid walk
+  giftWalk: boolean; // owners get the welcome gifted walk
+  active: boolean;
+  shareUrl: string;
+  createdAt: string;
+  owners: number; // signed up with the code
+  activated: number; // … and completed a first paid walk
+  walks: number; // completed walks by those owners (all time)
+  earnedCents: number; // fees earned all time
+  owedCents: number; // fees not paid out yet
 }

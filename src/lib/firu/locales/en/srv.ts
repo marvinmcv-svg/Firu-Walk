@@ -112,6 +112,12 @@ const srv = {
   "Usa 1 para activar o 0 para apagar.": "Use 1 to turn on or 0 to turn off.",
   "No hay filas para importar.": "There are no rows to import.",
   "Máximo 500 filas por importación.": "At most 500 rows per import.",
+  "Aliado no encontrado.": "Partner not found.",
+  "Ese código ya está en uso.": "That code is already in use.",
+  "El código debe tener al menos 4 letras o números.": "The code needs at least 4 letters or digits.",
+  "No hay comisiones pendientes para este aliado.": "Nothing is owed to this partner.",
+  "La zona no existe.": "That zone doesn't exist.",
+  "La comisión es demasiado alta.": "That fee is too high.",
 } as const;
 
 export default srv;

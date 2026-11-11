@@ -13,6 +13,7 @@ import { getAppConfig } from "@/lib/server/config";
 import { ApiError, ok, readJson, run } from "@/lib/server/http";
 import { normalizeChannel } from "@/lib/server/referrals";
 import { requireAdmin } from "@/lib/server/session";
+import { appBaseUrl } from "@/lib/server/partners";
 
 const DogInput = z.object({
   name: z.string().trim().min(1).max(40),
@@ -37,10 +38,6 @@ const Body = z.object({
   dryRun: z.boolean().optional().default(false),
 });
 
-function baseUrl(req: Request): string {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
-  return new URL(req.url).origin;
-}
 
 /** Folded, lower-case text for matching zone names typed by ops. */
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -95,7 +92,7 @@ export async function POST(req: Request) {
     const existing = new Set(
       (await db.user.findMany({ where: { phone: { in: [...valid.keys()] } }, select: { phone: true } })).map((u) => u.phone)
     );
-    const appUrl = baseUrl(req);
+    const appUrl = appBaseUrl(req);
     const now = new Date();
     let created = 0;
 

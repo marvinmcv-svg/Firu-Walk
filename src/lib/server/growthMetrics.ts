@@ -12,7 +12,7 @@
 
 import { db } from "@/lib/db";
 import type { GrowthMetricsDTO } from "@/lib/firu/types";
-import { boDateKey, boDayStart, boDayOfWeek } from "./botime";
+import { BO_OFFSET_MS, boDateKey, boDayStart, boDayOfWeek } from "./botime";
 import { MARKETING_ACCOUNT } from "./referrals";
 
 const DAY = 86_400_000;
@@ -24,6 +24,15 @@ export const ON_TIME_MINUTES = 10;
 const LEAK_QUIET_DAYS = 14;
 /** … whose usual walker still did at least this many walks in that window. */
 const LEAK_WALKER_BUSY = 6;
+
+/** Peak walking hours in Santa Cruz (midday heat makes walks unsafe), minutes from 00:00. */
+export const PEAK_WINDOWS: [number, number][] = [
+  [6 * 60, 9 * 60],
+  [17 * 60 + 30, 20 * 60],
+];
+/** Open a new zone only once existing ones are this busy at peak (LAUNCH_PLAN Phase 3). */
+export const EXPAND_THRESHOLD_PCT = 70;
+const UTIL_DAYS = 28;
 
 const pct = (num: number, den: number): number => (den === 0 ? 0 : Math.round((num / den) * 1000) / 10);
 
@@ -258,8 +267,12 @@ export async function growthMetrics(now: Date = new Date()): Promise<GrowthMetri
     walkerRecentWalks: c.walkerRecentWalks,
   }));
 
+  const zoneRows = await zoneUtilization(now);
+
   return {
     generatedAt: now.toISOString(),
+    zones: zoneRows,
+    expandThresholdPct: EXPAND_THRESHOLD_PCT,
     onTimeMinutes: ON_TIME_MINUTES,
     weeks: weekRows,
     cohorts,
@@ -268,4 +281,61 @@ export async function growthMetrics(now: Date = new Date()): Promise<GrowthMetri
     leakage,
     leakQuietDays: LEAK_QUIET_DAYS,
   };
+}
+
+/** Minutes of [a, b) inside the peak windows. */
+function peakOverlap(a: number, b: number): number {
+  return PEAK_WINDOWS.reduce((s, [p, q]) => s + Math.max(0, Math.min(b, q) - Math.max(a, p)), 0);
+}
+
+/**
+ * Peak-hour utilization per zone over the last 4 weeks: walk minutes booked
+ * inside the peak windows ÷ the peak minutes ACTIVE walkers of the zone have
+ * on their weekly availability.
+ */
+export async function zoneUtilization(now: Date = new Date()): Promise<GrowthMetricsDTO["zones"]> {
+  const since = new Date(now.getTime() - UTIL_DAYS * DAY);
+  const [zones, walkers, walks] = await Promise.all([
+    db.zone.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    db.walkerProfile.findMany({
+      where: { status: "ACTIVE" },
+      select: { zoneId: true, availabilities: { select: { startMinute: true, endMinute: true } } },
+    }),
+    db.walk.findMany({
+      where: {
+        scheduledStart: { gte: since, lt: now },
+        status: { in: ["COMPLETED", "IN_PROGRESS", "SCHEDULED", "NO_SHOW"] },
+      },
+      select: { zoneId: true, scheduledStart: true, durationMin: true },
+    }),
+  ]);
+  const weeks = UTIL_DAYS / 7;
+  const capacity = new Map<string, { walkers: number; minutes: number }>();
+  for (const w of walkers) {
+    const c = capacity.get(w.zoneId) ?? { walkers: 0, minutes: 0 };
+    c.walkers++;
+    for (const a of w.availabilities) c.minutes += peakOverlap(a.startMinute, a.endMinute) * weeks;
+    capacity.set(w.zoneId, c);
+  }
+  const booked = new Map<string, number>();
+  for (const w of walks) {
+    const local = new Date(w.scheduledStart.getTime() - BO_OFFSET_MS);
+    const start = local.getUTCHours() * 60 + local.getUTCMinutes();
+    booked.set(w.zoneId, (booked.get(w.zoneId) ?? 0) + peakOverlap(start, start + w.durationMin));
+  }
+  return zones.map((z) => {
+    const c = capacity.get(z.id) ?? { walkers: 0, minutes: 0 };
+    const b = booked.get(z.id) ?? 0;
+    const util = pct(b, c.minutes);
+    return {
+      zoneId: z.id,
+      zoneName: z.name,
+      activeWalkers: c.walkers,
+      peakCapacityMin: Math.round(c.minutes),
+      peakBookedMin: b,
+      peakUtilizationPct: util,
+      // Saturated: add walkers here or open a neighbouring zone.
+      readyToExpand: c.minutes > 0 && util >= EXPAND_THRESHOLD_PCT,
+    };
+  });
 }

@@ -368,6 +368,7 @@ const owner: Record<string, string> = {
   "own.ref.redeemed": "Code applied! 🎁",
   "own.ref.redeemedDesc": "After your first paid walk, you and your friend each get a free walk.",
   "own.ref.redeemErr": "We couldn't apply the code",
+  "own.ref.partnerPending": "You came via {partner}: after your first paid walk you get your welcome walk.",
 };
 
 export default owner;

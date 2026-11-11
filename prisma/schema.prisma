@@ -114,6 +114,15 @@ enum PayoutBatchStatus {
   PAID
 }
 
+enum PartnerKind {
+  VET
+  PETSHOP
+  GROOMER
+  CONDO // condominium / building administration
+  RELOCATION // real-estate & relocation agencies (expats)
+  OTHER
+}
+
 enum ReferralStatus {
   PENDING // referee signed up, no paid walk completed yet
   REWARDED // both sides got their gifted walk
@@ -229,6 +238,10 @@ model User {
   referralCode       String?        @unique
   acquisitionChannel String?
   importedAt         DateTime?
+  // Phase 3 partnerships: the partner (vet, pet shop, condo…) whose code the
+  // owner signed up with, and when that partner's reward was settled.
+  partnerId          String?
+  partnerRewardedAt  DateTime?
   // Walker fields
   walker             WalkerProfile?
   createdAt          DateTime       @default(now())
@@ -248,6 +261,9 @@ model User {
   pushSubs         PushSubscription[]
   referralsMade    Referral[]              @relation("ReferralReferrer")
   referredBy       Referral?               @relation("ReferralReferee")
+  partner          Partner?                @relation(fields: [partnerId], references: [id])
+
+  @@index([partnerId])
 }
 
 model WalkerProfile {
@@ -748,7 +764,33 @@ model Referral {
   @@index([status, rewardedAt])
 }
 
-// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}" | "plan:{subscriptionId}" | "platform:marketing" (gifted walks)
+// ---------------------------------------------------------------
+// Partners (Phase 3 growth)
+// ---------------------------------------------------------------
+
+// A business that sends us owners with its own code (/?ref=CODE, printable
+// QR). On the owner's first paid walk: the owner gets the welcome gifted walk
+// (if giftWalk) and the partner earns referralFeeCents, accrued in ledger
+// account `partner:{id}` (funded from platform:marketing) until ops pays it.
+model Partner {
+  id               String      @id @default(cuid())
+  name             String
+  kind             PartnerKind
+  code             String      @unique
+  contactName      String?
+  contactPhone     String?
+  zoneId           String?
+  notes            String?
+  referralFeeCents Int         @default(0)
+  giftWalk         Boolean     @default(true)
+  active           Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  owners User[]
+}
+
+// account: "owner:{id}" | "walker:{id}" | "platform:held" | "platform:revenue" | "platform:cash" | "payout:{id}" | "plan:{subscriptionId}" | "platform:marketing" (gifted walks) | "partner:{id}" (fees owed to partners)
 model LedgerEntry {
   id          String   @id @default(cuid())
   txnId       String // group id — entries of one transaction share txnId

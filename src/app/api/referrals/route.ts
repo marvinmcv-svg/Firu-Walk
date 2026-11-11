@@ -8,12 +8,8 @@ import { getAppConfig } from "@/lib/server/config";
 import { ApiError, ok, run } from "@/lib/server/http";
 import { REDEEM_WINDOW_DAYS, ensureReferralCode } from "@/lib/server/referrals";
 import { requireUser } from "@/lib/server/session";
+import { appBaseUrl } from "@/lib/server/partners";
 
-/** Public base URL for share links: APP_URL, else the origin the owner used. */
-function baseUrl(req: Request): string {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
-  return new URL(req.url).origin;
-}
 
 export async function GET(req: Request) {
   return run(async () => {
@@ -22,9 +18,13 @@ export async function GET(req: Request) {
     const cfg = await getAppConfig();
     const code = await ensureReferralCode(user);
 
-    const [groups, mine, walked] = await Promise.all([
+    const [groups, mine, viaPartner, walked] = await Promise.all([
       db.referral.groupBy({ by: ["status", "referrerRewarded"], where: { referrerId: user.id }, _count: true }),
       db.referral.findUnique({ where: { refereeId: user.id }, select: { status: true } }),
+      db.user.findUnique({
+        where: { id: user.id },
+        select: { partnerRewardedAt: true, partner: { select: { name: true, giftWalk: true } } },
+      }),
       db.walk.count({ where: { ownerId: user.id, status: "COMPLETED" } }),
     ]);
     const count = (f: (g: (typeof groups)[number]) => boolean) =>
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
     const dto: ReferralSummaryDTO = {
       enabled: !!cfg.referrals.enabled,
       code,
-      shareUrl: `${baseUrl(req)}/?ref=${encodeURIComponent(code)}`,
+      shareUrl: `${appBaseUrl(req)}/?ref=${encodeURIComponent(code)}`,
       giftDurationMin: durationMin,
       giftValueCents: priceBandForDuration(cfg, durationMin),
       giftValidDays: cfg.referrals.giftValidDays,
@@ -44,8 +44,12 @@ export async function GET(req: Request) {
       pending: count((g) => g.status === "PENDING"),
       rewarded,
       rewardsLeft: Math.max(0, cfg.referrals.maxRewardsPerReferrer - rewarded),
-      canRedeem: !!cfg.referrals.enabled && !mine && walked === 0 && fresh,
-      referredBy: mine ? { status: mine.status } : null,
+      canRedeem: !mine && !viaPartner?.partner && walked === 0 && fresh,
+      referredBy: mine
+        ? { status: mine.status }
+        : viaPartner?.partner?.giftWalk // (no welcome gift → nothing to show)
+          ? { status: viaPartner.partnerRewardedAt ? "REWARDED" : "PENDING", partnerName: viaPartner.partner.name }
+          : null,
     };
     return ok(dto);
   });

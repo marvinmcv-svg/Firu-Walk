@@ -13,7 +13,7 @@
 // commission on completion, late-cancel shares, and expiry. Whatever is
 // left unused goes back to platform:marketing (never to the owner).
 
-import type { Prisma, Subscription } from "@prisma/client";
+import type { PartnerKind, Prisma, Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { AppConfig } from "@/lib/firu/types";
 import { priceBandForDuration } from "./bookingEngine";
@@ -46,6 +46,10 @@ export const ACQUISITION_CHANNELS = [
   "flyer",
   "vet",
   "condo",
+  "petshop",
+  "groomer",
+  "relocation",
+  "partner", // a partner of kind OTHER
   "other",
 ] as const;
 export type AcquisitionChannel = (typeof ACQUISITION_CHANNELS)[number];
@@ -97,6 +101,7 @@ export async function ensureReferralCode(user: { id: string; name: string; refer
   if (user.referralCode) return user.referralCode;
   for (let i = 0; i < 6; i++) {
     const code = codePrefix(user.name) + randomPart(4);
+    if (await db.partner.findUnique({ where: { code }, select: { id: true } })) continue;
     const res = await db.user.updateMany({
       where: { id: user.id, referralCode: null },
       data: { referralCode: code },
@@ -132,12 +137,12 @@ export async function attachReferral(refereeId: string, rawCode: unknown, cfg?: 
     db.user.findUnique({ where: { referralCode: code }, select: { id: true, role: true } }),
     db.user.findUnique({
       where: { id: refereeId },
-      select: { id: true, role: true, createdAt: true, importedAt: true, referredBy: { select: { id: true } } },
+      select: { id: true, role: true, createdAt: true, importedAt: true, partnerId: true, referredBy: { select: { id: true } } },
     }),
   ]);
   if (!referrer || referrer.role !== "OWNER" || !referee) return { applied: false, reason: "invalid" };
   if (referrer.id === referee.id) return { applied: false, reason: "own" };
-  if (referee.referredBy) return { applied: false, reason: "already" };
+  if (referee.referredBy || referee.partnerId) return { applied: false, reason: "already" };
   if (referee.role !== "OWNER") return { applied: false, reason: "not_eligible" };
   if (Date.now() - referee.createdAt.getTime() > REDEEM_WINDOW_DAYS * 86_400_000) {
     return { applied: false, reason: "not_eligible" };
@@ -183,7 +188,17 @@ async function giftPlanFor(durationMin: number) {
 /** Create one ACTIVE gifted walk for `ownerId`, funded from platform:marketing. */
 async function grantGiftWalk(
   tx: Prisma.TransactionClient,
-  input: { ownerId: string; planId: string; durationMin: number; valueCents: number; validDays: number; referralId: string; memo: string; at: Date }
+  input: {
+    ownerId: string;
+    planId: string;
+    durationMin: number;
+    valueCents: number;
+    validDays: number;
+    referralId: string;
+    memo: string;
+    at: Date;
+    refType?: "referral" | "partner";
+  }
 ): Promise<Subscription> {
   const sub = await tx.subscription.create({
     data: {
@@ -203,12 +218,21 @@ async function grantGiftWalk(
       { account: MARKETING_ACCOUNT, debit: input.valueCents, memo: input.memo },
       { account: `plan:${sub.id}`, credit: input.valueCents, memo: "Paseo de regalo — Regalá un paseo" },
     ],
-    "referral",
+    input.refType ?? "referral",
     input.referralId,
     input.at,
     tx
   );
   return sub;
+}
+
+/** Gifted-walk terms from Config (null = gifts off or worthless). */
+function giftTerms(cfg: AppConfig): { durationMin: number; valueCents: number; validDays: number } | null {
+  if (!cfg.referrals.enabled) return null;
+  const durationMin = [30, 45, 60].includes(cfg.referrals.giftDurationMin) ? cfg.referrals.giftDurationMin : 30;
+  const valueCents = priceBandForDuration(cfg, durationMin);
+  if (valueCents <= 0) return null;
+  return { durationMin, valueCents, validDays: Math.max(1, cfg.referrals.giftValidDays || 60) };
 }
 
 /** True when a completed walk was paid for by the owner (not a gift). */
@@ -222,18 +246,29 @@ async function wasPaidWalk(
   return !!sub && !sub.gift;
 }
 
-/**
- * Called after a walk is settled. If the owner was referred and this is
- * their first paid walk, both sides get their gifted walk. Never throws —
- * a reward problem must not break walk completion.
- */
-export async function rewardReferralIfDue(input: {
+type RewardInput = {
   ownerId: string;
   walkId: string;
   settlement: WalkSettlement;
   payment: { subscriptionId: string | null };
   at?: Date;
-}): Promise<"rewarded" | "skipped"> {
+};
+
+/**
+ * Called after a walk is settled. On a referred owner's first paid walk the
+ * owner referral (both sides get a gifted walk) or the partner referral (the
+ * owner's gift + the partner's fee) is settled. Never throws — a reward
+ * problem must not break walk completion.
+ */
+export async function rewardReferralIfDue(input: RewardInput): Promise<"rewarded" | "skipped"> {
+  const owner = await db.user
+    .findUnique({ where: { id: input.ownerId }, select: { partnerId: true, partnerRewardedAt: true } })
+    .catch(() => null);
+  if (owner?.partnerId && !owner.partnerRewardedAt) return rewardPartnerIfDue(input, owner.partnerId);
+  return rewardOwnerReferral(input);
+}
+
+async function rewardOwnerReferral(input: RewardInput): Promise<"rewarded" | "skipped"> {
   try {
     const referral = await db.referral.findUnique({
       where: { refereeId: input.ownerId },
@@ -243,12 +278,10 @@ export async function rewardReferralIfDue(input: {
     if (!(await wasPaidWalk(input.settlement, input.payment))) return "skipped";
 
     const cfg = await getAppConfig();
-    if (!cfg.referrals.enabled) return "skipped";
+    const terms = giftTerms(cfg);
+    if (!terms) return "skipped";
+    const { durationMin, valueCents, validDays } = terms;
     const at = input.at ?? new Date();
-    const durationMin = [30, 45, 60].includes(cfg.referrals.giftDurationMin) ? cfg.referrals.giftDurationMin : 30;
-    const valueCents = priceBandForDuration(cfg, durationMin);
-    const validDays = Math.max(1, cfg.referrals.giftValidDays || 60);
-    if (valueCents <= 0) return "skipped";
     const plan = await giftPlanFor(durationMin);
 
     const out = await db.$transaction(async (tx) => {
@@ -320,4 +353,114 @@ export async function rewardReferralIfDue(input: {
     log.error("referrals.reward_failed", { err, ownerId: input.ownerId, walkId: input.walkId });
     return "skipped";
   }
+}
+
+/** Partner referral: the owner's welcome gift (if the partner offers it) + the partner's fee. */
+async function rewardPartnerIfDue(input: RewardInput, partnerId: string): Promise<"rewarded" | "skipped"> {
+  try {
+    if (!(await wasPaidWalk(input.settlement, input.payment))) return "skipped";
+    const [cfg, partner] = await Promise.all([getAppConfig(), db.partner.findUnique({ where: { id: partnerId } })]);
+    if (!partner) return "skipped";
+    const at = input.at ?? new Date();
+    const terms = partner.giftWalk ? giftTerms(cfg) : null;
+    const plan = terms ? await giftPlanFor(terms.durationMin) : null;
+
+    const gifted = await db.$transaction(async (tx) => {
+      const claimed = await tx.user.updateMany({
+        where: { id: input.ownerId, partnerId, partnerRewardedAt: null },
+        data: { partnerRewardedAt: at },
+      });
+      if (claimed.count === 0) return null;
+      if (terms && plan) {
+        await grantGiftWalk(tx, {
+          ownerId: input.ownerId,
+          planId: plan.id,
+          durationMin: terms.durationMin,
+          valueCents: terms.valueCents,
+          validDays: terms.validDays,
+          referralId: partner.id,
+          memo: `Paseo de bienvenida — ${partner.name}`,
+          at,
+          refType: "partner",
+        });
+      }
+      if (partner.referralFeeCents > 0) {
+        await postTxn(
+          [
+            { account: MARKETING_ACCOUNT, debit: partner.referralFeeCents, memo: `Comisión de referido — ${partner.name}` },
+            { account: partnerAccount(partner.id), credit: partner.referralFeeCents, memo: "Cliente nuevo con primer paseo" },
+          ],
+          "partner",
+          partner.id,
+          at,
+          tx
+        );
+      }
+      return !!terms;
+    });
+    if (gifted === null) return "skipped";
+    if (gifted && terms) {
+      await notify(
+        input.ownerId,
+        "PAYMENT",
+        "¡Tienes un paseo de regalo! 🎁",
+        `Gracias a ${partner.name}, tu próximo paseo de ${terms.durationMin} min va por nuestra cuenta (válido ${terms.validDays} días). Elige "Plan" al reservar.`,
+        "home"
+      );
+    }
+    return "rewarded";
+  } catch (err) {
+    log.error("partners.reward_failed", { err, ownerId: input.ownerId, walkId: input.walkId });
+    return "skipped";
+  }
+}
+
+/** Ledger account holding what FiruWalk owes a partner. */
+export const partnerAccount = (partnerId: string) => `partner:${partnerId}`;
+
+/** Acquisition channel recorded for owners a partner of this kind sends. */
+export const PARTNER_CHANNEL: Record<PartnerKind, AcquisitionChannel> = {
+  VET: "vet",
+  PETSHOP: "petshop",
+  GROOMER: "groomer",
+  CONDO: "condo",
+  RELOCATION: "relocation",
+  OTHER: "partner",
+};
+
+/**
+ * Apply a code typed at sign-up / redeem: an owner's referral code first,
+ * else an active partner's code. Same eligibility rules for both.
+ */
+export async function attachCode(
+  refereeId: string,
+  rawCode: unknown
+): Promise<AttachResult | { applied: true; partnerId: string }> {
+  const r = await attachReferral(refereeId, rawCode);
+  // Partner codes work even while owner-to-owner invites are switched off.
+  if (r.applied || (r.reason !== "invalid" && r.reason !== "disabled")) return r;
+  const code = normalizeCode(rawCode);
+  if (code.length < 4) return r;
+  const partner = await db.partner.findUnique({ where: { code } });
+  if (!partner || !partner.active) return r;
+  const referee = await db.user.findUnique({
+    where: { id: refereeId },
+    select: { role: true, createdAt: true, importedAt: true, partnerId: true, referredBy: { select: { id: true } } },
+  });
+  if (!referee) return r;
+  if (referee.partnerId || referee.referredBy) return { applied: false, reason: "already" };
+  if (referee.role !== "OWNER") return { applied: false, reason: "not_eligible" };
+  if (Date.now() - referee.createdAt.getTime() > REDEEM_WINDOW_DAYS * 86_400_000) return { applied: false, reason: "not_eligible" };
+  if ((await db.walk.count({ where: { ownerId: refereeId, status: "COMPLETED" } })) > 0) {
+    return { applied: false, reason: "not_eligible" };
+  }
+  const moved = await db.user.updateMany({
+    where: { id: refereeId, partnerId: null },
+    data: {
+      partnerId: partner.id,
+      ...(referee.importedAt ? {} : { acquisitionChannel: PARTNER_CHANNEL[partner.kind] }),
+    },
+  });
+  if (moved.count === 0) return { applied: false, reason: "already" };
+  return { applied: true, partnerId: partner.id };
 }

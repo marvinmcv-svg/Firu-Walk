@@ -88,7 +88,11 @@ export function ReferralCard() {
       </p>
 
       {data.referredBy?.status === "PENDING" && (
-        <p className="text-xs font-semibold text-primary">{t("own.ref.yoursPending")}</p>
+        <p className="text-xs font-semibold text-primary">
+          {data.referredBy.partnerName
+            ? t("own.ref.partnerPending", { partner: data.referredBy.partnerName })
+            : t("own.ref.yoursPending")}
+        </p>
       )}
 
       {data.canRedeem && (

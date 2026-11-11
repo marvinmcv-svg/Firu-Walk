@@ -4,7 +4,7 @@
 
 import { ApiError, ok, readJson, reqStr, run } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rateLimit";
-import { attachReferral } from "@/lib/server/referrals";
+import { attachCode } from "@/lib/server/referrals";
 import { requireUser } from "@/lib/server/session";
 
 const REASONS: Record<string, string> = {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     await enforceRateLimit(`referral-redeem:${user.id}`, 10, 3_600_000);
     const body = await readJson(req);
     const code = reqStr(body, "code", "El código", { max: 30 });
-    const r = await attachReferral(user.id, code);
+    const r = await attachCode(user.id, code);
     if (!r.applied) throw new ApiError(400, REASONS[r.reason] ?? REASONS.invalid);
     return ok({ applied: true });
   });

@@ -14,7 +14,7 @@ import { ApiError, ok, readJson, reqStr, run } from "@/lib/server/http";
 import { verifyLoginCode } from "@/lib/server/auth/otp";
 import { requirePhone } from "@/lib/server/auth/phone";
 import { notify } from "@/lib/server/notify";
-import { attachReferral, normalizeChannel } from "@/lib/server/referrals";
+import { attachCode, normalizeChannel } from "@/lib/server/referrals";
 import { clientIp } from "@/lib/server/request";
 import { sessionUserOf } from "@/lib/server/serialize";
 import { createSession, setSessionCookie } from "@/lib/server/session";
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
 
     let referral: { applied: boolean } | undefined;
     if (isNew && typeof body.referralCode === "string" && body.referralCode.trim()) {
-      const r = await attachReferral(user.id, body.referralCode);
+      const r = await attachCode(user.id, body.referralCode);
       referral = { applied: r.applied };
     }
 

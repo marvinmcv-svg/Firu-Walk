@@ -185,6 +185,7 @@ async function main() {
     "walk",
     "booking",
     "referral",
+    "partner",
     "subscription",
     "plan",
     "dog",

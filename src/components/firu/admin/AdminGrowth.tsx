@@ -5,7 +5,7 @@
 // "Regalá un paseo" referrals (with void for fraud) and the leakage signal.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Gift, Megaphone, Repeat, TableProperties, TriangleAlert } from "lucide-react";
+import { Ban, Gift, MapPinned, Megaphone, Repeat, TableProperties, TriangleAlert } from "lucide-react";
 import { api } from "@/lib/firu/api";
 import { fmtDateShort } from "@/lib/firu/dates";
 import { formatBOB } from "@/lib/firu/money";
@@ -182,6 +182,48 @@ export function AdminGrowth() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPinned className="size-4 text-primary" /> {t("adm.grow.zones")}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">{t("adm.grow.zonesHint", { pct: g.expandThresholdPct })}</p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("adm.grow.zone")}</TableHead>
+                <TableHead className="text-right">{t("adm.grow.zoneWalkers")}</TableHead>
+                <TableHead className="text-right">{t("adm.grow.zoneHours")}</TableHead>
+                <TableHead className="text-right">{t("adm.grow.zoneUtil")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {g.zones.map((z) => (
+                <TableRow key={z.zoneId}>
+                  <TableCell className="font-semibold">
+                    {z.zoneName}
+                    {z.readyToExpand && (
+                      <Badge className="ml-2" variant="default">
+                        {t("adm.grow.zoneFull")}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{z.activeWalkers}</TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">
+                    {num(Math.round(z.peakBookedMin / 6) / 10)} / {num(Math.round(z.peakCapacityMin / 6) / 10)} h
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {z.peakCapacityMin > 0 ? pct(z.peakUtilizationPct) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-2xl min-w-0">
