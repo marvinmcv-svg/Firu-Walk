@@ -239,7 +239,9 @@ describe("zone peak-hour utilization", () => {
 
     const g = await call(growthRoute.GET as H, { cookie: cookies.admin });
     expect(g.json.expandThresholdPct).toBe(70);
-    expect(g.json.zones.length).toBe(await db.zone.count({ where: { active: true } }));
+    // Zones of launched cities only (La Paz / Cochabamba are seeded but not launched).
+    expect(g.json.zones.length).toBe(await db.zone.count({ where: { active: true, cityRef: { active: true } } }));
+    expect(g.json.zones.length).toBeLessThan(await db.zone.count({ where: { active: true } }));
     const channels = Object.fromEntries(g.json.channels.map((c: { channel: string; owners: number }) => [c.channel, c.owners]));
     expect(channels.vet).toBeGreaterThanOrEqual(1);
     expect(channels.condo).toBeGreaterThanOrEqual(1);
@@ -271,8 +273,10 @@ describe("zone peak-hour utilization", () => {
 });
 
 describe("SEO routes", () => {
-  test("sitemap lists the landing and every legal page; robots keeps crawlers out of the API", () => {
-    const urls = sitemap().map((e) => e.url);
+  test("sitemap lists the landing, launched cities and every legal page; robots keeps crawlers out of the API", async () => {
+    const urls = (await sitemap()).map((e) => e.url);
+    expect(urls.some((u) => u.endsWith("/paseo-de-perros/santa-cruz"))).toBe(true);
+    expect(urls.some((u) => u.includes("la-paz"))).toBe(false); // not launched
     expect(urls.some((u) => u.endsWith("/"))).toBe(true);
     expect(urls.filter((u) => u.includes("/legal/"))).toHaveLength(4);
     const r = robots();
