@@ -54,7 +54,13 @@ export async function PATCH(req: Request) {
         if (sec === "referrals" && key === "giftDurationMin" && ![30, 45, 60].includes(n)) {
           throw new ApiError(400, "La duración del paseo regalado debe ser 30, 45 o 60 minutos.");
         }
-        if (sec === "referrals" && key === "enabled" && n !== 0 && n !== 1) {
+        if (sec === "groupWalks" && key === "durationMin" && ![30, 45, 60].includes(n)) {
+          throw new ApiError(400, "La duración del paseo grupal debe ser 30, 45 o 60 minutos.");
+        }
+        if (sec === "groupWalks" && key === "maxDogs" && (n < 2 || n > 4 || !Number.isInteger(n))) {
+          throw new ApiError(400, "Un paseo grupal admite de 2 a 4 perros.");
+        }
+        if ((sec === "referrals" || sec === "groupWalks") && key === "enabled" && n !== 0 && n !== 1) {
           throw new ApiError(400, "Usa 1 para activar o 0 para apagar.");
         }
         clean[key] = n;
@@ -96,6 +102,12 @@ export async function PATCH(req: Request) {
       );
     }
 
+    if (sec === "groupWalks") {
+      const cur = (await getAppConfig()).groupWalks;
+      const price = (clean.pricePerDogCents as number | undefined) ?? cur.pricePerDogCents;
+      const share = (clean.walkerPerDogCents as number | undefined) ?? cur.walkerPerDogCents;
+      if (share > price) throw new ApiError(400, "La parte del paseador no puede superar el precio por perro.");
+    }
     await updateConfigSection(sec, clean);
     await db.auditLog.create({
       data: {

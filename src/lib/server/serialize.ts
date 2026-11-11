@@ -246,6 +246,7 @@ export function walkOf(
     endedAt: iso(w.endedAt),
     distanceMeters: Math.round(w.distanceMeters),
     hasTrack: track.length > 0,
+    groupSlotId: w.groupSlotId ?? null,
     dog: dogOf((w.dog ?? fallbackDog) as Prisma.DogGetPayload<Record<never, never>>),
     report: reportOf(w.report),
   };
@@ -304,6 +305,7 @@ export function bookingOf(b: FullBooking, zone: ZoneLite | null): BookingDTO {
     id: b.id,
     status: b.status as BookingDTO["status"],
     type: b.type as BookingDTO["type"],
+    groupSlotId: b.groupSlotId ?? null,
     schedule,
     durationMin: b.durationMin,
     pricePerWalkCents: b.pricePerWalkCents,

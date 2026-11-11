@@ -34,15 +34,36 @@ const PositionSchema = z.object({
 });
 type Position = z.infer<typeof PositionSchema>;
 
-async function withContext(w: FullWalk) {
-  const [zones, lastPoint] = await Promise.all([
+async function withContext(w: FullWalk, viewerId?: string) {
+  const [zones, lastPoint, siblings] = await Promise.all([
     zonesById(w.booking ? [w.booking.zoneId] : []),
     db.walkTrackPoint.findFirst({
       where: { walkId: w.id },
       orderBy: { seq: "desc" },
       select: { seq: true },
     }),
+    // Group walk, walker view: the other dogs' walks (pick-up / drop-off order, tracker hand-off).
+    w.groupSlotId && viewerId === w.walkerId
+      ? db.walk.findMany({
+          where: { groupSlotId: w.groupSlotId, walkerId: w.walkerId, id: { not: w.id }, status: { not: "CANCELLED" } },
+          include: { dog: { select: { name: true } }, owner: { select: { addressLat: true, addressLng: true, addressNote: true } } },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
+  const group = await Promise.all(
+    siblings.map(async (s) => ({
+      id: s.id,
+      dogName: s.dog.name,
+      status: s.status,
+      lastSeq:
+        (await db.walkTrackPoint.findFirst({ where: { walkId: s.id }, orderBy: { seq: "desc" }, select: { seq: true } }))?.seq ?? -1,
+      pickup:
+        s.owner.addressLat != null && s.owner.addressLng != null
+          ? { lat: s.owner.addressLat, lng: s.owner.addressLng, note: s.owner.addressNote }
+          : null,
+    }))
+  );
   const owner = w.booking?.owner;
   return {
     ...walkDetailOf(w),
@@ -54,6 +75,7 @@ async function withContext(w: FullWalk) {
         : null,
     // Highest GPS seq stored — the walker app resumes numbering after it.
     lastSeq: lastPoint?.seq ?? -1,
+    group,
     booking: w.booking
       ? bookingContextOf(w.booking, zones.get(w.booking.zoneId) ?? null)
       : null,
@@ -128,7 +150,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (walk.ownerId !== user.id && walk.walkerId !== user.id && user.role !== "ADMIN") {
       throw new ApiError(403, "No tienes acceso a este paseo.");
     }
-    return ok(await withContext(walk));
+    return ok(await withContext(walk, user.id));
   });
 }
 
@@ -168,7 +190,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           walkId: walk.id,
         });
       }
-      return ok(await withContext(await loadWalk(walk.id)));
+      return ok(await withContext(await loadWalk(walk.id), user.id));
     }
 
     // -----------------------------------------------------------
@@ -208,7 +230,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         dogName,
         walkId: walk.id,
       });
-      return ok(await withContext(await loadWalk(walk.id)));
+      return ok(await withContext(await loadWalk(walk.id), user.id));
     }
 
     // -----------------------------------------------------------
@@ -283,7 +305,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         orderBy: { createdAt: "desc" },
       });
       if (payment) {
-        const settlement = await settleCompletedWalk({ payment, walk, dogName, cfg, at: now });
+        const settlement = await settleCompletedWalk({
+          payment,
+          walk,
+          dogName,
+          cfg,
+          at: now,
+          commissionPct: walk.booking?.commissionPct,
+        });
         // "Regalá un paseo": a referred owner's first paid walk rewards both sides.
         await rewardReferralIfDue({ ownerId: walk.ownerId, walkId: walk.id, settlement, payment, at: now });
       }
@@ -322,7 +351,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         cashCents: payment?.method === "CASH" ? cashAmount : null,
       });
       await publishRealtime(`walk:${walk.id}`, "walk:ended", { walkId: walk.id });
-      return ok(await withContext(await loadWalk(walk.id)));
+      return ok(await withContext(await loadWalk(walk.id), user.id));
     }
 
     // -----------------------------------------------------------
@@ -346,7 +375,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         `${user.name} esperó a ${dogName} pero no hubo nadie. Si fue un error, escríbele por chat o contáctanos.`,
         "bookings"
       );
-      return ok(await withContext(await loadWalk(walk.id)));
+      return ok(await withContext(await loadWalk(walk.id), user.id));
     }
 
     throw new ApiError(400, `Acción desconocida: ${action}`);

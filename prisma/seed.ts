@@ -184,6 +184,7 @@ async function main() {
     "walkTrackPoint",
     "walk",
     "booking",
+    "groupSlot",
     "referral",
     "partner",
     "subscription",

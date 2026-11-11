@@ -17,6 +17,9 @@ import { notify } from "../notify";
 import { consumePlanWalk } from "./plans";
 import { sendRefund } from "./service";
 
+/** "12" / "22,2" — memo-friendly commission (group walks have a fractional one). */
+const pctLabel = (pct: number) => (Number.isInteger(pct) ? String(pct) : pct.toFixed(1).replace(".", ","));
+
 export function walkSplit(
   p: Pick<Payment, "amountCents" | "ownerFeeCents" | "refundedCents">,
   commissionPct: number
@@ -47,9 +50,11 @@ export async function settleCompletedWalk(input: {
   dogName: string;
   cfg: AppConfig;
   at: Date;
+  /** Booking-specific commission (group walks); default fees.commissionPct. */
+  commissionPct?: number | null;
 }): Promise<WalkSettlement> {
   const { payment, walk, dogName, cfg, at } = input;
-  const pct = cfg.fees.commissionPct;
+  const pct = input.commissionPct ?? cfg.fees.commissionPct;
 
   if (payment.method === "PLAN" && payment.status === "HELD" && payment.subscriptionId) {
     const subscriptionId = payment.subscriptionId;
@@ -61,8 +66,8 @@ export async function settleCompletedWalk(input: {
       await postTxn(
         [
           { account: `plan:${subscriptionId}`, debit: took.value, memo: `Paseo del plan (${took.sub.walksUsed + 1}/${took.sub.walksTotal}) — ${dogName}` },
-          { account: `walker:${walk.walkerId}`, credit: split.netCents, memo: `Ingreso neto paseo de ${dogName} — plan (comisión ${pct}%)` },
-          { account: "platform:revenue", credit: split.platformCents, memo: `Comisión ${pct}% — paseo de plan` },
+          { account: `walker:${walk.walkerId}`, credit: split.netCents, memo: `Ingreso neto paseo de ${dogName} — plan (comisión ${pctLabel(pct)}%)` },
+          { account: "platform:revenue", credit: split.platformCents, memo: `Comisión ${pctLabel(pct)}% — paseo de plan` },
         ],
         "walk",
         walk.id,
@@ -108,8 +113,8 @@ export async function settleCompletedWalk(input: {
         await postTxn(
           [
             { account: "platform:held", debit: split.available, memo: `Liberación — paseo completado (${dogName})` },
-            { account: `walker:${walk.walkerId}`, credit: split.netCents, memo: `Ingreso neto paseo de ${dogName} (comisión ${pct}%)` },
-            { account: "platform:revenue", credit: split.platformCents, memo: `Comisión ${pct}%${payment.ownerFeeCents ? " + tarifa de servicio" : ""} — paseo completado` },
+            { account: `walker:${walk.walkerId}`, credit: split.netCents, memo: `Ingreso neto paseo de ${dogName} (comisión ${pctLabel(pct)}%)` },
+            { account: "platform:revenue", credit: split.platformCents, memo: `Comisión ${pctLabel(pct)}%${payment.ownerFeeCents ? " + tarifa de servicio" : ""} — paseo completado` },
           ],
           "walk",
           walk.id,
@@ -133,8 +138,8 @@ export async function settleCompletedWalk(input: {
       if (res.count === 0) return;
       await postTxn(
         [
-          { account: `walker:${walk.walkerId}`, debit: split.platformCents, memo: `Comisión ${pct}%${payment.ownerFeeCents ? " + tarifa de servicio" : ""} — paseo pagado en efectivo (${dogName})` },
-          { account: "platform:revenue", credit: split.platformCents, memo: `Comisión ${pct}% — paseo en efectivo` },
+          { account: `walker:${walk.walkerId}`, debit: split.platformCents, memo: `Comisión ${pctLabel(pct)}%${payment.ownerFeeCents ? " + tarifa de servicio" : ""} — paseo pagado en efectivo (${dogName})` },
+          { account: "platform:revenue", credit: split.platformCents, memo: `Comisión ${pctLabel(pct)}% — paseo en efectivo` },
         ],
         "walk",
         walk.id,
@@ -174,9 +179,10 @@ export async function settleCancellation(input: {
   dogName: string;
   cfg: AppConfig;
   at: Date;
+  commissionPct?: number | null;
 }): Promise<{ walkerNetCents: number; refundCents: number }> {
   const { payment, walkerId, ownerId, bookingId, isLate, dogName, cfg, at } = input;
-  const pct = cfg.fees.commissionPct;
+  const pct = input.commissionPct ?? cfg.fees.commissionPct;
   const sharePct = cfg.policy.lateCancelWalkerSharePct;
   const late = isLate && !!walkerId;
 
@@ -191,8 +197,8 @@ export async function settleCancellation(input: {
     if (share > 0) {
       entries.push(
         { account: "platform:held", debit: share, memo: `Cancelación tardía — parte del paseador (${dogName})` },
-        { account: `walker:${walkerId}`, credit: share - commission, memo: `Compensación por cancelación tardía (comisión ${pct}%)` },
-        { account: "platform:revenue", credit: commission, memo: `Comisión ${pct}% — cancelación tardía` }
+        { account: `walker:${walkerId}`, credit: share - commission, memo: `Compensación por cancelación tardía (comisión ${pctLabel(pct)}%)` },
+        { account: "platform:revenue", credit: commission, memo: `Comisión ${pctLabel(pct)}% — cancelación tardía` }
       );
     }
     if (refund > 0) {
@@ -231,8 +237,8 @@ export async function settleCancellation(input: {
       await postTxn(
         [
           { account: `plan:${subscriptionId}`, debit: took.value, memo: `Cancelación tardía — paseo del plan (${dogName})` },
-          { account: `walker:${walkerId}`, credit: share - commission, memo: `Compensación por cancelación tardía (comisión ${pct}%)` },
-          { account: "platform:revenue", credit: commission, memo: `Comisión ${pct}% — cancelación tardía` },
+          { account: `walker:${walkerId}`, credit: share - commission, memo: `Compensación por cancelación tardía (comisión ${pctLabel(pct)}%)` },
+          { account: "platform:revenue", credit: commission, memo: `Comisión ${pctLabel(pct)}% — cancelación tardía` },
           took.sub.gift
             ? { account: "platform:marketing", credit: took.value - share, memo: "Cancelación tardía — paseo de regalo (resto)" }
             : { account: `owner:${ownerId}`, credit: took.value - share, memo: `Crédito por cancelación — paseo del plan` },
@@ -257,7 +263,7 @@ export async function settleCancellation(input: {
       [
         { account: `owner:${ownerId}`, debit: share, memo: `Cargo por cancelación tardía (efectivo) — ${dogName}` },
         { account: `walker:${walkerId}`, credit: share - commission, memo: "Compensación por cancelación tardía (efectivo)" },
-        { account: "platform:revenue", credit: commission, memo: `Comisión ${pct}% — cancelación tardía (efectivo)` },
+        { account: "platform:revenue", credit: commission, memo: `Comisión ${pctLabel(pct)}% — cancelación tardía (efectivo)` },
       ],
       "booking",
       bookingId,

@@ -1,6 +1,8 @@
 // POST /api/walks/[id]/track {points:[{seq,lat,lng,ts,acc?,mock?}]}
 //   → {accepted, rejected:[{seq,reason}], duplicates, distanceMeters, lastSeq}
-// The assigned walker's app uploads buffered GPS fixes in batches. Idempotent
+// The assigned walker's app uploads buffered GPS fixes in batches. For a
+// group walk the accepted fixes are also stored on the other dogs' walks in
+// progress (same route, each from its own pick-up). Idempotent
 // by (walk, seq): a retried batch is acknowledged without double counting.
 // Fixes are validated server-side (src/lib/server/tracking.ts); distance is
 // computed here from accepted fixes only and pushed to the owner's live view.
@@ -40,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   return run(async () => {
     const { id } = await params;
     const user = await requireUser(req);
-    const walk = await db.walk.findUnique({ where: { id }, select: { walkerId: true } });
+    const walk = await db.walk.findUnique({ where: { id }, select: { walkerId: true, groupSlotId: true } });
     if (!walk) throw new ApiError(404, "Paseo no encontrado.");
     if (walk.walkerId !== user.id) {
       throw new ApiError(403, "Solo el paseador asignado puede enviar puntos GPS.");
@@ -49,69 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!parsed.success) throw new ApiError(400, "Los puntos GPS son inválidos.");
     const rules = (await getAppConfig()).tracking;
 
-    const result = await db.$transaction(async (tx) => {
-      // Serialize uploads per walk (retries can overlap a slow request).
-      await tx.$queryRaw`SELECT id FROM "Walk" WHERE id = ${id} FOR UPDATE`;
-      const w = await tx.walk.findUniqueOrThrow({ where: { id } });
-      if (w.status !== "IN_PROGRESS") {
-        throw new ApiError(409, "Solo se puede rastrear un paseo en curso.");
-      }
-
-      // Idempotency: drop seqs already stored (and repeats inside the batch).
-      const seqs = [...new Set(parsed.data.points.map((p) => p.seq))];
-      const stored = await tx.walkTrackPoint.findMany({
-        where: { walkId: id, seq: { in: seqs } },
-        select: { seq: true },
-      });
-      const seen = new Set(stored.map((s) => s.seq));
-      const fresh: Fix[] = [];
-      for (const p of parsed.data.points) {
-        if (seen.has(p.seq)) continue;
-        seen.add(p.seq);
-        fresh.push(p);
-      }
-      const duplicates = parsed.data.points.length - fresh.length;
-
-      const state = await loadState(tx, w, rules);
-      const { results, state: next } = validateTrackBatch(state, fresh, rules, {
-        startedAt: (w.startedAt ?? w.createdAt).getTime(),
-        now: Date.now(),
-      });
-
-      const accepted = results.filter((r) => !r.rejectReason);
-      const rejected = results.filter((r) => r.rejectReason);
-      const addMeters = accepted.reduce((sum, r) => sum + r.addMeters, 0);
-      const mocked = results.some((r) => r.mock);
-
-      if (results.length > 0) {
-        await tx.walkTrackPoint.createMany({
-          data: results.map((r) => ({
-            walkId: id,
-            seq: r.seq,
-            lat: r.lat,
-            lng: r.lng,
-            accuracyM: r.acc ?? null,
-            mocked: r.mock === true,
-            rejectReason: r.rejectReason,
-            recordedAt: new Date(r.ts),
-          })),
-        });
-      }
-      const track = parseJson<[number, number][]>(w.trackJson, []);
-      const updated = await tx.walk.update({
-        where: { id },
-        data: {
-          ...(accepted.length
-            ? { trackJson: JSON.stringify([...track, ...accepted.map((r) => [r.lat, r.lng])]) }
-            : {}),
-          distanceMeters: { increment: addMeters },
-          rejectedPoints: { increment: rejected.length },
-          ...(mocked ? { mockLocation: true } : {}),
-        },
-      });
-      return { accepted, rejected, duplicates, mocked, firstMock: mocked && !w.mockLocation, walk: updated, maxSeq: next.maxSeq };
-    });
-
+    const result = await ingest(id, parsed.data.points, rules);
     const distanceMeters = Math.round(result.walk.distanceMeters);
     if (result.accepted.length > 0) {
       await publishRealtime(`walk:${id}`, "walk:points", {
@@ -141,6 +81,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
     }
 
+    // Group walk: the dogs walk the same route — copy the fixes to the other
+    // dogs' walks in progress (only fixes after each dog was picked up).
+    if (walk.groupSlotId && result.accepted.length > 0) {
+      const siblings = await db.walk.findMany({
+        where: { groupSlotId: walk.groupSlotId, walkerId: user.id, status: "IN_PROGRESS", id: { not: id } },
+        select: { id: true, startedAt: true },
+      });
+      const fixes = result.accepted.map((r) => ({ seq: r.seq, lat: r.lat, lng: r.lng, ts: r.ts, acc: r.acc, mock: r.mock }));
+      for (const sib of siblings) {
+        const after = fixes.filter((f) => !sib.startedAt || f.ts >= sib.startedAt.getTime());
+        if (after.length === 0) continue;
+        try {
+          const r = await ingest(sib.id, after, rules);
+          if (r.accepted.length > 0) {
+            await publishRealtime(`walk:${sib.id}`, "walk:points", {
+              walkId: sib.id,
+              points: r.accepted.slice(-MAX_PUBLISHED_POINTS).map((p) => ({ seq: p.seq, lat: p.lat, lng: p.lng, ts: p.ts })),
+              distMeters: Math.round(r.walk.distanceMeters),
+            });
+          }
+        } catch (err) {
+          // The sibling may have just been dropped off (409): not an error for this upload.
+          log.info("walk.group_fanout_skipped", { walkId: sib.id, err: err instanceof Error ? err.message : String(err) });
+        }
+      }
+    }
+
     return ok({
       accepted: result.accepted.length,
       rejected: result.rejected.map((r) => ({ seq: r.seq, reason: r.rejectReason })),
@@ -152,6 +119,72 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 }
 
 type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+/** Validate and store one batch for one walk (idempotent by seq). */
+function ingest(id: string, points: Fix[], rules: TrackRules) {
+return db.$transaction(async (tx) => {
+    // Serialize uploads per walk (retries can overlap a slow request).
+    await tx.$queryRaw`SELECT id FROM "Walk" WHERE id = ${id} FOR UPDATE`;
+    const w = await tx.walk.findUniqueOrThrow({ where: { id } });
+    if (w.status !== "IN_PROGRESS") {
+      throw new ApiError(409, "Solo se puede rastrear un paseo en curso.");
+    }
+
+    // Idempotency: drop seqs already stored (and repeats inside the batch).
+    const seqs = [...new Set(points.map((p) => p.seq))];
+    const stored = await tx.walkTrackPoint.findMany({
+      where: { walkId: id, seq: { in: seqs } },
+      select: { seq: true },
+    });
+    const seen = new Set(stored.map((s) => s.seq));
+    const fresh: Fix[] = [];
+    for (const p of points) {
+      if (seen.has(p.seq)) continue;
+      seen.add(p.seq);
+      fresh.push(p);
+    }
+    const duplicates = points.length - fresh.length;
+
+    const state = await loadState(tx, w, rules);
+    const { results, state: next } = validateTrackBatch(state, fresh, rules, {
+      startedAt: (w.startedAt ?? w.createdAt).getTime(),
+      now: Date.now(),
+    });
+
+    const accepted = results.filter((r) => !r.rejectReason);
+    const rejected = results.filter((r) => r.rejectReason);
+    const addMeters = accepted.reduce((sum, r) => sum + r.addMeters, 0);
+    const mocked = results.some((r) => r.mock);
+
+    if (results.length > 0) {
+      await tx.walkTrackPoint.createMany({
+        data: results.map((r) => ({
+          walkId: id,
+          seq: r.seq,
+          lat: r.lat,
+          lng: r.lng,
+          accuracyM: r.acc ?? null,
+          mocked: r.mock === true,
+          rejectReason: r.rejectReason,
+          recordedAt: new Date(r.ts),
+        })),
+      });
+    }
+    const track = parseJson<[number, number][]>(w.trackJson, []);
+    const updated = await tx.walk.update({
+      where: { id },
+      data: {
+        ...(accepted.length
+          ? { trackJson: JSON.stringify([...track, ...accepted.map((r) => [r.lat, r.lng])]) }
+          : {}),
+        distanceMeters: { increment: addMeters },
+        rejectedPoints: { increment: rejected.length },
+        ...(mocked ? { mockLocation: true } : {}),
+      },
+    });
+    return { accepted, rejected, duplicates, mocked, firstMock: mocked && !w.mockLocation, walk: updated, maxSeq: next.maxSeq };
+  });
+}
 
 /** Rebuild the validator state from stored fixes. */
 async function loadState(

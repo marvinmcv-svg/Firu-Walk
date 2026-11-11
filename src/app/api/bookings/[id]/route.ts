@@ -246,6 +246,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           dogName,
           cfg,
           at: now,
+          commissionPct: booking.commissionPct,
         });
         if (walkerNetCents > 0 && booking.walkerId) {
           await notify(
@@ -289,6 +290,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
       if (booking.status !== "CONFIRMED") {
         throw new ApiError(400, "Solo las reservas confirmadas se pueden reprogramar.");
+      }
+      if (booking.groupSlotId) {
+        throw new ApiError(400, "Un paseo grupal no se puede reprogramar: cancélalo y únete a otro grupo.");
       }
       const schedule = normalizeSchedule(booking.type as BookingType, body.schedule);
       await db.booking.update({

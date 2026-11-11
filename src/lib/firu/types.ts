@@ -53,6 +53,15 @@ export interface AppConfig {
   payments: {
     qrExpiryMinutes: number; // lifetime of a generated QR
   };
+  /** Group walks: one walker, 2–3 compatible dogs (LAUNCH_PLAN §5 pricing). */
+  groupWalks: {
+    enabled: number; // 1 = walkers can open group slots and owners can join
+    durationMin: number; // 30 | 45 | 60
+    maxDogs: number; // per walker per group (2–4)
+    pricePerDogCents: number; // owner price per dog (before the owner service fee)
+    walkerPerDogCents: number; // walker's share per dog; the rest is FiruWalk's
+    joinCloseMinutes: number; // owners can join until this long before the start
+  };
   /** "Regalá un paseo": both sides get a gifted walk after the friend's first paid walk. */
   referrals: {
     enabled: number; // 1 = owners can invite and codes are honoured, 0 = off
@@ -280,6 +289,8 @@ export interface WalkDTO {
   endedAt?: string | null;
   distanceMeters: number;
   hasTrack: boolean;
+  /** Set when this walk is one dog of a group walk. */
+  groupSlotId?: string | null;
   dog: DogDTO;
   report?: ReportCardDTO | null;
 }
@@ -373,6 +384,8 @@ export interface BookingDTO {
   id: string;
   status: BookingStatus;
   type: "ONE_OFF" | "RECURRING";
+  /** Set when this booking is one dog of a group walk. */
+  groupSlotId?: string | null;
   schedule: ScheduleItem[];
   durationMin: number;
   pricePerWalkCents: number;
@@ -853,4 +866,39 @@ export interface PartnerDTO {
   walks: number; // completed walks by those owners (all time)
   earnedCents: number; // fees earned all time
   owedCents: number; // fees not paid out yet
+}
+
+export type DogSizeCode = "S" | "M" | "L";
+
+/** GET /api/group-slots — a group walk (one walker, 2–4 dogs). */
+export interface GroupSlotDTO {
+  id: string;
+  walker: { id: string; name: string; avatarUrl: string | null; rating: number | null; totalWalks: number };
+  zone: { id: string; name: string };
+  startsAt: string;
+  durationMin: number;
+  capacity: number;
+  taken: number;
+  spotsLeft: number;
+  sizes: DogSizeCode[];
+  pricePerDogCents: number;
+  ownerFeeCents: number;
+  totalPerDogCents: number;
+  /** Only for the slot's walker and admins. */
+  walkerPerDogCents: number | null;
+  status: "OPEN" | "CANCELLED";
+  note: string | null;
+  /** Owners can still join (open, not full, before the join cut-off). */
+  joinable: boolean;
+  /** Walker/admin view: the dogs that joined. */
+  dogs: {
+    bookingId: string;
+    dogName: string;
+    size: DogSizeCode;
+    ownerName: string;
+    paymentStatus: string | null;
+    paymentMethod: string | null;
+  }[];
+  /** The viewer's own bookings in this slot (owner view). */
+  myBookingIds: string[];
 }

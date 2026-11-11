@@ -409,8 +409,14 @@ model Booking {
   completedAt       DateTime?
   notes             String? // owner instructions to walker
   subscriptionId    String? // walks paid from this monthly plan
+  // Group walks (Phase 3): the slot this booking joined, and the commission
+  // agreed for it (walker keeps groupWalks.walkerPerDogCents of the price).
+  // null = regular booking at fees.commissionPct.
+  groupSlotId       String?
+  commissionPct     Float?
 
   owner        User          @relation("BookingOwner", fields: [ownerId], references: [id])
+  groupSlot    GroupSlot?    @relation(fields: [groupSlotId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
   walker       User?         @relation("BookingWalker", fields: [walkerId], references: [id])
   dog          Dog           @relation(fields: [dogId], references: [id])
@@ -422,6 +428,42 @@ model Booking {
   @@index([ownerId])
   @@index([walkerId])
   @@index([status])
+  @@index([groupSlotId])
+}
+
+// ---------------------------------------------------------------
+// Group walks (Phase 3): one walker, 2–3 compatible dogs, one route
+// ---------------------------------------------------------------
+
+enum GroupSlotStatus {
+  OPEN
+  CANCELLED
+}
+
+// A group walk the walker offers at a fixed time in their zone. Each dog
+// that joins is an ordinary CONFIRMED one-off Booking (+ Walk + Payment)
+// pointing here, so cancellation, refunds, disputes and report cards work
+// unchanged. During the walk the GPS fixes uploaded for one dog's walk are
+// copied to the other dogs' walks in progress (same route).
+model GroupSlot {
+  id                String          @id @default(cuid())
+  walkerId          String
+  zoneId            String
+  startsAt          DateTime
+  durationMin       Int
+  capacity          Int // dogs
+  sizesJson         String          @default("[\"S\",\"M\",\"L\"]") // allowed DogSize values
+  pricePerDogCents  Int // owner price per dog (before the owner service fee)
+  walkerPerDogCents Int // walker's share per dog
+  status            GroupSlotStatus @default(OPEN)
+  note              String?
+  cancelledAt       DateTime?
+  createdAt         DateTime        @default(now())
+
+  bookings Booking[]
+
+  @@index([zoneId, status, startsAt])
+  @@index([walkerId, startsAt])
 }
 
 // ---------------------------------------------------------------
@@ -467,6 +509,7 @@ model Walk {
   backupExpiresAt      DateTime?
   originalWalkerId     String? // walker who was late when a backup took the walk
   reassignedAt         DateTime?
+  groupSlotId          String? // group walk this dog's walk belongs to (GPS fan-out)
   createdAt            DateTime   @default(now())
 
   booking     Booking          @relation(fields: [bookingId], references: [id])
@@ -482,6 +525,7 @@ model Walk {
   @@index([bookingId])
   @@index([status, scheduledStart])
   @@index([backupWalkerId])
+  @@index([groupSlotId, status])
 }
 
 // One GPS fix uploaded by the walker app. `seq` is assigned by the device
