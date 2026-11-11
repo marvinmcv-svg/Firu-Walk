@@ -51,6 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { BackupOffers } from "@/components/firu/walker/BackupOffers";
+import { GroupSlotsCard } from "@/components/firu/walker/GroupSlotsCard";
 import { VerificationCard } from "@/components/firu/walker/VerificationCard";
 
 /** WalkDTO + compact booking context (shape of GET /api/walks?scope=…). */
@@ -384,6 +385,9 @@ export function WalkerHome() {
       {/* Milestone 8: urgent backup walks offered to me */}
       {actionsAllowed && <BackupOffers />}
 
+      {/* Phase 3: group walks I offer */}
+      {actionsAllowed && <GroupSlotsCard />}
+
       {/* Solicitudes pendientes */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
@@ -685,6 +689,9 @@ function TodayWalkCard({
               <StatusBadge status="IN_PROGRESS" kind="walk" />
             ) : (
               <DogSizeBadge size={walk.dog.size} />
+            )}
+            {walk.groupSlotId && (
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">{t("wlk.group.badge")}</span>
             )}
           </div>
           <p className="text-sm text-muted-foreground truncate mt-0.5">

@@ -78,6 +78,7 @@ export const qk = {
   payouts: ["payouts"] as const,
   plans: ["plans"] as const,
   subscriptions: ["subscriptions"] as const,
+  groupSlots: ["group-slots"] as const,
   adminRecon: ["admin", "reconciliation"] as const,
   adminBatches: ["admin", "payout-batches"] as const,
   adminPlans: ["admin", "plans"] as const,

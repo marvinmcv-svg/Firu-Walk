@@ -147,6 +147,8 @@ function clearStored(walkId: string): void {
 
 interface Session {
   walkId: string;
+  /** Group walk: any walk of the group may be tracked (the server fans out). */
+  groupSlotId: string | null;
   buf: Stored;
   lastKept: Fix | null;
   lastFix: Fix | null;
@@ -369,14 +371,19 @@ export function startTracking(opts: {
   walkId: string;
   lastSeq: number;
   origin?: { lat: number; lng: number } | null;
+  groupSlotId?: string | null;
 }): void {
   if (session?.walkId === opts.walkId && !session.stopped) return;
+  // Group walk: keep the running session — its fixes reach every dog of the
+  // group on the server, and switching would strand the unsent buffer.
+  if (session && !session.stopped && opts.groupSlotId && session.groupSlotId === opts.groupSlotId) return;
   if (session) stopTracking({ clear: false });
 
   const buf = loadStored(opts.walkId);
   buf.nextSeq = Math.max(buf.nextSeq, opts.lastSeq + 1);
   const s: Session = {
     walkId: opts.walkId,
+    groupSlotId: opts.groupSlotId ?? null,
     buf,
     lastKept: null,
     lastFix: null,
@@ -400,6 +407,22 @@ export function startTracking(opts: {
   s.stopSource = startSource(s, opts.origin ?? null);
   s.uploadTimer = setInterval(() => void flush(), UPLOAD_EVERY_MS);
   if (buf.points.length) void flush();
+}
+
+/**
+ * Group walk drop-off: the tracked dog's walk just finished, keep tracking on
+ * another dog of the group still out walking. Numbering continues from the
+ * finished walk (the server already copied those seqs to the other walks).
+ */
+export function handOffTracking(next: {
+  walkId: string;
+  lastSeq: number;
+  origin?: { lat: number; lng: number } | null;
+  groupSlotId: string;
+}): void {
+  const carried = session ? session.buf.nextSeq - 1 : -1;
+  stopTracking({ clear: true });
+  startTracking({ ...next, lastSeq: Math.max(next.lastSeq, carried) });
 }
 
 /** Stop the source and timers. `clear` also forgets the local buffer. */

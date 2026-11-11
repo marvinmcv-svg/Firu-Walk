@@ -7,6 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { OwnerPlans } from "@/components/firu/owner/OwnerPlans";
 import { ReferralCard } from "@/components/firu/owner/ReferralCard";
+import { GroupWalksCard } from "@/components/firu/owner/GroupWalksCard";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -354,6 +355,11 @@ export function OwnerHome() {
           </div>
         </motion.div>
       )}
+
+      {/* Phase 3: group walks in my zone */}
+      <motion.div variants={staggerItem}>
+        <GroupWalksCard />
+      </motion.div>
 
       {/* Monthly plans */}
       <motion.div variants={staggerItem}>

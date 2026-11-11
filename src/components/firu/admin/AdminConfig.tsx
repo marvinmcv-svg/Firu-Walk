@@ -11,6 +11,7 @@ import { springSmooth, springSnappy } from "@/lib/firu/motion";
 import {
   Gift,
   HandCoins,
+  Users,
   Info,
   Percent,
   PiggyBank,
@@ -415,6 +416,22 @@ export function AdminConfig() {
             { key: "qrExpiryMinutes", label: t("adm.cfg.f.qrExpiry"), kind: "num", unit: "min" },
           ]}
           value={cfg.payments}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.groupWalks)}
+          section="groupWalks"
+          icon={Users}
+          title={t("adm.cfg.grpTitle")}
+          description={t("adm.cfg.grpDesc")}
+          fields={[
+            { key: "enabled", label: t("adm.cfg.f.grpEnabled"), kind: "num", hint: t("adm.cfg.f.refEnabledHint") },
+            { key: "durationMin", label: t("adm.cfg.f.grpDuration"), kind: "num", unit: "min", hint: t("adm.cfg.f.grpDurationHint") },
+            { key: "maxDogs", label: t("adm.cfg.f.grpMaxDogs"), kind: "num", hint: t("adm.cfg.f.grpMaxDogsHint") },
+            { key: "pricePerDogCents", label: t("adm.cfg.f.grpPrice"), kind: "bs", unit: "Bs" },
+            { key: "walkerPerDogCents", label: t("adm.cfg.f.grpWalker"), kind: "bs", unit: "Bs", hint: t("adm.cfg.f.grpWalkerHint") },
+            { key: "joinCloseMinutes", label: t("adm.cfg.f.grpClose"), kind: "num", unit: "min", hint: t("adm.cfg.f.grpCloseHint") },
+          ]}
+          value={cfg.groupWalks}
         />
         <ConfigSectionCard
           key={JSON.stringify(cfg.referrals)}

@@ -26,6 +26,7 @@ import {
   MapPin,
   PartyPopper,
   Siren,
+  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -47,6 +48,7 @@ import {
   currentFix,
   flushAll,
   openLocationSettings,
+  handOffTracking,
   startTracking,
   stopTracking,
   useTracker,
@@ -104,6 +106,14 @@ type WalkDetail = WalkWithContext & {
   pickup: { lat: number; lng: number; note: string | null } | null;
   startLat: number | null;
   startLng: number | null;
+  /** Group walk: the other dogs' walks (walker view). */
+  group?: {
+    id: string;
+    dogName: string;
+    status: string;
+    lastSeq: number;
+    pickup: { lat: number; lng: number; note: string | null } | null;
+  }[];
 };
 
 const START_WINDOW_MS = 60 * 60 * 1000;
@@ -127,6 +137,8 @@ export function ActiveWalkScreen() {
 
   const [startedWalkId, setStartedWalkId] = useState<string | null>(null);
   const [finishedWalk, setFinishedWalk] = useState<WalkDetail | null>(null);
+  // Group walk: the dog the walker chose to look at (pick up / drop off).
+  const [focus, setFocus] = useState<{ id: string; status: string } | null>(null);
   // Payment snapshot AT FINISH TIME — after a recurring walk the booking gets a
   // fresh PENDING payment for the next occurrence, so the live query can no
   // longer tell us how THIS walk was settled.
@@ -186,14 +198,18 @@ export function ActiveWalkScreen() {
 
   const phase: "none" | "pre" | "live" | "done" = finishedWalk
     ? "done"
-    : activeWalk || startedWalkId
-      ? "live"
-      : candidate
-        ? "pre"
-        : "none";
+    : focus
+      ? focus.status === "IN_PROGRESS" || startedWalkId === focus.id
+        ? "live"
+        : "pre"
+      : activeWalk || startedWalkId
+        ? "live"
+        : candidate
+          ? "pre"
+          : "none";
 
   const walkId =
-    finishedWalk?.id ?? activeWalk?.id ?? startedWalkId ?? candidate?.id ?? null;
+    finishedWalk?.id ?? focus?.id ?? activeWalk?.id ?? startedWalkId ?? candidate?.id ?? null;
 
   // Full walk detail (startLat/Lng for the map + sim origin). In the pre-start
   // phase the detail itself carries the dog + booking context for rendering.
@@ -234,7 +250,7 @@ export function ActiveWalkScreen() {
   const resumeSeq = detail?.lastSeq ?? -1;
   useEffect(() => {
     if (!liveWalkId) return;
-    startTracking({ walkId: liveWalkId, lastSeq: resumeSeq, origin: pickup });
+    startTracking({ walkId: liveWalkId, lastSeq: resumeSeq, origin: pickup, groupSlotId: detail?.groupSlotId ?? null });
   }, [liveWalkId]);
 
   // Server-accepted route (as of the last fetch) + newer fixes from this device.
@@ -265,7 +281,7 @@ export function ActiveWalkScreen() {
     onSuccess: (res) => {
       setStartedWalkId(res.id);
       qc.setQueryData(qk.walk(res.id), res);
-      startTracking({ walkId: res.id, lastSeq: res.lastSeq, origin: res.pickup });
+      startTracking({ walkId: res.id, lastSeq: res.lastSeq, origin: res.pickup, groupSlotId: res.groupSlotId ?? null });
       qc.invalidateQueries({ queryKey: ["walks"] });
       toast({
         title: t("wlk.walk.startOkTitle"),
@@ -302,7 +318,13 @@ export function ActiveWalkScreen() {
       return { walk: res, paymentSnapshot };
     },
     onSuccess: ({ walk, paymentSnapshot }) => {
-      stopTracking({ clear: true });
+      // Group walk: other dogs are still out → keep tracking on one of them.
+      const stillOut = detail?.group?.find((g) => g.status === "IN_PROGRESS");
+      if (stillOut && walk.groupSlotId && useTracker.getState().walkId === walkId) {
+        handOffTracking({ walkId: stillOut.id, lastSeq: stillOut.lastSeq, origin: stillOut.pickup, groupSlotId: walk.groupSlotId });
+      } else if (!stillOut) {
+        stopTracking({ clear: true });
+      }
       setFinishedWalk(walk);
       setFinishedPayment(paymentSnapshot);
       setFinishOpen(false);
@@ -392,6 +414,37 @@ export function ActiveWalkScreen() {
           </Button>
         )}
       </div>
+
+      {/* Group walk: the other dogs (pick-up / drop-off order) */}
+      {detail?.group && detail.group.length > 0 && (
+        <div className="rounded-2xl border bg-brand-soft/40 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-muted-foreground">
+            <Users className="size-3.5" /> {t("wlk.group.title")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {detail.group.map((g) => (
+              <Button
+                key={g.id}
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-full text-xs"
+                disabled={g.status === "COMPLETED" || g.status === "NO_SHOW"}
+                onClick={() => {
+                  setFinishedWalk(null);
+                  setFocus({ id: g.id, status: g.status });
+                }}
+              >
+                {g.dogName} ·{" "}
+                {g.status === "SCHEDULED"
+                  ? t("wlk.group.pickUp")
+                  : g.status === "IN_PROGRESS"
+                    ? t("wlk.group.walking")
+                    : t("wlk.group.done")}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ============ PHASE A — PRE-START ============ */}
       {phase === "pre" && (

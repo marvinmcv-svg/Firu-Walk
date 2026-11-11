@@ -616,6 +616,18 @@ const admin: Record<string, string> = {
   "adm.prt.ref": "Transfer reference",
   "adm.prt.confirmPay": "Record payment",
   "adm.prt.paid": "Payment recorded: {amount}",
+  "adm.cfg.grpTitle": "Group walks",
+  "adm.cfg.grpDesc": "One walker, 2–4 compatible dogs, one route. The walker gets their share per dog; FiruWalk keeps the difference.",
+  "adm.cfg.f.grpEnabled": "Enabled",
+  "adm.cfg.f.grpDuration": "Length",
+  "adm.cfg.f.grpDurationHint": "30, 45 or 60",
+  "adm.cfg.f.grpMaxDogs": "Max dogs",
+  "adm.cfg.f.grpMaxDogsHint": "Per walker and group (2–4)",
+  "adm.cfg.f.grpPrice": "Price per dog",
+  "adm.cfg.f.grpWalker": "Walker share per dog",
+  "adm.cfg.f.grpWalkerHint": "Applies to groups published from now on",
+  "adm.cfg.f.grpClose": "Joining closes",
+  "adm.cfg.f.grpCloseHint": "Minutes before the start",
 };
 
 export default admin;

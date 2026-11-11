@@ -616,6 +616,18 @@ const admin: Record<string, string> = {
   "adm.prt.ref": "Referencia de la transferencia",
   "adm.prt.confirmPay": "Registrar pago",
   "adm.prt.paid": "Pago registrado: {amount}",
+  "adm.cfg.grpTitle": "Paseos grupales",
+  "adm.cfg.grpDesc": "Un paseador, 2 a 4 perros compatibles, un recorrido. El paseador recibe su parte por perro; FiruWalk se queda con la diferencia.",
+  "adm.cfg.f.grpEnabled": "Activo",
+  "adm.cfg.f.grpDuration": "Duración",
+  "adm.cfg.f.grpDurationHint": "30, 45 o 60",
+  "adm.cfg.f.grpMaxDogs": "Máximo de perros",
+  "adm.cfg.f.grpMaxDogsHint": "Por paseador y grupo (2–4)",
+  "adm.cfg.f.grpPrice": "Precio por perro",
+  "adm.cfg.f.grpWalker": "Parte del paseador por perro",
+  "adm.cfg.f.grpWalkerHint": "Se aplica a los grupos que se publiquen desde ahora",
+  "adm.cfg.f.grpClose": "Cierre de inscripciones",
+  "adm.cfg.f.grpCloseHint": "Minutos antes del inicio",
 };
 
 export default admin;

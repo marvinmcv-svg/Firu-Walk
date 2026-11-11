@@ -559,6 +559,9 @@ function BookingCard({
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-extrabold text-lg leading-tight">{booking.dog.name}</p>
             <StatusBadge status={booking.status} kind="booking" />
+            {booking.groupSlotId && (
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">{t("own.group.badge")}</span>
+            )}
             <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-secondary-foreground inline-flex items-center gap-1">
               {booking.type === "RECURRING" ? (
                 <>
