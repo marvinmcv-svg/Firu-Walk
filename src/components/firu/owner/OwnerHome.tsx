@@ -6,6 +6,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { OwnerPlans } from "@/components/firu/owner/OwnerPlans";
+import { ReferralCard } from "@/components/firu/owner/ReferralCard";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -357,6 +358,9 @@ export function OwnerHome() {
       {/* Monthly plans */}
       <motion.div variants={staggerItem}>
         <OwnerPlans />
+      </motion.div>
+      <motion.div variants={staggerItem}>
+        <ReferralCard />
       </motion.div>
 
       {/* Empty state */}

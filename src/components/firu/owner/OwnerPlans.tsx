@@ -6,7 +6,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { CalendarCheck, Loader2, Ticket } from "lucide-react";
+import { CalendarCheck, Gift, Loader2, Ticket } from "lucide-react";
 import { useState } from "react";
 import { api, qk } from "@/lib/firu/api";
 import { fmtDateShort } from "@/lib/firu/dates";
@@ -46,19 +46,23 @@ export function OwnerPlans() {
   });
 
   const active = (subs ?? []).filter((s) => s.status === "ACTIVE");
+  // Gifted walks ("Regalá un paseo") show next to the catalogue, not instead of it.
+  const boughtActive = active.some((s) => !s.gift);
   if (!plans?.length && active.length === 0) return null;
 
   return (
     <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={springSmooth}>
       <SectionHeader title={t("own.plans.title")} subtitle={t("own.plans.subtitle")} />
 
-      {active.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+      {active.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 mb-3">
           {active.map((s) => (
             <div key={s.id} className="rounded-3xl border border-primary/30 bg-brand-soft/50 p-4 shadow-sm space-y-2">
               <p className="font-extrabold flex items-center gap-2">
-                <Ticket className="size-4 text-primary" /> {s.plan.name}
+                {s.gift ? <Gift className="size-4 text-primary" /> : <Ticket className="size-4 text-primary" />}
+                {s.gift ? t("own.plans.giftName", { min: s.durationMin }) : s.plan.name}
               </p>
+              {s.gift && <p className="text-xs text-muted-foreground">{t("own.plans.giftHint")}</p>}
               <p className="text-sm">
                 <strong className="text-2xl font-black text-primary tabular-nums">{s.walksLeft}</strong>{" "}
                 {t("own.plans.left", { total: s.walksTotal, min: s.durationMin })}
@@ -72,7 +76,8 @@ export function OwnerPlans() {
             </div>
           ))}
         </div>
-      ) : (
+      )}
+      {!boughtActive && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {(plans ?? []).map((p) => (
             <div key={p.id} className="rounded-3xl border bg-card p-4 shadow-sm flex flex-col gap-2">

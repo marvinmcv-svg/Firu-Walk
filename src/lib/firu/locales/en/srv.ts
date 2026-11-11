@@ -97,6 +97,21 @@ const srv = {
   "Incidente no encontrado.": "Incident not found.",
   "Veterinaria no encontrada.": "Vet not found.",
   "Los números de operaciones deben tener formato +591XXXXXXXX, separados por coma.": "Ops numbers must look like +591XXXXXXXX, separated by commas.",
+  "Solo los dueños pueden invitar amigos.": "Only owners can invite friends.",
+  "Solo los dueños pueden usar códigos de invitación.": "Only owners can use invite codes.",
+  "Las invitaciones no están activas por el momento.": "Invites aren't active right now.",
+  "Ese código de invitación no existe. Revísalo con quien te invitó.": "That invite code doesn't exist. Check it with whoever invited you.",
+  "No puedes usar tu propio código.": "You can't use your own code.",
+  "Ya tienes un código de invitación aplicado.": "You already have an invite code applied.",
+  "El código de invitación solo vale para cuentas nuevas antes de su primer paseo.": "Invite codes only work for new accounts before their first walk.",
+  "No pudimos generar tu código de invitación. Intenta de nuevo.": "We couldn't create your invite code. Try again.",
+  "Solo se pueden anular invitaciones pendientes.": "Only pending invites can be cancelled.",
+  "Invitación no encontrada.": "Invite not found.",
+  "Esa clave está reservada para los paseos de regalo.": "That key is reserved for gifted walks.",
+  "La duración del paseo regalado debe ser 30, 45 o 60 minutos.": "The gifted walk must be 30, 45 or 60 minutes.",
+  "Usa 1 para activar o 0 para apagar.": "Use 1 to turn on or 0 to turn off.",
+  "No hay filas para importar.": "There are no rows to import.",
+  "Máximo 500 filas por importación.": "At most 500 rows per import.",
 } as const;
 
 export default srv;

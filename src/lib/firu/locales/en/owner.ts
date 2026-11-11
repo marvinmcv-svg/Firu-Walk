@@ -351,6 +351,23 @@ const owner: Record<string, string> = {
   "own.detail.trustGps": "Walks with live GPS",
   "own.detail.trustHeld": "Payment held until the report",
   "own.detail.trustNoSpam": "No request blasting",
+  "own.plans.giftName": "Gifted walk ({min} min)",
+  "own.plans.giftHint": "From Gift a walk — choose “Plan” when you book.",
+  "own.ref.title": "Gift a walk 🎁",
+  "own.ref.desc": "Share your code. When your friend completes their first paid walk, you both get {gift}.",
+  "own.ref.gift": "a free {min}-min walk ({amount})",
+  "own.ref.copy": "Copy",
+  "own.ref.copied": "Copied!",
+  "own.ref.share": "Send on WhatsApp",
+  "own.ref.shareText": "Here's a walk for your dog on me! 🐾 Sign up to FiruWalk with my code {code} and after your first walk we both get a free {min}-min walk: {url}",
+  "own.ref.stats": "{invited} invited · {pending} before their first walk · {rewarded} walks earned",
+  "own.ref.capped": "you reached the reward limit",
+  "own.ref.yoursPending": "Your invite code is active: after your first paid walk you get your free walk.",
+  "own.ref.redeemLabel": "Invited? Your friend's code",
+  "own.ref.redeem": "Apply",
+  "own.ref.redeemed": "Code applied! 🎁",
+  "own.ref.redeemedDesc": "After your first paid walk, you and your friend each get a free walk.",
+  "own.ref.redeemErr": "We couldn't apply the code",
 };
 
 export default owner;

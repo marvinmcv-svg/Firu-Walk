@@ -240,6 +240,12 @@ const landing: Record<string, string> = {
   "land.apply.errorTitle": "No se pudo enviar",
   // intro splash
   "intro.skip": "Saltar",
+  "land.login.refToggle": "¿Te invitó un amigo? Ingresa su código",
+  "land.login.refLabel": "Código de invitación (opcional)",
+  "land.login.refHint": "Tras tu primer paseo pagado, tú y tu amigo reciben un paseo de regalo.",
+  "land.login.refApplied": "¡Código de invitación aplicado! 🎁",
+  "land.login.refAppliedDesc": "Después de tu primer paseo pagado, tú y tu amigo reciben un paseo de regalo.",
+  "land.login.refNotApplied": "No pudimos aplicar el código de invitación",
 };
 
 export default landing;

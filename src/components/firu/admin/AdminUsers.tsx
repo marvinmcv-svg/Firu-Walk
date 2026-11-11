@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ImportOwnersDialog } from "@/components/firu/admin/ImportOwnersDialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -148,6 +149,7 @@ export function AdminUsers() {
             {t(e.key)}
           </Button>
         ))}
+        <ImportOwnersDialog />
       </section>
 
       {/* Users table */}

@@ -155,10 +155,10 @@ export function BookingFlow() {
     queryKey: qk.subscriptions,
     queryFn: () => api.get<SubscriptionDTO[]>("/api/subscriptions"),
   });
-  // An active monthly plan that covers walks of this duration.
-  const usablePlan = (subscriptions ?? []).find(
-    (s) => s.status === "ACTIVE" && s.walksLeft > 0 && s.durationMin === durationMin
-  );
+  // An active monthly plan (or gifted walk — used first) that covers walks of this duration.
+  const usablePlan = (subscriptions ?? [])
+    .filter((s) => s.status === "ACTIVE" && s.walksLeft > 0 && s.durationMin === durationMin)
+    .sort((a, b) => Number(b.gift) - Number(a.gift))[0];
   const effectiveMethod: PaymentMethod =
     paymentMethod === "PLAN" && !usablePlan ? "QR" : paymentMethod;
 
@@ -864,7 +864,10 @@ export function BookingFlow() {
                       <div className="min-w-0 flex-1">
                         <p className="font-bold text-sm">{t("own.pay.plan.label")}</p>
                         <p className="text-xs text-muted-foreground">
-                          {t("own.pay.plan.desc", { left: usablePlan.walksLeft, name: usablePlan.plan.name })}
+                          {t("own.pay.plan.desc", {
+                            left: usablePlan.walksLeft,
+                            name: usablePlan.gift ? t("own.plans.giftName", { min: usablePlan.durationMin }) : usablePlan.plan.name,
+                          })}
                         </p>
                       </div>
                       <span

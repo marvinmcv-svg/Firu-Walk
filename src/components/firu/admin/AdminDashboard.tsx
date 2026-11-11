@@ -3,6 +3,7 @@
 // T4-d — Admin operations dashboard ("Panel").
 // KPI row, service quality bars, retention north-star, supply vs demand
 // per zone, 14-day booking trend, and the ops alert queue. Polls every 30s.
+// Below: the weekly growth review (AdminGrowth).
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -27,6 +28,7 @@ import { formatBOB } from "@/lib/firu/money";
 import { monthsShort } from "@/lib/firu/dates";
 import { useT, getLang, type Lang } from "@/lib/firu/i18n";
 import { RatingStars, SectionHeader } from "@/components/firu/shared/bits";
+import { AdminGrowth } from "@/components/firu/admin/AdminGrowth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -497,6 +499,8 @@ export function AdminDashboard() {
           </Card>
         </motion.div>
       </div>
+
+      <AdminGrowth />
     </div>
   );
 }

@@ -83,6 +83,7 @@ import { ReportShowcase } from "@/components/firu/landing/ReportShowcase";
 import { WalkFunnel } from "@/components/firu/landing/WalkFunnel";
 import { Faq } from "@/components/firu/landing/Faq";
 import { StickyCta } from "@/components/firu/landing/StickyCta";
+import { captureAttribution, clearAttribution } from "@/lib/firu/attribution";
 import {
   EXPO,
   Magnetic,
@@ -955,6 +956,12 @@ function LoginDialog({
   const [sent, setSent] = useState<OtpRequestResponse | null>(null);
   const [resendAt, setResendAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  // "Regalá un paseo": a friend's code from the share link (/?ref=CODE), or typed.
+  // (Read once on the client; the dialog is closed during hydration.)
+  const [attribution] = useState(captureAttribution);
+  const channel = attribution.channel;
+  const [refCode, setRefCode] = useState(attribution.ref ?? "");
+  const [showRef, setShowRef] = useState(!!attribution.ref);
 
   const { data: config } = useQuery({
     queryKey: qk.config,
@@ -976,10 +983,18 @@ function LoginDialog({
   }, [sent, now, resendAt]);
 
   const welcome = (res: LoginResponse) => {
+    if (res.isNew) clearAttribution();
     login(res.user);
     onOpenChange(false);
     setSent(null);
     setCode("");
+    if (res.referral) {
+      toast({
+        title: res.referral.applied ? t("land.login.refApplied") : t("land.login.refNotApplied"),
+        description: res.referral.applied ? t("land.login.refAppliedDesc") : undefined,
+        variant: res.referral.applied ? undefined : "destructive",
+      });
+    }
     toast({
       title: res.isNew
         ? t("land.login.welcomeNew", { name: res.user.name })
@@ -1013,7 +1028,13 @@ function LoginDialog({
   });
 
   const loginMut = useMutation({
-    mutationFn: () => api.post<LoginResponse>("/api/auth/login", { phone, code, acceptTerms: true }),
+    mutationFn: () => api.post<LoginResponse>("/api/auth/login", {
+        phone,
+        code,
+        acceptTerms: true,
+        ...(refCode.trim() ? { referralCode: refCode.trim() } : {}),
+        ...(channel ? { channel } : {}),
+      }),
     onSuccess: welcome,
     onError: fail,
   });
@@ -1117,6 +1138,29 @@ function LoginDialog({
                   disabled={!!sent}
                 />
               </div>
+              {showRef ? (
+                <div>
+                  <Label htmlFor="login-ref" className="text-sm">{t("land.login.refLabel")}</Label>
+                  <Input
+                    id="login-ref"
+                    placeholder="ANA7K2Q"
+                    value={refCode}
+                    onChange={(e) => setRefCode(e.target.value.toUpperCase().slice(0, 20))}
+                    autoCapitalize="characters"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">{t("land.login.refHint")}</p>
+                </div>
+              ) : (
+                !sent && (
+                  <button
+                    type="button"
+                    className="justify-self-start text-xs font-semibold text-primary hover:underline"
+                    onClick={() => setShowRef(true)}
+                  >
+                    {t("land.login.refToggle")}
+                  </button>
+                )
+              )}
               {!sent ? (
                 <Button
                   className="rounded-full font-bold"

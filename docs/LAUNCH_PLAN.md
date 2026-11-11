@@ -117,10 +117,10 @@ Order matters (each step unblocks the next):
 8. **Legal pages:** Terms, Privacy, Walker Agreement, Cancellation & Guarantee policy (ES first). ✅ Live at `/legal` (ES + EN courtesy translation), built from the live config; acceptance recorded on sign-up and walker applications. Pending: review by a Bolivian lawyer and the company details (SEPREC name, NIT) in Admin → Configuración.
 
 ### Phase 2 — Soft launch (weeks 8–12)
-- Move Phase-0 customers onto the app (keep WhatsApp as support).
-- Invite-only growth: each owner gets referral codes ("Regalá un paseo").
-- Weekly metrics review (see §6). Fix the top 3 friction points every week.
-- Walker ops: weekly payouts on time, monthly meetup, simple training (leash handling, heat, dog fights, first aid basics).
+- Move Phase-0 customers onto the app (keep WhatsApp as support). ✅ Admin → Usuarios → *Importar clientes Fase 0*: paste the concierge sheet (one line per dog), check, import; each new owner gets a prefilled WhatsApp invite link. They sign in with their phone code and accept the Terms on first sign-in.
+- Invite-only growth: each owner gets referral codes ("Regalá un paseo"). ✅ Owner home card with code + WhatsApp share link (`/?ref=CODE`). When the friend completes their **first paid walk**, both get a gifted walk (a 1-walk gift plan funded from ledger account `platform:marketing`; unused gifts go back there). Tunable in Admin → Configuración → *Regalá un paseo* (on/off, gift length, validity, max rewards per inviter). Ops can void suspicious pending invites.
+- Weekly metrics review (see §6). Fix the top 3 friction points every week. ✅ Admin → Panel → *Revisión semanal*: 8-week table (new/active owners, walks per active owner, on-time starts, no-shows, GMV, revenue, gift spend, contribution per walk), month-2/3 retention cohorts, acquisition channels (`?utm_source=` on links), referrals and the leakage signal.
+- Walker ops: weekly payouts on time, monthly meetup, simple training (leash handling, heat, dog fights, first aid basics). (Payout batches exist since Milestone 5; meetups/training are offline.)
 
 ### Phase 3 — Growth (months 3–9)
 - **Partnerships:** vets (referral fee or free walks for their clients), pet shops, groomers, condominium administrators (building-wide discount), real-estate agencies and relocation services for expats.

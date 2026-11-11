@@ -238,6 +238,12 @@ const landing: Record<string, string> = {
   "land.apply.errorTitle": "Couldn't send application",
   // intro splash
   "intro.skip": "Skip",
+  "land.login.refToggle": "Invited by a friend? Enter their code",
+  "land.login.refLabel": "Invite code (optional)",
+  "land.login.refHint": "After your first paid walk, you and your friend each get a free walk.",
+  "land.login.refApplied": "Invite code applied! 🎁",
+  "land.login.refAppliedDesc": "After your first paid walk, you and your friend each get a free walk.",
+  "land.login.refNotApplied": "We couldn't apply the invite code",
 };
 
 export default landing;

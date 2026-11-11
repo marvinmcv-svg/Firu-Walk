@@ -348,6 +348,23 @@ const owner: Record<string, string> = {
   "own.detail.trustGps": "Paseos con GPS en vivo",
   "own.detail.trustHeld": "Pago retenido hasta el reporte",
   "own.detail.trustNoSpam": "Sin bombear solicitudes",
+  "own.plans.giftName": "Paseo de regalo ({min} min)",
+  "own.plans.giftHint": "Gracias a Regalá un paseo — elige «Plan» al reservar.",
+  "own.ref.title": "Regalá un paseo 🎁",
+  "own.ref.desc": "Comparte tu código. Cuando tu amigo complete su primer paseo pagado, ambos reciben {gift}.",
+  "own.ref.gift": "un paseo de {min} min gratis ({amount})",
+  "own.ref.copy": "Copiar",
+  "own.ref.copied": "¡Copiado!",
+  "own.ref.share": "Enviar por WhatsApp",
+  "own.ref.shareText": "¡Te regalo un paseo para tu perrito! 🐾 Regístrate en FiruWalk con mi código {code} y, después de tu primer paseo, los dos recibimos un paseo de {min} min gratis: {url}",
+  "own.ref.stats": "{invited} invitados · {pending} por su primer paseo · {rewarded} paseos ganados",
+  "own.ref.capped": "llegaste al máximo de premios",
+  "own.ref.yoursPending": "Tu código de invitación está activo: tras tu primer paseo pagado recibes tu paseo de regalo.",
+  "own.ref.redeemLabel": "¿Te invitaron? Código de tu amigo",
+  "own.ref.redeem": "Aplicar",
+  "own.ref.redeemed": "¡Código aplicado! 🎁",
+  "own.ref.redeemedDesc": "Después de tu primer paseo pagado, tú y tu amigo reciben un paseo de regalo.",
+  "own.ref.redeemErr": "No pudimos aplicar el código",
 };
 
 export default owner;

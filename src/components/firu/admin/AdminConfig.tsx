@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { springSmooth, springSnappy } from "@/lib/firu/motion";
 import {
+  Gift,
   HandCoins,
   Info,
   Percent,
@@ -414,6 +415,20 @@ export function AdminConfig() {
             { key: "qrExpiryMinutes", label: t("adm.cfg.f.qrExpiry"), kind: "num", unit: "min" },
           ]}
           value={cfg.payments}
+        />
+        <ConfigSectionCard
+          key={JSON.stringify(cfg.referrals)}
+          section="referrals"
+          icon={Gift}
+          title={t("adm.cfg.refTitle")}
+          description={t("adm.cfg.refDesc")}
+          fields={[
+            { key: "enabled", label: t("adm.cfg.f.refEnabled"), kind: "num", hint: t("adm.cfg.f.refEnabledHint") },
+            { key: "giftDurationMin", label: t("adm.cfg.f.refDuration"), kind: "num", unit: "min", hint: t("adm.cfg.f.refDurationHint") },
+            { key: "giftValidDays", label: t("adm.cfg.f.refValid"), kind: "num", unit: t("adm.cfg.unit.days") },
+            { key: "maxRewardsPerReferrer", label: t("adm.cfg.f.refMax"), kind: "num", hint: t("adm.cfg.f.refMaxHint") },
+          ]}
+          value={cfg.referrals}
         />
         <ConfigSectionCard
           key={JSON.stringify(cfg.safety)}
