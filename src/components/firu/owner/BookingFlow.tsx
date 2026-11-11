@@ -39,6 +39,7 @@ import type {
   WalkerCardDTO,
   WalkerDetailDTO,
   ZoneDTO,
+  CityDTO,
 } from "@/lib/firu/types";
 import { springSmooth, springSnappy } from "@/lib/firu/motion";
 import {
@@ -143,6 +144,10 @@ export function BookingFlow() {
   const { data: zones } = useQuery({
     queryKey: qk.zones,
     queryFn: () => api.get<ZoneDTO[]>("/api/zones"),
+  });
+  const { data: cities } = useQuery({
+    queryKey: qk.cities,
+    queryFn: () => api.get<CityDTO[]>("/api/cities"),
   });
   // Booking link from FirulAI: pre-select its zone once zones are loaded.
   const seedZoneId = seed?.zoneKey ? zones?.find((z) => z.key === seed.zoneKey)?.id : undefined;
@@ -274,8 +279,16 @@ export function BookingFlow() {
   if (!user) return null;
 
   const selectedDog = (dogs ?? []).find((d) => d.id === dogId);
+  // The zone's city sets the walk lengths offered and the base prices.
+  const zoneCity = (() => {
+    const z = zones?.find((x) => x.id === effectiveZoneId);
+    return z ? cities?.find((c) => c.id === z.cityId) : undefined;
+  })();
+  const durations = zoneCity?.durations.length ? DURATIONS.filter((d) => zoneCity.durations.includes(d)) : DURATIONS;
+  if (!durations.includes(durationMin as (typeof DURATIONS)[number])) setDurationMin(durations[0]);
+  const multiCity = new Set((zones ?? []).map((z) => z.cityId)).size > 1;
   const bands: PriceBands | null | undefined =
-    chosenWalker ?? config?.pricing ?? null;
+    chosenWalker ?? zoneCity ?? config?.pricing ?? null;
   const priceCents = priceForDuration(durationMin, bands);
   const price =
     priceCents !== null ? priceBreakdown(priceCents, config?.fees.ownerFeePct ?? 0) : null;
@@ -635,7 +648,7 @@ export function BookingFlow() {
               <div className="space-y-2">
                 <Label>{t("own.step1.durationLabel")}</Label>
                 <div className="grid grid-cols-3 gap-2">
-                  {DURATIONS.map((d) => {
+                  {durations.map((d) => {
                     const p = priceForDuration(d, bands);
                     const active = durationMin === d;
                     return (
@@ -795,7 +808,7 @@ export function BookingFlow() {
                     <SelectContent>
                       {(zones ?? []).map((z) => (
                         <SelectItem key={z.id} value={z.id}>
-                          {z.name}
+                          {multiCity ? `${z.name} · ${z.city}` : z.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

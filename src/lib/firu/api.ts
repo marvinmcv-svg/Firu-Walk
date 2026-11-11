@@ -65,6 +65,7 @@ export const qk = {
   config: ["config"] as const,
   me: ["me"] as const,
   zones: ["zones"] as const,
+  cities: ["cities"] as const,
   dogs: (ownerId?: string) => ["dogs", ownerId] as const,
   walkers: (zoneId?: string) => ["walkers", zoneId] as const,
   walker: (userId: string) => ["walker", userId] as const,

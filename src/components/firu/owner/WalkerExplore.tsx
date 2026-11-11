@@ -44,6 +44,8 @@ export function WalkerExplore() {
   });
 
   const effectiveZoneId = zoneId ?? user?.zoneId ?? zones?.[0]?.id ?? null;
+  const cityId = zones?.find((z) => z.id === effectiveZoneId)?.cityId;
+  const cityZones = (zones ?? []).filter((z) => z.cityId === cityId);
 
   const { data: walkers, isLoading } = useQuery({
     queryKey: qk.walkers(effectiveZoneId ?? undefined),
@@ -73,7 +75,8 @@ export function WalkerExplore() {
 
       {/* Zone chips */}
       <motion.div variants={staggerItem} className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {(zones ?? []).map((z) => {
+        {/* Only the current zone's city: walkers don't cross cities. */}
+        {cityZones.map((z) => {
           const active = z.id === effectiveZoneId;
           return (
             <button

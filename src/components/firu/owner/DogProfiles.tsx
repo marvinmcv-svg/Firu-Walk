@@ -28,6 +28,7 @@ import {
   SectionHeader,
 } from "@/components/firu/shared/bits";
 import { MediaConsentCard } from "@/components/firu/shared/MediaConsentCard";
+import { zoneLabel } from "@/lib/firu/zones";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -444,7 +445,7 @@ function UserEditDialog({
               <SelectContent>
                 {zones.map((z) => (
                   <SelectItem key={z.id} value={z.id}>
-                    {z.name}
+                    {zoneLabel(z, zones)}
                   </SelectItem>
                 ))}
               </SelectContent>

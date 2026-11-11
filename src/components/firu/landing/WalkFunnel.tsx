@@ -32,14 +32,24 @@ type Duration = 30 | 45 | 60;
 const WALKS_PER_WEEK: Record<Freq, number> = { trial: 1, "2": 2, "3": 3, "5": 5 };
 const WEEKS_PER_MONTH = 4.33;
 
+/** "Santa Cruz de la Sierra" → "Santa Cruz" (chips and chat header). */
+export const shortCity = (name: string) => name.split(" de la ")[0];
+
+export type FunnelCity = { name: string; durations: number[]; price30Cents: number; price45Cents: number; price60Cents: number };
+
 export function WalkFunnel({
-  zones,
-  pricing,
+  zones: zoneRows,
+  cities,
+  pricing: fallbackPricing,
   supportWa,
   onApp,
   prefill,
 }: {
-  zones: string[];
+  /** Covered zones with their city. */
+  zones: { name: string; city: string }[];
+  /** Launched cities: each has its own walk lengths and prices. */
+  cities: FunnelCity[];
+  /** Config reference prices, used until the cities load. */
   pricing: { 30: number; 45: number; 60: number } | null;
   supportWa: string;
   onApp: () => void;
@@ -48,6 +58,10 @@ export function WalkFunnel({
 }) {
   const { t } = useT();
   const reduce = useCalmMotion();
+  // With several cities, each zone chip names its city too.
+  const multiCity = new Set(zoneRows.map((z) => z.city)).size > 1;
+  const labelOf = (z: { name: string; city: string }) => (multiCity ? `${z.name} · ${shortCity(z.city)}` : z.name);
+  const zones = zoneRows.map(labelOf);
   const [name, setName] = useState("");
   const [dog, setDog] = useState("");
   const [size, setSize] = useState<Size | null>(null);
@@ -58,7 +72,8 @@ export function WalkFunnel({
   const [prefillNonce, setPrefillNonce] = useState<number | null>(null);
   if (prefill && prefill.nonce !== prefillNonce) {
     setPrefillNonce(prefill.nonce);
-    if (prefill.zoneName && zones.includes(prefill.zoneName)) setZone(prefill.zoneName);
+    const hit = prefill.zoneName ? zoneRows.find((z) => z.name === prefill.zoneName) : undefined;
+    if (hit) setZone(labelOf(hit));
     if (prefill.durationMin === 30 || prefill.durationMin === 45 || prefill.durationMin === 60) {
       setDuration(prefill.durationMin as Duration);
     }
@@ -69,6 +84,13 @@ export function WalkFunnel({
   const shake = useAnimationControls();
   const nameRef = useRef<HTMLInputElement>(null);
   const dogRef = useRef<HTMLInputElement>(null);
+
+  // Prices and walk lengths of the chosen zone's city (else the first city).
+  const zoneCity = zoneRows.find((z) => labelOf(z) === zone)?.city;
+  const city = cities.find((c) => c.name === zoneCity) ?? cities[0];
+  const pricing = city ? { 30: city.price30Cents, 45: city.price45Cents, 60: city.price60Cents } : fallbackPricing;
+  const durations = (city?.durations ?? [30, 45, 60]).filter((d): d is Duration => d === 30 || d === 45 || d === 60);
+  if (durations.length > 0 && !durations.includes(duration)) setDuration(durations[0]);
 
   const sizeLabel = size ? t(`land.funnel.size.${size}`) : "";
   const freqLabel = freq ? t(`land.funnel.freq.${freq}`) : "";
@@ -259,7 +281,7 @@ export function WalkFunnel({
                   <Segmented
                     value={duration}
                     onChange={edit(setDuration)}
-                    options={([30, 45, 60] as Duration[]).map((d) => ({
+                    options={durations.map((d) => ({
                       value: d,
                       label: `${d}′`,
                       sub: pricing ? formatBOBShort(pricing[d]) : undefined,
@@ -338,7 +360,7 @@ export function WalkFunnel({
               <div className="flex items-center gap-3 bg-[#075e54] dark:bg-[#1f2c34] px-4 py-3 text-white">
                 <img src="/images/brand/logo-mark-mint.png" alt="" className="size-10 rounded-full bg-white object-cover" />
                 <div className="min-w-0">
-                  <p className="text-sm font-extrabold leading-tight truncate">FiruWalk · Santa Cruz</p>
+                  <p className="text-sm font-extrabold leading-tight truncate">FiruWalk · {shortCity(city?.name ?? "Santa Cruz")}</p>
                   <p className="text-[11px] text-white/75 leading-tight mt-0.5 truncate">
                     <AnimatePresence mode="wait" initial={false}>
                       <motion.span

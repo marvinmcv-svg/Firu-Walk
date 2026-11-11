@@ -205,6 +205,9 @@ export function AdminGrowth() {
                 <TableRow key={z.zoneId}>
                   <TableCell className="font-semibold">
                     {z.zoneName}
+                    {new Set(g.zones.map((x) => x.cityName)).size > 1 && (
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">· {z.cityName}</span>
+                    )}
                     {z.readyToExpand && (
                       <Badge className="ml-2" variant="default">
                         {t("adm.grow.zoneFull")}

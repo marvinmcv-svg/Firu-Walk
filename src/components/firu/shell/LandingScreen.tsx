@@ -59,6 +59,7 @@ import { LegalLink, SignInConsent, WalkerConsentText } from "@/components/firu/s
 import { Checkbox } from "@/components/ui/checkbox";
 import type {
   AppConfig,
+  CityDTO,
   DemoAccountDTO,
   LoginResponse,
   OtpRequestResponse,
@@ -81,7 +82,8 @@ import { Hero } from "@/components/firu/landing/Hero";
 import { PainSection } from "@/components/firu/landing/PainSection";
 import { ReportShowcase } from "@/components/firu/landing/ReportShowcase";
 import { FeaturedSection } from "@/components/firu/landing/FeaturedSection";
-import { WalkFunnel } from "@/components/firu/landing/WalkFunnel";
+import { WalkFunnel, shortCity } from "@/components/firu/landing/WalkFunnel";
+import { zoneLabel } from "@/lib/firu/zones";
 import { Faq } from "@/components/firu/landing/Faq";
 import { StickyCta } from "@/components/firu/landing/StickyCta";
 import { captureAttribution, clearAttribution } from "@/lib/firu/attribution";
@@ -103,7 +105,7 @@ export function LandingScreen({
   onLogin?: () => void;
   initiallyShowLogin: boolean;
 }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [loginOpen, setLoginOpen] = useState(initiallyShowLogin);
   const [applyOpen, setApplyOpen] = useState(false);
   const { data: config } = useQuery({
@@ -113,6 +115,10 @@ export function LandingScreen({
   const { data: zones } = useQuery({
     queryKey: qk.zones,
     queryFn: () => api.get<ZoneDTO[]>("/api/zones"),
+  });
+  const { data: cities } = useQuery({
+    queryKey: qk.cities,
+    queryFn: () => api.get<CityDTO[]>("/api/cities"),
   });
 
   // Booking link (/?book=1&zone=…&duration=…, e.g. from FirulAI): pre-fill
@@ -137,13 +143,22 @@ export function LandingScreen({
   const waLink = `https://wa.me/${supportWa.replace(/\D/g, "")}`;
   const city = config?.platform.city ?? "Santa Cruz de la Sierra";
   const cancelHours = config?.policy.cancellationFreeHours ?? 12;
-  const pricing = config
-    ? {
-        30: config.pricing.price30Cents,
-        45: config.pricing.price45Cents,
-        60: config.pricing.price60Cents,
-      }
-    : null;
+  // Headline prices: the first launched city (Config reference prices until it loads).
+  const firstCity = cities?.[0];
+  const pricing = firstCity
+    ? { 30: firstCity.price30Cents, 45: firstCity.price45Cents, 60: firstCity.price60Cents }
+    : config
+      ? {
+          30: config.pricing.price30Cents,
+          45: config.pricing.price45Cents,
+          60: config.pricing.price60Cents,
+        }
+      : null;
+  // Zones grouped by city (one group while only Santa Cruz is live).
+  const zoneGroups = (cities ?? [])
+    .map((c) => ({ city: c, zones: (zones ?? []).filter((z) => z.cityId === c.id) }))
+    .filter((g) => g.zones.length > 0);
+  const cityNames = zoneGroups.map((g) => shortCity(g.city.name));
   const reduceMotion = useReducedMotion();
 
   // Header turns into a floating material once the page moves.
@@ -450,37 +465,52 @@ export function LandingScreen({
         <SectionHeading
           eyebrow={t("land.zones.eyebrow")}
           title={t("land.zones.title")}
-          subtitle={t("land.zones.subtitle", { city: config?.platform.city ?? "Santa Cruz" })}
+          subtitle={t("land.zones.subtitle", {
+            city:
+              cityNames.length > 0
+                ? new Intl.ListFormat(lang === "en" ? "en" : "es", { type: "conjunction" }).format(cityNames)
+                : (config?.platform.city ?? "Santa Cruz"),
+          })}
         />
-        <motion.div
-          className="mt-8 flex flex-wrap justify-center gap-2.5"
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: "-40px" }}
-          variants={staggerContainer(0.06)}
-        >
-          {(zones ?? []).map((z) => (
-            <motion.span
-              key={z.id}
-              variants={{
-                hidden: { opacity: 0, y: 14, scale: 0.9 },
-                show: { opacity: 1, y: 0, scale: 1, transition: springMomentum },
-              }}
-              whileHover={reduceMotion ? undefined : { y: -3 }}
-              className="inline-flex items-center gap-1.5 rounded-full border bg-card px-4 py-2.5 text-sm font-bold shadow-card hover:border-primary/40 hover:shadow-raise transition-[border-color,box-shadow]"
+        {zoneGroups.map((g) => (
+          <div key={g.city.id} className="mt-8" data-testid={`zones-${g.city.key}`}>
+            {zoneGroups.length > 1 && (
+              <p className="mb-3 text-center text-xs font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
+                <a href={`/paseo-de-perros/${g.city.key}`} className="hover:text-primary">{g.city.name}</a>
+              </p>
+            )}
+            <motion.div
+              className="flex flex-wrap justify-center gap-2.5"
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, margin: "-40px" }}
+              variants={staggerContainer(0.06)}
             >
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping [animation-duration:2.4s]" />
-                <span className="relative inline-flex size-2 rounded-full bg-primary" />
-              </span>
-              {z.name}
-            </motion.span>
-          ))}
-        </motion.div>
+              {g.zones.map((z) => (
+                <motion.span
+                  key={z.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 14, scale: 0.9 },
+                    show: { opacity: 1, y: 0, scale: 1, transition: springMomentum },
+                  }}
+                  whileHover={reduceMotion ? undefined : { y: -3 }}
+                  className="inline-flex items-center gap-1.5 rounded-full border bg-card px-4 py-2.5 text-sm font-bold shadow-card hover:border-primary/40 hover:shadow-raise transition-[border-color,box-shadow]"
+                >
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping [animation-duration:2.4s]" />
+                    <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                  </span>
+                  {z.name}
+                </motion.span>
+              ))}
+            </motion.div>
+          </div>
+        ))}
       </section>
 
       <WalkFunnel
-        zones={(zones ?? []).map((z) => z.name)}
+        zones={(zones ?? []).map((z) => ({ name: z.name, city: z.city }))}
+        cities={cities ?? []}
         pricing={pricing}
         supportWa={supportWa}
         onApp={() => setLoginOpen(true)}
@@ -1357,7 +1387,7 @@ function ApplyDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {(zones ?? []).map((z) => (
-                    <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+                    <SelectItem key={z.id} value={z.id}>{zoneLabel(z, zones)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -45,6 +45,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { AdminCities } from "@/components/firu/admin/AdminCities";
 
 /* ------------------------- field machinery ------------------------- */
 
@@ -492,6 +493,8 @@ export function AdminConfig() {
         />
         <DemoCard demo={cfg.demo} />
       </div>
+
+      <AdminCities cfg={cfg} />
 
       <p className="text-xs text-muted-foreground flex items-center gap-1.5">
         <HandCoins className="size-3.5" />
