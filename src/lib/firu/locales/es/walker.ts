@@ -328,6 +328,14 @@ const walker: Record<string, string> = {
   "wlk.group.cancelConfirmDogs": "¿Cancelar este paseo grupal? Se devolverá el pago a {n} dueño(s) y, si falta poco, cuenta como falta.",
   "wlk.group.cancelled": "Paseo grupal cancelado",
   "wlk.group.badge": "Grupal",
+  "wlk.cockpit.mediaYes": "📣 El dueño autoriza usar las fotos en las redes de FiruWalk: ¡saca tu mejor foto!",
+  "wlk.cockpit.mediaNo": "🔒 Fotos solo para el dueño: no las publiques ni las compartas.",
+  "wlk.spot.title": "Paseador destacado",
+  "wlk.spot.desc": "Autoriza a FiruWalk a mostrar tu nombre (nombre e inicial del apellido), tu foto, tu zona, tus estadísticas y una frase sobre ti en la página principal y en nuestras redes. Puedes retirarlo cuando quieras: dejas de aparecer al instante.",
+  "wlk.spot.label": "Quiero que me destaquen",
+  "wlk.spot.on": "Gracias: ya puedes aparecer como paseador destacado.",
+  "wlk.spot.off": "Listo: ya no aparecerás como destacado.",
+  "wlk.spot.err": "No se pudo guardar",
 };
 
 export default walker;

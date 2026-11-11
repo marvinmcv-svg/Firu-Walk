@@ -80,6 +80,7 @@ import {
 import { Hero } from "@/components/firu/landing/Hero";
 import { PainSection } from "@/components/firu/landing/PainSection";
 import { ReportShowcase } from "@/components/firu/landing/ReportShowcase";
+import { FeaturedSection } from "@/components/firu/landing/FeaturedSection";
 import { WalkFunnel } from "@/components/firu/landing/WalkFunnel";
 import { Faq } from "@/components/firu/landing/Faq";
 import { StickyCta } from "@/components/firu/landing/StickyCta";
@@ -332,6 +333,9 @@ export function LandingScreen({
       </section>
 
       <ReportShowcase />
+
+      {/* Firu del mes + featured walkers (consented, curated by ops) */}
+      <FeaturedSection />
 
       {/* La manada — family photo wall */}
       <section id="manada" className="relative overflow-x-clip">

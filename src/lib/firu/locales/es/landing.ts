@@ -246,6 +246,15 @@ const landing: Record<string, string> = {
   "land.login.refApplied": "¡Código de invitación aplicado! 🎁",
   "land.login.refAppliedDesc": "Después de tu primer paseo pagado, tú y tu amigo reciben un paseo de regalo.",
   "land.login.refNotApplied": "No pudimos aplicar el código de invitación",
+  // Firu del mes + paseadores destacados (only with consent)
+  "land.feat.eyebrow": "La manada del mes",
+  "land.feat.title": "Firu del mes",
+  "land.feat.subtitle": "Cada mes celebramos a un perro de la manada y a los paseadores que la cuidan. Todos aparecen con su permiso.",
+  "land.feat.firuBadge": "Firu de {month}",
+  "land.feat.spotBadge": "Paseador destacado",
+  "land.feat.walks": "{count} paseos",
+  "land.feat.years": "{count} años de experiencia",
+  "land.feat.photoAlt": "Foto de {name}",
 };
 
 export default landing;

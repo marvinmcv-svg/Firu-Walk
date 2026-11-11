@@ -392,6 +392,12 @@ const owner: Record<string, string> = {
   "own.group.payTitle": "Pay for the group walk",
   "own.group.payDesc": "The payment is held until the walk ends.",
   "own.group.badge": "Group",
+  "own.media.title": "Your dog, Firu of the month? 📸",
+  "own.media.desc": "Let FiruWalk use the walk photos and your dog's name, breed and zone on our social media and home page. We never show your name or address. You can withdraw it anytime.",
+  "own.media.label": "I allow my dogs' photos to be used",
+  "own.media.on": "Thanks! Your dog can now be Firu of the month.",
+  "own.media.off": "Done: we won't use your dogs' photos anymore.",
+  "own.media.err": "Couldn't save",
 };
 
 export default owner;

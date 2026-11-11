@@ -27,6 +27,7 @@ import {
   EmptyState,
   SectionHeader,
 } from "@/components/firu/shared/bits";
+import { MediaConsentCard } from "@/components/firu/shared/MediaConsentCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -682,6 +683,9 @@ export function DogProfiles() {
           </div>
         )}
       </div>
+
+      {/* Photo consent ("Firu del mes", social media) */}
+      <MediaConsentCard />
 
       {/* Dialogs */}
       <DogDialog

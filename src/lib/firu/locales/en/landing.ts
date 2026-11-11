@@ -244,6 +244,15 @@ const landing: Record<string, string> = {
   "land.login.refApplied": "Invite code applied! 🎁",
   "land.login.refAppliedDesc": "After your first paid walk, you and your friend each get a free walk.",
   "land.login.refNotApplied": "We couldn't apply the invite code",
+  // Firu of the month + featured walkers (only with consent)
+  "land.feat.eyebrow": "This month's pack",
+  "land.feat.title": "Firu of the month",
+  "land.feat.subtitle": "Every month we celebrate one dog from the pack and the walkers who look after it. Everyone appears with their permission.",
+  "land.feat.firuBadge": "Firu of {month}",
+  "land.feat.spotBadge": "Featured walker",
+  "land.feat.walks": "{count} walks",
+  "land.feat.years": "{count} years of experience",
+  "land.feat.photoAlt": "Photo of {name}",
 };
 
 export default landing;

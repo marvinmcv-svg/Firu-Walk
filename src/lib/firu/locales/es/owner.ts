@@ -389,6 +389,12 @@ const owner: Record<string, string> = {
   "own.group.payTitle": "Paga el paseo grupal",
   "own.group.payDesc": "El pago queda retenido hasta que termine el paseo.",
   "own.group.badge": "Grupal",
+  "own.media.title": "¿Tu perro, Firu del mes? 📸",
+  "own.media.desc": "Autoriza a FiruWalk a usar las fotos de los paseos y el nombre, la raza y la zona de tu perro en nuestras redes sociales y en la página principal. Nunca mostramos tu nombre ni tu dirección. Puedes retirarlo cuando quieras.",
+  "own.media.label": "Autorizo el uso de las fotos de mis perros",
+  "own.media.on": "¡Gracias! Tu perro ya puede ser el Firu del mes.",
+  "own.media.off": "Listo: ya no usaremos las fotos de tus perros.",
+  "own.media.err": "No se pudo guardar",
 };
 
 export default owner;

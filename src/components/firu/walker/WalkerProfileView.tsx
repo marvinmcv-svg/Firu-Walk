@@ -34,6 +34,7 @@ import {
   StatusBadge,
   whatsappHref,
 } from "@/components/firu/shared/bits";
+import { MediaConsentCard } from "@/components/firu/shared/MediaConsentCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -155,6 +156,9 @@ export function WalkerProfileView() {
           </div>
         </motion.div>
       )}
+
+      {/* Featured-walker consent (landing + social media) — active walkers only */}
+      {walker?.status === "ACTIVE" && <MediaConsentCard />}
 
       {/* Bio + prices */}
       <motion.section

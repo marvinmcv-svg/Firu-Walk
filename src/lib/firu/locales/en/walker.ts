@@ -327,6 +327,14 @@ const walker: Record<string, string> = {
   "wlk.group.cancelConfirmDogs": "Cancel this group walk? {n} owner(s) will be refunded and, if it's short notice, it counts as a strike.",
   "wlk.group.cancelled": "Group walk cancelled",
   "wlk.group.badge": "Group",
+  "wlk.cockpit.mediaYes": "📣 The owner allows these photos on FiruWalk's social media: take your best shot!",
+  "wlk.cockpit.mediaNo": "🔒 Photos are for the owner only: don't post or share them.",
+  "wlk.spot.title": "Featured walker",
+  "wlk.spot.desc": "Let FiruWalk show your name (first name and last initial), photo, zone, stats and a line about you on the home page and our social media. You can withdraw it anytime: you stop appearing right away.",
+  "wlk.spot.label": "Feature me",
+  "wlk.spot.on": "Thanks: you can now be a featured walker.",
+  "wlk.spot.off": "Done: you won't be featured anymore.",
+  "wlk.spot.err": "Couldn't save",
 };
 
 export default walker;

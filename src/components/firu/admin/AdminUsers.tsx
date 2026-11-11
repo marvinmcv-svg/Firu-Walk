@@ -40,6 +40,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ImportOwnersDialog } from "@/components/firu/admin/ImportOwnersDialog";
 import { AdminPartners } from "@/components/firu/admin/AdminPartners";
+import { AdminContent } from "@/components/firu/admin/AdminContent";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -154,6 +155,8 @@ export function AdminUsers() {
       </section>
 
       <AdminPartners />
+
+      <AdminContent />
 
       {/* Users table */}
       <section className="space-y-3">

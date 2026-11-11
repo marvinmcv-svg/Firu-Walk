@@ -106,6 +106,8 @@ type WalkDetail = WalkWithContext & {
   pickup: { lat: number; lng: number; note: string | null } | null;
   startLat: number | null;
   startLng: number | null;
+  /** Owner allows the walk photos on FiruWalk's social media. */
+  ownerMediaConsent?: boolean;
   /** Group walk: the other dogs' walks (walker view). */
   group?: {
     id: string;
@@ -632,6 +634,9 @@ export function ActiveWalkScreen() {
                 {t("wlk.cockpit.photoHint")}
               </p>
             )}
+            <p className="text-xs text-muted-foreground text-center" data-testid="owner-media-consent">
+              {t(detail?.ownerMediaConsent ? "wlk.cockpit.mediaYes" : "wlk.cockpit.mediaNo")}
+            </p>
           </div>
 
           {/* Finish */}
