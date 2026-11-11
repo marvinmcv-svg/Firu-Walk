@@ -159,6 +159,20 @@ const srv = {
   "El texto es demasiado largo (máx. 400).": "The text is too long (max 400).",
   "Solo los dueños autorizan el uso de fotos de sus perros.": "Only owners can allow photos of their dogs to be used.",
   "Solo los paseadores pueden aparecer como destacados.": "Only walkers can be featured.",
+  "Ciudad no encontrada.": "City not found.",
+  "Zona no encontrada.": "Zone not found.",
+  "Ya existe una ciudad con esa clave.": "A city with that key already exists.",
+  "Ya existe una zona con esa clave.": "A zone with that key already exists.",
+  "Agrega al menos una zona activa antes de lanzar la ciudad.": "Add at least one active zone before launching the city.",
+  "No se puede desactivar: hay paseos pendientes o reservas abiertas. Cancélalos o reasígnalos primero.": "Can't switch it off: there are pending walks or open bookings. Cancel or reassign them first.",
+  "Duración no disponible en esta ciudad *": "Walk length not offered in this city ",
+  "La clave solo admite minúsculas, números y guiones (p. ej. la-paz).": "The key only allows lowercase letters, numbers and hyphens (e.g. la-paz).",
+  "Indica al menos un horario pico.": "Add at least one peak window.",
+  "Máximo 4 horarios pico.": "At most 4 peak windows.",
+  "Cada horario pico debe terminar después de empezar.": "Each peak window must end after it starts.",
+  "Elige al menos una duración de paseo.": "Choose at least one walk length.",
+  "El precio mínimo es Bs 5.": "The minimum price is Bs 5.",
+  "El precio es demasiado alto.": "The price is too high.",
 } as const;
 
 export default srv;

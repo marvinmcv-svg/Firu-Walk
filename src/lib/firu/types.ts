@@ -105,10 +105,48 @@ export interface ZoneDTO {
   id: string;
   key: string;
   name: string;
+  /** City name ("Santa Cruz de la Sierra"). */
   city: string;
+  cityId: string;
+  cityKey: string;
   centerLat: number;
   centerLng: number;
   active: boolean;
+}
+
+/** GET /api/cities (active) · GET /api/admin/cities (all). */
+export interface CityDTO {
+  id: string;
+  key: string;
+  name: string;
+  centerLat: number;
+  centerLng: number;
+  active: boolean;
+  sortOrder: number;
+  price30Cents: number;
+  price45Cents: number;
+  price60Cents: number;
+  /** Walk lengths offered in this city (subset of 30/45/60). */
+  durations: number[];
+  /** Peak hours [fromMin, toMin) in local minutes. */
+  peaks: [number, number][];
+  zoneCount?: number;
+}
+
+/** GET /api/admin/cities — a city with all its zones (active or not). */
+export interface AdminCityDTO extends CityDTO {
+  zones: {
+    id: string;
+    key: string;
+    name: string;
+    centerLat: number;
+    centerLng: number;
+    active: boolean;
+    sortOrder: number;
+    owners: number;
+    /** Active walkers. */
+    walkers: number;
+  }[];
 }
 
 export interface WalkerProfileDTO {
@@ -825,6 +863,7 @@ export interface GrowthMetricsDTO {
   zones: {
     zoneId: string;
     zoneName: string;
+    cityName: string;
     activeWalkers: number;
     peakCapacityMin: number;
     peakBookedMin: number;

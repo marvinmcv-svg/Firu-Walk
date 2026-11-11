@@ -114,12 +114,23 @@ export function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
-export function zoneOf(z: { id: string; key: string; name: string; city: string; centerLat: number; centerLng: number; active: boolean }): ZoneDTO {
+export function zoneOf(z: {
+  id: string;
+  key: string;
+  name: string;
+  cityId: string;
+  cityRef: { key: string; name: string };
+  centerLat: number;
+  centerLng: number;
+  active: boolean;
+}): ZoneDTO {
   return {
     id: z.id,
     key: z.key,
     name: z.name,
-    city: z.city,
+    city: z.cityRef.name,
+    cityId: z.cityId,
+    cityKey: z.cityRef.key,
     centerLat: z.centerLat,
     centerLng: z.centerLng,
     active: z.active,

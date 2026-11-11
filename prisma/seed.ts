@@ -196,6 +196,7 @@ async function main() {
     "walkerProfile",
     "user",
     "zone",
+    "city",
     "config",
   ] as const;
   for (const t of tablenames) {
@@ -283,6 +284,35 @@ async function main() {
     ["cumbre", "Cumbre de Sierras", -17.8072, -63.1927],
     ["bicentenario", "Bicentenario", -17.7468, -63.2116],
   ] as const;
+  // Cities (Phase 3 expansion). Santa Cruz is live; La Paz and Cochabamba
+  // are set up but not launched (invisible to owners until ops activate them).
+  const santaCruz = await db.city.create({
+    data: { key: "santa-cruz", name: "Santa Cruz de la Sierra", centerLat: -17.7833, centerLng: -63.1821, active: true, sortOrder: 0 },
+  });
+  const laPaz = await db.city.create({
+    data: {
+      key: "la-paz",
+      name: "La Paz",
+      centerLat: -16.5,
+      centerLng: -68.15,
+      active: false,
+      sortOrder: 1,
+      // Altitude (3,600 m) and cold dawns: shorter walks, later mornings.
+      durationsJson: "[30,45]",
+      peakJson: JSON.stringify([[8 * 60, 10 * 60 + 30], [15 * 60 + 30, 18 * 60 + 30]]),
+    },
+  });
+  const cocha = await db.city.create({
+    data: {
+      key: "cochabamba",
+      name: "Cochabamba",
+      centerLat: -17.3895,
+      centerLng: -66.1568,
+      active: false,
+      sortOrder: 2,
+      peakJson: JSON.stringify([[7 * 60, 9 * 60 + 30], [17 * 60, 19 * 60 + 30]]),
+    },
+  });
   const zones: Record<string, string> = {};
   for (let i = 0; i < zoneDefs.length; i++) {
     const [key, name, lat, lng] = zoneDefs[i];
@@ -290,6 +320,7 @@ async function main() {
       data: {
         key,
         name,
+        cityId: santaCruz.id,
         centerLat: lat,
         centerLng: lng,
         sortOrder: i,
@@ -297,6 +328,17 @@ async function main() {
       },
     });
     zones[key] = z.id;
+  }
+  const laterZones = [
+    [laPaz.id, "La Paz", "sopocachi", "Sopocachi", -16.5097, -68.1272],
+    [laPaz.id, "La Paz", "calacoto", "Calacoto", -16.5408, -68.0827],
+    [laPaz.id, "La Paz", "san-miguel", "San Miguel", -16.5383, -68.0779],
+    [cocha.id, "Cochabamba", "queru-queru", "Queru Queru", -17.3757, -66.1522],
+    [cocha.id, "Cochabamba", "recoleta", "Recoleta", -17.3807, -66.1592],
+  ] as const;
+  for (let i = 0; i < laterZones.length; i++) {
+    const [cityId, city, key, name, lat, lng] = laterZones[i];
+    await db.zone.create({ data: { key, name, city, cityId, centerLat: lat, centerLng: lng, sortOrder: 10 + i, active: true } });
   }
 
   // ----------------------------------------------------------------

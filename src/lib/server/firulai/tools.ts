@@ -11,6 +11,18 @@ import type { LlmToolDef, LlmToolOutcome } from "../llm/types";
 export interface ZoneRow {
   key: string;
   name: string;
+  /** City name. */
+  city: string;
+}
+
+/** A launched city: its base prices and walk lengths. */
+export interface CityRow {
+  key: string;
+  name: string;
+  price30Cents: number;
+  price45Cents: number;
+  price60Cents: number;
+  durations: number[];
 }
 
 export interface PlanRow {
@@ -28,6 +40,7 @@ export type FirulaiAction =
 export interface ToolContext {
   cfg: AppConfig;
   zones: ZoneRow[];
+  cities: CityRow[];
   plans: PlanRow[];
   appUrl: string;
   lang: "es" | "en";
@@ -39,18 +52,19 @@ export const TOOL_DEFS: LlmToolDef[] = [
   {
     name: "check_price",
     description:
-      "Current FiruWalk prices in Bolivianos: price per walk for 30/45/60 minutes (service fee included) and the monthly plans. Call it before quoting any price.",
+      "Current FiruWalk prices in Bolivianos: price per walk for 30/45/60 minutes (service fee included) in each city, and the monthly plans. Call it before quoting any price.",
     input_schema: {
       type: "object",
       properties: {
         durationMin: { type: "integer", enum: [30, 45, 60], description: "Walk length the visitor asked about, if any." },
+        city: { type: "string", description: "City the visitor asked about, if any (e.g. Santa Cruz, La Paz)." },
       },
     },
   },
   {
     name: "check_zone_coverage",
     description:
-      "Check whether FiruWalk has walkers in a neighborhood or zone of Santa Cruz de la Sierra. Returns the matching zone (if any) and the list of covered zones.",
+      "Check whether FiruWalk has walkers in a neighborhood or zone of one of its cities. Returns the matching zone and its city (if any) and the list of covered zones.",
     input_schema: {
       type: "object",
       properties: {
@@ -86,7 +100,7 @@ export const TOOL_DEFS: LlmToolDef[] = [
 ];
 
 const Duration = z.union([z.literal(30), z.literal(45), z.literal(60)]);
-const PriceInput = z.object({ durationMin: Duration.optional() }).passthrough();
+const PriceInput = z.object({ durationMin: Duration.optional(), city: z.string().trim().max(80).optional() }).passthrough();
 const ZoneInput = z.object({ place: z.string().trim().min(1).max(200) }).passthrough();
 const BookingInput = z
   .object({ zoneKey: z.string().trim().max(60).optional(), durationMin: Duration.optional() })
@@ -130,9 +144,26 @@ export async function runFirulaiTool(name: string, raw: unknown, ctx: ToolContex
       if (!input.success) return bad("durationMin must be 30, 45 or 60");
       const fee = cfg.fees.ownerFeePct;
       const per = (c: number) => bs(priceBreakdown(c, fee).totalCents);
+      const priced = (c: CityRow) =>
+        Object.fromEntries(
+          c.durations.map((d) => [String(d), per(d === 30 ? c.price30Cents : d === 45 ? c.price45Cents : c.price60Cents)])
+        );
+      const wanted = input.data.city ? normalizePlace(input.data.city) : "";
+      const city =
+        (wanted &&
+          ctx.cities.find((c) => {
+            const n = normalizePlace(c.name);
+            const k = normalizePlace(c.key.replace(/-/g, " "));
+            return n.includes(wanted) || wanted.includes(n) || wanted.includes(k);
+          })) ||
+        ctx.cities[0];
       return ok({
         currency: "BOB",
-        perWalk: { "30": per(cfg.pricing.price30Cents), "45": per(cfg.pricing.price45Cents), "60": per(cfg.pricing.price60Cents) },
+        city: city?.name ?? cfg.platform.city,
+        perWalk: city
+          ? priced(city)
+          : { "30": per(cfg.pricing.price30Cents), "45": per(cfg.pricing.price45Cents), "60": per(cfg.pricing.price60Cents) },
+        ...(ctx.cities.length > 1 ? { byCity: ctx.cities.map((c) => ({ city: c.name, perWalk: priced(c) })) } : {}),
         asked: input.data.durationMin ?? null,
         serviceFeeIncluded: fee > 0 ? `${fee}%` : "none",
         note: "Walkers may set their own price within these bands; the booking shows the exact total before paying.",
@@ -157,9 +188,9 @@ export async function runFirulaiTool(name: string, raw: unknown, ctx: ToolContex
       });
       return ok({
         covered: !!match,
-        zone: match ? { key: match.key, name: match.name } : null,
-        coveredZones: ctx.zones.map((z) => z.name),
-        city: cfg.platform.city,
+        zone: match ? { key: match.key, name: match.name, city: match.city } : null,
+        coveredZones: ctx.zones.map((z) => `${z.name} (${z.city})`),
+        cities: ctx.cities.map((c) => c.name),
         note: match
           ? "This zone has FiruWalk walkers."
           : "No exact match. The place may still be inside one of the covered zones: ask which zone it is in, or offer WhatsApp to confirm. Never claim coverage you cannot see here.",

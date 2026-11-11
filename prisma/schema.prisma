@@ -199,18 +199,45 @@ enum DeliveryStatus {
 // Geography / supply curation
 // ---------------------------------------------------------------
 
+// Phase 3 expansion: each city has its own walk lengths, base prices (the
+// defaults for new walkers and for bookings without a chosen walker) and
+// peak hours (La Paz is cold at dawn, Santa Cruz too hot at midday).
+// Inactive cities are invisible to owners and walkers while ops set them up.
+model City {
+  id            String   @id @default(cuid())
+  key           String   @unique // slug, also the SEO page: /paseo-de-perros/{key}
+  name          String // "La Paz"
+  centerLat     Float
+  centerLng     Float
+  active        Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  price30Cents  Int      @default(1500)
+  price45Cents  Int      @default(2000)
+  price60Cents  Int      @default(2500)
+  durationsJson String   @default("[30,45,60]") // walk lengths offered here
+  peakJson      String   @default("[[360,540],[1050,1200]]") // [[fromMin,toMin],…] local time
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  zones Zone[]
+}
+
 model Zone {
   id        String  @id @default(cuid())
   key       String  @unique // slug e.g. "equipetrol"
   name      String // "Equipetrol"
-  city      String  @default("Santa Cruz de la Sierra")
+  city      String  @default("Santa Cruz de la Sierra") // legacy label; use cityId
+  cityId    String
   centerLat Float
   centerLng Float
   active    Boolean @default(true)
   sortOrder Int     @default(0)
 
+  cityRef City            @relation(fields: [cityId], references: [id])
   users   User[]
   walkers WalkerProfile[]
+
+  @@index([cityId])
 }
 
 // ---------------------------------------------------------------

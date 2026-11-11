@@ -8,9 +8,9 @@
 // public form — see /api/walkers/me/documents.
 
 import { db } from "@/lib/db";
+import { usableZone } from "@/lib/server/cities";
 import { LEGAL_VERSION } from "@/lib/firu/legal";
 import { ApiError, ok, readJson, reqNum, reqStr, run } from "@/lib/server/http";
-import { getAppConfig } from "@/lib/server/config";
 import { notify, notifyAdmins } from "@/lib/server/notify";
 import { requirePhone } from "@/lib/server/auth/phone";
 import { enforceRateLimit } from "@/lib/server/rateLimit";
@@ -34,15 +34,13 @@ export async function POST(req: Request) {
       throw new ApiError(400, "Debes aceptar el Acuerdo de Paseadores, los Términos y la Política de Privacidad.");
     }
 
-    const zone = await db.zone.findUnique({ where: { id: zoneId } });
-    if (!zone || !zone.active) throw new ApiError(400, "La zona seleccionada no existe.");
+    const zone = await usableZone(zoneId, "La zona seleccionada no existe.");
 
     const existing = await db.user.findUnique({ where: { phone } });
     if (existing) {
       throw new ApiError(400, "Ese teléfono ya está registrado. Inicia sesión con él.");
     }
 
-    const cfg = await getAppConfig();
     const now = new Date();
     const user = await db.user.create({
       data: {
@@ -60,9 +58,10 @@ export async function POST(req: Request) {
             bio,
             experienceYears,
             zoneId,
-            price30Cents: cfg.pricing.price30Cents,
-            price45Cents: cfg.pricing.price45Cents,
-            price60Cents: cfg.pricing.price60Cents,
+            // The city's base prices; the walker adjusts them later.
+            price30Cents: zone.cityRef.price30Cents,
+            price45Cents: zone.cityRef.price45Cents,
+            price60Cents: zone.cityRef.price60Cents,
           },
         },
       },

@@ -23,6 +23,7 @@ import { isDemoMode } from "@/lib/server/auth/demo";
 import { getLlmClient } from "@/lib/server/llm";
 import { EMPTY_USAGE, type LlmChatResult, type LlmTurn } from "@/lib/server/llm/types";
 import { buildSystemPrompt, type Lang } from "@/lib/server/firulai/prompt";
+import { activeCities } from "@/lib/server/cities";
 import { runFirulaiTool, TOOL_DEFS, whatsappLink, type FirulaiAction } from "@/lib/server/firulai/tools";
 import { ensureVetAdvice, looksMedical, medicalNote, plainText, redactPaymentData } from "@/lib/server/firulai/guardrails";
 import { checkCaps, ipHashOf, logExchange, recordUsage, resolveConversation, type CapHit } from "@/lib/server/firulai/usage";
@@ -101,9 +102,16 @@ export async function POST(req: Request) {
   while (window.length > 1 && window[0].role !== "user") window = window.slice(1);
   const userText = window[window.length - 1].content;
 
-  const [cfg, zones, plans, viewer] = await Promise.all([
+  const [cfg, zones, cities, plans, viewer] = await Promise.all([
     getAppConfig(),
-    db.zone.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { key: true, name: true } }),
+    db.zone
+      .findMany({
+        where: { active: true, cityRef: { active: true } },
+        orderBy: [{ cityRef: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+        select: { key: true, name: true, cityRef: { select: { name: true } } },
+      })
+      .then((rows) => rows.map((z) => ({ key: z.key, name: z.name, city: z.cityRef.name }))),
+    activeCities(),
     db.plan.findMany({
       where: { active: true },
       orderBy: { sortOrder: "asc" },
@@ -151,11 +159,11 @@ export async function POST(req: Request) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       result = await Promise.race([
         llm.chat({
-          system: buildSystemPrompt(cfg, zones.map((z) => z.name), lang, { demoMode: isDemoMode() }),
+          system: buildSystemPrompt(cfg, zones, cities, lang, { demoMode: isDemoMode() }),
           messages: window,
           note: medical ? medicalNote(lang) : null,
           tools: TOOL_DEFS,
-          runTool: (name, input) => runFirulaiTool(name, input, { cfg, zones, plans, appUrl: appUrl(req), lang, actions }),
+          runTool: (name, input) => runFirulaiTool(name, input, { cfg, zones, cities, plans, appUrl: appUrl(req), lang, actions }),
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error("LLM timeout")), LLM_TIMEOUT_MS);

@@ -4,6 +4,7 @@
 //   PLAN {subscriptionId} → HELD in the owner's active monthly plan
 
 import { db } from "@/lib/db";
+import { assertCityDuration, cityPriceForDuration, usableZone } from "@/lib/server/cities";
 import {
   ApiError,
   ok,
@@ -20,7 +21,6 @@ import { bookingInclude, bookingList, bookingOf } from "@/lib/server/serialize";
 import {
   matchWalkers,
   normalizeSchedule,
-  priceBandForDuration,
   scheduleSummary,
   expireRequestIfDue,
   walkerPriceForDuration,
@@ -83,14 +83,14 @@ export async function POST(req: Request) {
 
     const zoneId = optStr(body, "zoneId");
     if (!zoneId) throw new ApiError(400, "Selecciona la zona del paseo.");
-    const zone = await db.zone.findUnique({ where: { id: zoneId } });
-    if (!zone || !zone.active) throw new ApiError(400, "La zona seleccionada no está disponible.");
+    const zone = await usableZone(zoneId);
 
     const type = oneOf(body.type, ["ONE_OFF", "RECURRING"] as const, "El tipo de reserva") as BookingType;
     const durationMin = reqNum(body, "durationMin", "La duración", { min: 30, max: 60 });
     if (![30, 45, 60].includes(durationMin)) {
       throw new ApiError(400, "La duración debe ser de 30, 45 o 60 minutos.");
     }
+    assertCityDuration(zone.cityRef, durationMin);
     const schedule = normalizeSchedule(type, body.schedule);
     const paymentMethod = oneOf(body.paymentMethod, ["QR", "TRANSFER", "CASH", "PLAN"] as const, "El método de pago");
     const subscription =
@@ -100,8 +100,8 @@ export async function POST(req: Request) {
     const notes = optStr(body, "notes", { max: 500 }) ?? null;
     const preferredWalkerUserId = optStr(body, "preferredWalkerUserId") ?? null;
 
-    // --- pricing: preferred walker's band, else config band ---
-    let pricePerWalkCents = priceBandForDuration(cfg, durationMin);
+    // --- pricing: preferred walker's band, else the city's band ---
+    let pricePerWalkCents = cityPriceForDuration(zone.cityRef, durationMin);
     let preferredProfile: { id: string; userId: string; status: string; price30Cents: number; price45Cents: number; price60Cents: number } | null = null;
     if (preferredWalkerUserId) {
       preferredProfile = await db.walkerProfile.findUnique({

@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { ApiError, ok, optNum, optStr, readJson, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { sessionUserOf } from "@/lib/server/serialize";
+import { usableZone } from "@/lib/server/cities";
 
 export async function GET(req: Request) {
   return run(async () => {
@@ -28,8 +29,7 @@ export async function PATCH(req: Request) {
 
     const zoneId = optStr(body, "zoneId");
     if (zoneId !== undefined) {
-      const zone = await db.zone.findUnique({ where: { id: zoneId } });
-      if (!zone || !zone.active) throw new ApiError(400, "La zona seleccionada no existe.");
+      await usableZone(zoneId, "La zona seleccionada no existe.");
       data.zoneId = zoneId;
     }
 

@@ -1,7 +1,7 @@
 // POST /api/walkers/match {zoneId, durationMin, schedule, excludeWalkerIds?}
 // → { candidates: WalkerCardDTO[] } — rules-based ranking, max 4 (anti-shotgun).
 
-import { db } from "@/lib/db";
+import { usableZone, assertCityDuration } from "@/lib/server/cities";
 import { ApiError, ok, readJson, reqNum, run } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { matchWalkers, normalizeSchedule } from "@/lib/server/bookingEngine";
@@ -14,8 +14,7 @@ export async function POST(req: Request) {
 
     const zoneId = typeof body.zoneId === "string" ? body.zoneId : "";
     if (!zoneId) throw new ApiError(400, "La zona es obligatoria.");
-    const zone = await db.zone.findUnique({ where: { id: zoneId } });
-    if (!zone || !zone.active) throw new ApiError(400, "La zona seleccionada no está disponible.");
+    const zone = await usableZone(zoneId);
 
     // Infer the schedule shape when `type` is not provided:
     // items with `day` → recurring weekly slots; items with `date` → one-off.
@@ -34,6 +33,7 @@ export async function POST(req: Request) {
     if (![30, 45, 60].includes(durationMin)) {
       throw new ApiError(400, "La duración debe ser de 30, 45 o 60 minutos.");
     }
+    assertCityDuration(zone.cityRef, durationMin);
     const schedule = normalizeSchedule(type, body.schedule);
 
     const exclude = Array.isArray(body.excludeWalkerIds)
