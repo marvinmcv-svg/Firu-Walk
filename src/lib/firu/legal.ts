@@ -126,13 +126,13 @@ function termsEs(c: Ctx): LegalDoc {
         heading: "3. Tu cuenta",
         paragraphs: [
           "Ingresas con tu número de celular y un código que te enviamos por WhatsApp o SMS. Eres responsable de mantener el control de tu celular y de que tus datos (nombre, dirección, datos de tus perros) sean verdaderos y estén actualizados.",
-          "Debes ser mayor de 18 años para crear una cuenta y reservar. Podemos suspender cuentas usadas para fraude, abuso, acoso, pagos faleres o para contratar paseadores fuera de la plataforma.",
+          "Debes ser mayor de 18 años para crear una cuenta y reservar. Podemos suspender cuentas usadas para fraude, abuso, acoso, pagos falsos o para contratar paseadores fuera de la plataforma.",
         ],
       },
       {
         heading: "4. Tus perros",
         paragraphs: [
-          "Declarás que eres el dueño o responsable del perro, que tiene sus vacunas al día (incluida la antirrábica, según la normativa municipal) y que nos informaste con honestidad su temperamento, conducta con personas y otros perros, condiciones de salud y cualquier restricción.",
+          "Declaras que eres el dueño o responsable del perro, que tiene sus vacunas al día (incluida la antirrábica, según la normativa municipal) y que nos informaste con honestidad su temperamento, conducta con personas y otros perros, condiciones de salud y cualquier restricción.",
           "Debes entregar al perro con collar o arnés en buen estado y placa de identificación. El paseador puede negarse a pasear a un perro que esté enfermo, herido, en celo sin aviso previo o que represente un riesgo; en ese caso aplica la Política de Cancelaciones.",
           `Por el calor de ${c.city}, evitamos los paseos en las horas de mayor temperatura y podemos acortar o reprogramar un paseo por clima extremo o lluvia fuerte.`,
         ],
@@ -205,7 +205,7 @@ function privacyEs(c: Ctx): LegalDoc {
       {
         heading: "3. Para qué los usamos",
         paragraphs: [
-          "Para prestar el servicio (reservas, asignación de paseadores, seguimiento en vivo, reportes, cobros y pagos a paseadores), verificar identidades, prevenir fraude, atender emergencias y reclamos, enviarte avieres sobre tus paseos y cumplir obligaciones legales y tributarias.",
+          "Para prestar el servicio (reservas, asignación de paseadores, seguimiento en vivo, reportes, cobros y pagos a paseadores), verificar identidades, prevenir fraude, atender emergencias y reclamos, enviarte avisos sobre tus paseos y cumplir obligaciones legales y tributarias.",
           "Solo te enviaremos promociones si lo aceptas, y puedes dejar de recibirlas en cualquier momento.",
           "Las fotos de los paseos son para ti. No las publicamos en redes sociales sin tu autorización expresa.",
         ],
@@ -340,7 +340,7 @@ function cancellationEs(c: Ctx): LegalDoc {
       {
         heading: "4. Cómo se devuelve el dinero",
         paragraphs: [
-          "Los reemboleres de pagos con QR o transferencia se devuelven por el mismo medio o como saldo en tu cuenta, según prefieras. El plazo depende del banco (normalmente hasta 5 días hábiles). Los créditos de cortesía no son canjeables por dinero.",
+          "Los reembolsos de pagos con QR o transferencia se devuelven por el mismo medio o como saldo en tu cuenta, según prefieras. El plazo depende del banco (normalmente hasta 5 días hábiles). Los créditos de cortesía no son canjeables por dinero.",
           `Los paseos de planes mensuales cancelados a tiempo vuelven al saldo de tu plan. ${cfg.plans.unusedWalkPolicy === "credit" ? "Los paseos no usados al cierre del periodo se acreditan a tu saldo." : "Los paseos no usados al cierre del periodo no se acumulan ni se reembolsan."}`,
         ],
       },
