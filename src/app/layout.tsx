@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { siteUrl } from "@/lib/siteUrl";
 import { Nunito, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,8 +17,48 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/** schema.org LocalBusiness for local search ("paseo de perros Santa Cruz"). */
+function localBusinessJsonLd() {
+  const url = siteUrl();
+  return {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${url}/#business`,
+    name: "FiruWalk",
+    description:
+      "Paseos de perros con paseadores verificados en Santa Cruz de la Sierra: GPS en vivo, reportes con fotos y pago con QR.",
+    url,
+    logo: `${url}/images/brand/icon-512.png`,
+    image: `${url}/images/brand/og.jpg`,
+    telephone: "+59177165787",
+    priceRange: "Bs 15–25",
+    currenciesAccepted: "BOB",
+    paymentAccepted: "QR, transferencia bancaria, efectivo",
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Santa Cruz de la Sierra",
+      addressRegion: "Santa Cruz",
+      addressCountry: "BO",
+    },
+    geo: { "@type": "GeoCoordinates", latitude: -17.7833, longitude: -63.1821 },
+    areaServed: ["Equipetrol", "Las Palmas", "Hernando Siles", "Norte", "Cumbre de Sierras", "Bicentenario"].map(
+      (name) => ({ "@type": "Place", name: `${name}, Santa Cruz de la Sierra` })
+    ),
+    openingHoursSpecification: [
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        opens: "06:00",
+        closes: "20:00",
+      },
+    ],
+    knowsLanguage: ["es", "en"],
+  };
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://firuwalk.bo"),
+  metadataBase: new URL(siteUrl()),
+  alternates: { canonical: "/" },
   title: "FiruWalk — Paseos de perros confiables en Santa Cruz",
   description:
     "Reserva paseos recurrentes con paseadores verificados en Santa Cruz de la Sierra. Seguimiento GPS en vivo, reportes con fotos y pago con QR. Tu perro merece un FiruWalk.",
@@ -26,6 +67,8 @@ export const metadata: Metadata = {
     "Santa Cruz de la Sierra",
     "Bolivia",
     "paseadores verificados",
+    "paseador de perros Santa Cruz",
+    "Equipetrol",
     "FiruWalk",
   ],
   manifest: "/manifest.webmanifest",
@@ -86,6 +129,11 @@ export default function RootLayout({
       <body
         className={`${nunito.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        <script
+          type="application/ld+json"
+          // Static, server-rendered structured data (no user input).
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd()) }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
